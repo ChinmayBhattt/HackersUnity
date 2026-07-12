@@ -10,6 +10,7 @@ const navLinks = [
   { label: 'Community', href: '/community' },
   { label: 'Projects', href: '/projects' },
   // { label: 'Events', href: '/events' },
+  { label: 'Podcast', href: '/podcasts' },
   { label: 'Sponsors', href: '/sponsors' },
 ];
 

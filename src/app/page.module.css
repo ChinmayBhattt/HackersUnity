@@ -341,6 +341,23 @@
   gap: var(--space-6);
 }
 
+.podcastScroll {
+  display: flex;
+  gap: var(--space-6);
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  padding-bottom: var(--space-4);
+  scrollbar-width: none;
+}
+
+.podcastScroll::-webkit-scrollbar { display: none; }
+
+.podcastScroll > * {
+  flex: 0 0 320px;
+  scroll-snap-align: start;
+}
+
 /* ━━ EVENTS SCROLL ━━ */
 .eventsScroll {
   display: flex;

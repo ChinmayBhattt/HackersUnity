@@ -22,6 +22,8 @@ import { events } from '@/data/events';
 import { projects } from '@/data/projects';
 import { sponsors } from '@/data/sponsors';
 import styles from './page.module.css';
+import PodcastCard from '@/components/PodcastCard';
+import { podcasts } from '@/data/podcasts';
 
 export default function Home() {
   const [activeFilter, setActiveFilter] = useState('All');
@@ -43,6 +45,20 @@ export default function Home() {
     }
   };
 
+  const podcastScrollRef = useRef(null);
+
+  const scrollPodcastLeft = () => {
+  if (podcastScrollRef.current) {
+    podcastScrollRef.current.scrollBy({ left: -350, behavior: 'smooth' });
+  }
+};
+
+const scrollPodcastRight = () => {
+  if (podcastScrollRef.current) {
+    podcastScrollRef.current.scrollBy({ left: 350, behavior: 'smooth' });
+  }
+};
+  
   const howItWorks = [
     { icon: <UserPlus size={28} />, title: 'Create Profile', desc: 'Sign up and build your hacker profile' },
     { icon: <Search size={28} />, title: 'Discover Hackathons', desc: 'Browse and filter from 500+ events' },
@@ -196,7 +212,32 @@ export default function Home() {
 
 
 
-
+      {/* ━━ INDUSTRY INSIDER PODCAST ━━ */}
+      <AnimatedSection>
+        <section className={`section ${styles.howSection}`}>
+          <div className="container">
+            <SectionHeading label="Podcast" title="Industry Insider" subtitle="Real conversations with builders, founders and industry leaders" />
+            <div className={styles.hackathonCarouselWrapper}>
+              <button className={`${styles.carouselBtn} ${styles.prevBtn}`} onClick={scrollPodcastLeft} aria-label="Previous episodes">
+                <ChevronLeft size={24} />
+              </button>
+              <div className={styles.podcastScroll} ref={podcastScrollRef}>
+                {podcasts.map((p) => (
+                  <PodcastCard key={p.id} podcast={p} />
+                ))}
+              </div>
+              <button className={`${styles.carouselBtn} ${styles.nextBtn}`} onClick={scrollPodcastRight} aria-label="Next episodes">
+                <ChevronRight size={24} />
+              </button>
+            </div>
+            <div className={styles.viewAll}>
+              <Link href="/podcasts" className="btn btn-ghost">
+  View All Episodes <ChevronRight size={16} />
+</Link>
+            </div>
+          </div>
+        </section>
+      </AnimatedSection>
 
 
 
