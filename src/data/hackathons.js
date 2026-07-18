@@ -1,5 +1,27 @@
 
 export const hackathons = [
+{
+    id: 'chatgpt-codex',
+    name: 'Chatgpt Codex Hackathon',
+    organizer: 'Hacker\'s Unity X BlockseBlock',
+    organizerLogo: "",
+    status: 'LIVE',
+    mode: 'Online',
+    domain: 'Artificial Intelligence',
+    prize: 'Codex Pro access for 1 year',
+    prizeAmount: "",
+    teamSize: 'Individual',
+    deadline: '2026-08-03T23:59:59',
+    startDate: '2026-07-23', 
+    endDate: '2026-08-03',
+    participants: "500+",
+    tags: ['OpenAI', 'CodexHackathon2026', 'Codex', 'Innovation'],
+    description: 'Build real-world AI applications using ChatGPT Codex, collaborate with mentors, showcase your innovation, and compete with some of India\'s brightest AI builders.',
+    image: '/gallery/openai-hackathon.jpeg.jpeg',
+    registrationLink: 'https://linkly.link/2nEHd',
+    featured: true,
+    ctaText: 'Learn More',
+  },
   {
     id: 'kestra-orchestration',
     name: 'Kestra Orchestration Challenge',
