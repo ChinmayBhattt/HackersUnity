@@ -1,5 +1,27 @@
 
 export const hackathons = [
+  {
+    id: 'clash-of-coders',
+    name: 'Clash Of Coders',
+    organizer: 'Hacker\'s Unity',
+    organizerLogo: "",
+    status: 'LIVE',
+    mode: 'Offline',
+    domain: 'Blockchain , Web3',
+    prize: '$2100 + Swags',
+    prizeAmount: "",
+    teamSize: '1-3',
+    deadline: '2026-08-03T23:59:59',
+    startDate: '2026-08-23', 
+    endDate: '2026-08-024',
+    participants: "500+",
+    tags: ['Blockchain', 'Web3', 'Innovation'],
+    description: 'Join Hacker’s Unity for an electrifying 24-hour hackathon where your creativity, coding skills, and problem-solving abilities will be pushed to the next level. 💻⚡',
+    image: '/gallery/clash-of-coders.jpeg',
+    registrationLink: 'https://shorturl.at/91An3',
+    featured: true,
+    ctaText: 'Learn More',
+  },
 {
     id: 'chatgpt-codex',
     name: 'Chatgpt Codex Hackathon',
