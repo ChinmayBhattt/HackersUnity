@@ -13,7 +13,7 @@ const footerLinks = {
   Legal: [
     { label: 'Privacy Policy', href: '/privacy' },
     { label: 'Terms of Service', href: '/terms' },
-    // { label: 'Brand Kit', href: '/brand-kit' },
+    { label: 'Brand Guidelines', href: 'https://drive.google.com/file/d/1RRAsdAc60FG0aY3oSAs4_YvF2NlRwOS2/view?usp=sharing' },
   ],
 };
 
@@ -84,13 +84,20 @@ export default function Footer() {
           <div key={category} className={styles.linkCol}>
             <h4 className={styles.colTitle}>{category}</h4>
             <ul>
-              {links.map((link) => (
-                <li key={link.label}>
-                  <Link href={link.href} className={styles.footerLink}>
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
+              {links.map((link) => {
+                const isExternal = link.href.startsWith('http');
+                return (
+                  <li key={link.label}>
+                    <Link
+                      href={link.href}
+                      className={styles.footerLink}
+                      {...(isExternal ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         ))}
