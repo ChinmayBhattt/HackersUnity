@@ -23,6 +23,8 @@ import {
 import styles from './credential.module.css';
 
 export default function MentorCredentialClient({ mentor }) {
+  const [copiedId, setCopiedId] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [imgSrc, setImgSrc] = useState(mentor.photo || '/mentors/tapendra.png');
 
   const handleImgError = () => {
