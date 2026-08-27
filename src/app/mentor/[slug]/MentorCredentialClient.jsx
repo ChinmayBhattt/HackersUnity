@@ -65,6 +65,7 @@ export default function MentorCredentialClient({ mentor }) {
               height={38}
               className={styles.brandLogo}
               priority
+              unoptimized
             />
             <div className={styles.brandTitleGroup}>
               <span className={styles.brandName}>
@@ -118,6 +119,7 @@ export default function MentorCredentialClient({ mentor }) {
             width={320}
             height={320}
             className={styles.watermarkLogo}
+            unoptimized
           />
 
           {/* Certificate Header Banner */}
@@ -149,6 +151,7 @@ export default function MentorCredentialClient({ mentor }) {
                   height={200}
                   className={styles.avatarImg}
                   priority
+                  unoptimized
                 />
               </div>
               <div className={styles.avatarVerifiedCheck} title="Verified Identity">
