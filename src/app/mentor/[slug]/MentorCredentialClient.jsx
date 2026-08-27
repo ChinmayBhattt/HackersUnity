@@ -23,8 +23,17 @@ import {
 import styles from './credential.module.css';
 
 export default function MentorCredentialClient({ mentor }) {
-  const [copiedId, setCopiedId] = useState(false);
-  const [copiedLink, setCopiedLink] = useState(false);
+  const [imgSrc, setImgSrc] = useState(mentor.photo || '/mentors/tapendra.png');
+
+  const handleImgError = () => {
+    if (imgSrc.includes('/mentors/tapendra.png')) {
+      setImgSrc('/mentors/Tapendra.png');
+    } else if (imgSrc.includes('/mentors/Tapendra.png')) {
+      setImgSrc('/mentor/tapendra.png');
+    } else if (imgSrc.includes('/mentor/tapendra.png')) {
+      setImgSrc('/mentor/Tapendra.png');
+    }
+  };
 
   const handleCopyId = () => {
     if (!mentor) return;
@@ -144,14 +153,15 @@ export default function MentorCredentialClient({ mentor }) {
           <div className={styles.profileGrid}>
             <div className={styles.avatarWrapper}>
               <div className={styles.avatarInner}>
-                <Image
-                  src={mentor.photo}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={imgSrc}
                   alt={mentor.name}
                   width={200}
                   height={200}
                   className={styles.avatarImg}
-                  priority
-                  unoptimized
+                  onError={handleImgError}
+                  loading="eager"
                 />
               </div>
               <div className={styles.avatarVerifiedCheck} title="Verified Identity">
