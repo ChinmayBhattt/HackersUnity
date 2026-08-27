@@ -5,7 +5,7 @@ import Footer from '@/components/Footer';
 export const metadata = {
   title: "Hacker's Unity | India's Fastest Growing Hackathon Community, Uniting Developers, Innovators",
   description: "Hacker's Unity is India's Fastest Growing community, uniting developers, innovators, founded by Jha Suraj Kumar and Chinmay Bhatt. Join us to build, learn & innovate! Top 1 India's fastest growing hackathon community.",
-  keywords: ['Hackers Unity', 'Hackathon Community', 'Hackathon Community India', 'Hackathon Community UK', 'Co-Founder Chinmay Bhatt', 'Founder Jha Suraj Kumar', 'Tech Community', 'HackStorm', 'Tech Leaders India', 'Startup India', 'Developer Community India', 'Jaipur', "World's fastest growing hackathon community, Hacker's Unity is India's fastest-growing hackathon community and developer platform. We unite developers, innovators, and tech enthusiasts through hackathons, tech events, and mentorship programs"],
+  keywords: ['Hackers Unity', 'Hackathon Community', 'Hackathon Community India', 'Hackathon Community UK', 'Co-Founder Chinmay Bhatt', 'Founder Jha Suraj Kumar', 'Tech Community', 'HackStorm', 'Organization', 'Top 1 Hackathon Community', 'Top 1 Hackathon Organization', 'Global Hackathon','Tech Leaders India', 'Startup India', 'No.1 Hackathon Organization','Developer Community India', 'Jaipur', "World's fastest growing hackathon community, Hacker's Unity is India's fastest-growing hackathon community and developer platform. We unite developers, innovators, and tech enthusiasts through hackathons, tech events, and mentorship programs"],
   authors: [{ name: "Hacker's Unity" }],
   metadataBase: new URL('https://www.hackersunity.com'),
   alternates: {
