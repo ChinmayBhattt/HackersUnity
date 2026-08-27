@@ -21,11 +21,12 @@ import {
   Lock
 } from 'lucide-react';
 import styles from './credential.module.css';
+import tapendraDefaultPhoto from '../../../../assets/mentor/Tapendra.png';
 
 export default function MentorCredentialClient({ mentor }) {
   const [copiedId, setCopiedId] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
-  const [imgSrc, setImgSrc] = useState(mentor.photo || '/mentors/tapendra.png');
+  const [imgSrc, setImgSrc] = useState(tapendraDefaultPhoto);
 
   const handleImgError = () => {
     if (imgSrc.includes('/mentors/tapendra.png')) {
@@ -155,15 +156,14 @@ export default function MentorCredentialClient({ mentor }) {
           <div className={styles.profileGrid}>
             <div className={styles.avatarWrapper}>
               <div className={styles.avatarInner}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={imgSrc}
+                <Image
+                  src={imgSrc || tapendraDefaultPhoto}
                   alt={mentor.name}
                   width={200}
                   height={200}
                   className={styles.avatarImg}
-                  onError={handleImgError}
-                  loading="eager"
+                  priority
+                  unoptimized
                 />
               </div>
               <div className={styles.avatarVerifiedCheck} title="Verified Identity">
