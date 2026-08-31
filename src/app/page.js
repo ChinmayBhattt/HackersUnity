@@ -75,7 +75,8 @@ const scrollPodcastRight = () => {
         <div className={`container ${styles.heroContent}`}>
           <span className={styles.heroBadge}>Global Tech Community</span>
           <h1 className={`heading-xl ${styles.heroTitle}`}>
-            Hacker&apos;s Unity is India&apos;s Fastest-Growing Tech Community
+            <span className={styles.brandHackers}>Hacker&apos;s</span>{' '}
+            <span className={styles.brandUnity}>Unity</span> is India&apos;s Fastest-Growing Tech Community
           </h1>
           <p className={styles.heroSub}>
             Hacker&apos;s Unity is India&apos;s Fastest Growing tech community that brings together developers, innovators, and technology enthusiasts. Its mission is to empower students with real-world skills and connect them with industry opportunities.

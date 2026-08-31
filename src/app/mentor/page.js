@@ -40,7 +40,7 @@ export default function MentorLookupPortal() {
             Official Verification Portal
           </span>
 
-          <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '26px', color: '#FFFFFF', marginBottom: '12px' }}>
+          <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '26px', color: 'var(--text-primary)', marginBottom: '12px' }}>
             Hacker&apos;s Unity Mentor Registry
           </h1>
 
@@ -59,19 +59,19 @@ export default function MentorLookupPortal() {
                   width: '100%',
                   padding: '16px 20px',
                   borderRadius: '12px',
-                  background: '#08080E',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  color: '#FFFFFF',
+                  background: '#FFFFFF',
+                  border: '1px solid var(--border-medium)',
+                  color: 'var(--text-primary)',
                   fontSize: '15px',
                   fontFamily: 'var(--font-mono)',
                   outline: 'none',
-                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)',
+                  boxShadow: 'inset 0 1px 3px rgba(15, 23, 42, 0.05)',
                 }}
               />
             </div>
 
             {error && (
-              <p style={{ color: '#E85D6F', fontSize: '13px', textAlign: 'left' }}>
+              <p style={{ color: 'var(--danger)', fontSize: '13px', textAlign: 'left' }}>
                 {error}
               </p>
             )}
@@ -97,7 +97,7 @@ export default function MentorLookupPortal() {
             </button>
           </form>
 
-          <div style={{ marginTop: '32px', paddingTop: '20px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--text-dim)', fontSize: '12px' }}>
+          <div style={{ marginTop: '32px', paddingTop: '20px', borderTop: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: 'var(--text-dim)', fontSize: '12px' }}>
             <Lock size={12} />
             <span>Encrypted Verification • Official Central Registry</span>
           </div>

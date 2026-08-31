@@ -1,6 +1,14 @@
-.heroBanner { padding: var(--space-20) 0 var(--space-10); background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle); }
-.searchBar { display: flex; align-items: center; gap: var(--space-3); max-width: 560px; margin: 0 auto; padding: 14px 20px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-medium); border-radius: var(--radius-md); color: var(--text-muted); transition: border-color var(--transition-fast); }
-.searchBar:focus-within { border-color: var(--accent-primary); }
+.heroBanner {
+  padding: var(--space-20) 0 var(--space-10);
+  background: var(--bg-surface);
+  background-image: 
+    linear-gradient(rgba(15, 23, 42, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.searchBar { display: flex; align-items: center; gap: var(--space-3); max-width: 560px; margin: 0 auto; padding: 14px 20px; background: #FFFFFF; border: 1px solid var(--border-medium); border-radius: var(--radius-md); color: var(--text-muted); box-shadow: var(--shadow-card); transition: border-color var(--transition-fast), box-shadow var(--transition-fast); }
+.searchBar:focus-within { border-color: var(--accent-primary); box-shadow: 0 0 0 3px rgba(255, 106, 0, 0.15), var(--shadow-card); }
 .searchInput { flex: 1; font-size: 0.9375rem; color: var(--text-primary); }
 .searchInput::placeholder { color: var(--text-dim); }
 .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-6); }

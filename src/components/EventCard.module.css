@@ -14,9 +14,9 @@
 }
 
 .card:hover {
-  border-color: rgba(245, 200, 117, 0.3);
+  border-color: rgba(255, 106, 0, 0.35);
   transform: translateY(-4px);
-  box-shadow: 0 0 24px rgba(245, 200, 117, 0.1), 0 8px 32px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 10px 25px -4px rgba(255, 106, 0, 0.12), var(--shadow-card-hover);
 }
 
 .iconWrapper {

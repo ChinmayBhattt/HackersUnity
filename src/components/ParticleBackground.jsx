@@ -28,7 +28,7 @@ export default function ParticleBackground() {
         length: 60 + Math.random() * 120,
         speed: 0.2 + Math.random() * 0.5,
         horizontal: Math.random() > 0.5,
-        color: Math.random() > 0.5 ? 'rgba(255, 106, 0, 0.08)' : 'rgba(0, 136, 255, 0.08)',
+        color: 'rgba(15, 23, 42, 0.04)',
       });
     }
 
@@ -43,8 +43,8 @@ export default function ParticleBackground() {
         size: 10 + Math.random() * 6,
         speedX: (Math.random() - 0.5) * 0.3,
         speedY: -0.2 - Math.random() * 0.3,
-        opacity: 0.05 + Math.random() * 0.12,
-        color: Math.random() > 0.5 ? '#7F77DD' : '#1D9E75',
+        opacity: 0.08 + Math.random() * 0.14,
+        color: Math.random() > 0.5 ? '#FF6A00' : '#0088FF',
       });
     }
 
