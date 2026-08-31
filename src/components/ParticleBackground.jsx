@@ -20,30 +20,30 @@ export default function ParticleBackground() {
     resize();
 
     // Grid lines (moving)
-    const gridCount = 20;
+    const gridCount = 25;
     for (let i = 0; i < gridCount; i++) {
       gridLines.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        length: 60 + Math.random() * 120,
-        speed: 0.2 + Math.random() * 0.5,
+        length: 80 + Math.random() * 140,
+        speed: 0.25 + Math.random() * 0.5,
         horizontal: Math.random() > 0.5,
-        color: 'rgba(15, 23, 42, 0.04)',
+        color: 'rgba(15, 23, 42, 0.08)',
       });
     }
 
     // Floating code particles
-    const codeSnippets = ['{', '}', '</', '()', '=>', '[]', '01', '/>', '&&', '||', '!=', '++', '::'];
-    const particleCount = 30;
+    const codeSnippets = ['{', '}', '</', '()', '=>', '[]', '01', '/>', '&&', '||', '!=', '++', '::', '//', '#!'];
+    const particleCount = 40;
     for (let i = 0; i < particleCount; i++) {
       particles.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
         text: codeSnippets[Math.floor(Math.random() * codeSnippets.length)],
-        size: 10 + Math.random() * 6,
-        speedX: (Math.random() - 0.5) * 0.3,
-        speedY: -0.2 - Math.random() * 0.3,
-        opacity: 0.08 + Math.random() * 0.14,
+        size: 13 + Math.random() * 8,
+        speedX: (Math.random() - 0.5) * 0.35,
+        speedY: -0.25 - Math.random() * 0.35,
+        opacity: 0.22 + Math.random() * 0.22,
         color: Math.random() > 0.5 ? '#FF6A00' : '#0088FF',
       });
     }
