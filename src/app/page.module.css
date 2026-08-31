@@ -6,6 +6,10 @@
   flex-direction: column;
   justify-content: center;
   overflow: hidden;
+  background-image: 
+    linear-gradient(rgba(15, 23, 42, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.03) 1px, transparent 1px);
+  background-size: 44px 44px;
 }
 
 .heroGradient {
@@ -14,8 +18,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: radial-gradient(ellipse at 30% 20%, rgba(255, 106, 0, 0.12) 0%, transparent 60%),
-              radial-gradient(ellipse at 70% 60%, rgba(0, 136, 255, 0.08) 0%, transparent 50%);
+  background: radial-gradient(ellipse at 50% 15%, rgba(255, 106, 0, 0.05) 0%, transparent 65%);
   z-index: 1;
 }
 
@@ -35,10 +38,10 @@
   align-items: center;
   gap: 8px;
   font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--highlight);
-  background: rgba(245, 200, 117, 0.1);
-  border: 1px solid rgba(245, 200, 117, 0.2);
+  font-weight: 600;
+  color: #D97706;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
   border-radius: var(--radius-full);
   padding: 8px 20px;
   animation: fadeUp 0.8s ease forwards;
@@ -47,6 +50,16 @@
 .heroTitle {
   max-width: 800px;
   min-height: 1.2em;
+}
+
+.brandHackers {
+  color: var(--accent-secondary);
+  font-weight: 800;
+}
+
+.brandUnity {
+  color: var(--accent-primary);
+  font-weight: 800;
 }
 
 .heroSub {
@@ -135,15 +148,15 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: var(--glass-bg);
-  border: 1px solid var(--border-subtle);
+  background: #FFFFFF;
+  border: 1px solid var(--border-medium);
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-primary);
   cursor: pointer;
   z-index: 10;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
   transition: all var(--transition-fast);
   backdrop-filter: blur(8px);
 }
@@ -211,9 +224,9 @@
   width: 64px;
   height: 64px;
   border-radius: var(--radius-lg);
-  background: rgba(255, 106, 0, 0.1);
+  background: rgba(255, 106, 0, 0.08);
   border: 1px solid rgba(255, 106, 0, 0.2);
-  color: var(--accent-primary-light);
+  color: var(--accent-primary);
   position: relative;
   z-index: 1;
 }
@@ -285,7 +298,7 @@
   width: 100%;
   border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
 }
 
 .communityImageWrapper {
@@ -303,17 +316,17 @@
 .communityGlassCard {
   position: absolute;
   bottom: 24px;
-  left: 24px; /* Using left instead of right to balance */
-  background: rgba(15, 23, 42, 0.6);
+  left: 24px;
+  background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-top: 1px solid rgba(255, 255, 255, 0.25);
-  border-left: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.9);
+  border-left: 1px solid rgba(255, 255, 255, 0.9);
   border-radius: 16px;
   padding: 16px 24px;
-  color: white;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  color: var(--text-primary);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.1);
   max-width: 250px;
   animation: float 4s ease-in-out infinite;
 }
@@ -322,7 +335,7 @@
   margin: 0 0 6px 0;
   font-size: 1.15rem;
   font-weight: 800;
-  background: linear-gradient(to right, #fff, #cbd5e1);
+  background: var(--gradient-primary);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -330,7 +343,7 @@
 .communityGlassCard p {
   margin: 0;
   font-size: 0.85rem;
-  color: #e2e8f0;
+  color: var(--text-secondary);
   line-height: 1.4;
 }
 
@@ -396,6 +409,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-6);
+  box-shadow: var(--shadow-card);
 }
 
 .hostDesc {
@@ -442,16 +456,18 @@
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-5) var(--space-6);
-  background: rgba(255, 255, 255, 0.03);
+  background: #FFFFFF;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
   transition: all var(--transition-base);
   min-width: 100px;
 }
 
 .sponsorLogo:hover {
-  background: rgba(255, 106, 0, 0.08);
-  border-color: rgba(255, 106, 0, 0.2);
+  background: rgba(255, 106, 0, 0.04);
+  border-color: rgba(255, 106, 0, 0.25);
+  box-shadow: var(--shadow-card-hover);
   transform: translateY(-2px);
 }
 

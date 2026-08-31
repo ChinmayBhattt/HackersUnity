@@ -46,8 +46,8 @@
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+    linear-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
   background-size: 60px 60px;
   mask-image: radial-gradient(ellipse 60% 70% at 50% 50%, black 20%, transparent 70%);
   -webkit-mask-image: radial-gradient(ellipse 60% 70% at 50% 50%, black 20%, transparent 70%);
@@ -81,11 +81,10 @@
   width: 560px;
   height: 560px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(15, 23, 42, 0.06);
   box-shadow:
     inset 0 0 80px rgba(255, 106, 0, 0.04),
-    inset 0 0 120px rgba(0, 136, 255, 0.03),
-    0 0 80px rgba(255, 106, 0, 0.02);
+    0 0 60px rgba(255, 106, 0, 0.02);
   pointer-events: none;
   animation: pulseSphere 6s ease-in-out infinite;
 }
@@ -95,7 +94,7 @@
   content: '';
   position: absolute;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(15, 23, 42, 0.04);
 }
 
 .wireframeSphere::before {
@@ -145,9 +144,9 @@
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   box-shadow:
-    0 4px 20px rgba(0, 0, 0, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+    0 4px 20px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(15, 23, 42, 0.08);
   transition:
     transform 0.5s cubic-bezier(0.25, 1, 0.5, 1),
     box-shadow 0.5s cubic-bezier(0.25, 1, 0.5, 1),
@@ -165,8 +164,8 @@
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   transform: rotateY(180deg);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.06);
 }
 
 /* Dark tint on back face for depth */
@@ -226,9 +225,8 @@
 .cardActive .cardInner {
   transform: scale(1.3);
   box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.7),
-    0 0 35px rgba(255, 106, 0, 0.2),
-    0 0 70px rgba(0, 136, 255, 0.12);
+    0 16px 40px rgba(15, 23, 42, 0.15),
+    0 0 35px rgba(255, 106, 0, 0.2);
   border-color: transparent;
 }
 
@@ -253,12 +251,12 @@
   margin-top: var(--space-6);
   padding: 8px 20px;
   border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
   font-family: var(--font-heading);
   font-size: 0.75rem;
   font-weight: 500;
-  color: var(--text-dim);
+  color: var(--text-muted);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -289,16 +287,14 @@
     transform: scale(1);
     box-shadow:
       inset 0 0 80px rgba(255, 106, 0, 0.04),
-      inset 0 0 120px rgba(0, 136, 255, 0.03),
-      0 0 80px rgba(255, 106, 0, 0.02);
+      0 0 60px rgba(255, 106, 0, 0.02);
   }
   50% {
     opacity: 0.7;
     transform: scale(1.02);
     box-shadow:
-      inset 0 0 100px rgba(255, 106, 0, 0.06),
-      inset 0 0 150px rgba(0, 136, 255, 0.04),
-      0 0 100px rgba(0, 136, 255, 0.04);
+      inset 0 0 100px rgba(255, 106, 0, 0.07),
+      0 0 80px rgba(255, 106, 0, 0.03);
   }
 }
 

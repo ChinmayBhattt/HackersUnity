@@ -66,16 +66,17 @@
   width: 36px;
   height: 36px;
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border-subtle);
+  background: #FFFFFF;
+  border: 1px solid var(--border-medium);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
   color: var(--text-muted);
   transition: all var(--transition-fast);
 }
 
 .socialLink:hover {
-  background: rgba(255, 106, 0, 0.15);
-  border-color: rgba(255, 106, 0, 0.3);
-  color: var(--accent-primary-light);
+  background: rgba(255, 106, 0, 0.08);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
   transform: translateY(-2px);
 }
 
@@ -108,7 +109,7 @@
 }
 
 .footerLink:hover {
-  color: var(--accent-primary-light);
+  color: var(--accent-primary);
 }
 
 .contactList {
@@ -127,7 +128,7 @@
 }
 
 .contactLink:hover {
-  color: var(--accent-primary-light);
+  color: var(--accent-primary);
 }
 
 /* Bottom Bar */
@@ -136,7 +137,7 @@
   padding: var(--space-6) 0;
   text-align: center;
   font-size: 0.8125rem;
-  color: var(--text-dim);
+  color: var(--text-muted);
 }
 
 /* Responsive */

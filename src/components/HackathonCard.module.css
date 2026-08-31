@@ -54,9 +54,9 @@
 }
 
 .card:hover {
-  border-color: rgba(255, 106, 0, 0.3);
-  transform: translateY(-4px) scale(1.02);
-  box-shadow: 0 0 30px rgba(255, 106, 0, 0.12), 0 8px 40px rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 106, 0, 0.35);
+  transform: translateY(-4px) scale(1.01);
+  box-shadow: 0 10px 25px -4px rgba(255, 106, 0, 0.12), var(--shadow-card-hover);
 }
 
 .cardHeader {
@@ -93,7 +93,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  color: var(--accent-primary-light);
+  color: var(--accent-primary);
 }
 
 .prizeAmount {
@@ -126,8 +126,8 @@
   text-transform: uppercase;
   padding: 2px 8px;
   border-radius: var(--radius-sm);
-  background: rgba(0, 136, 255, 0.12);
-  color: var(--accent-secondary-light);
+  background: rgba(0, 136, 255, 0.08);
+  color: #0284C7;
   letter-spacing: 0.05em;
 }
 
@@ -136,7 +136,7 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-surface);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
   color: var(--text-muted);
