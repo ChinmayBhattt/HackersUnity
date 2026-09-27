@@ -18,7 +18,8 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { email, password, name, phone, role } = body;
+    // SELINE: removed role
+    const { email, password, name, phone } = body;
 
     // 2. Validate presence
     if (!email || !password) {
@@ -32,7 +33,9 @@ export async function POST(req: Request) {
     const cleanPassword = String(password);
     const cleanName = String(name || '').trim() || cleanEmail.split('@')[0];
     const cleanPhone = phone ? String(phone).trim() : null;
-    const cleanRole = role || 'PARTICIPANT';
+
+    // SELINE: removed or statement to strictly be participant only
+    const cleanRole = 'PARTICIPANT';
 
     // 3. Validate email format
     if (!EMAIL_REGEX.test(cleanEmail)) {
@@ -81,6 +84,7 @@ export async function POST(req: Request) {
     // 6. Create new user with email verification requirement
     const shouldAutoConfirm = process.env.AUTO_CONFIRM_EMAIL === 'true';
 
+    // SELINE: removed role: cleanRole as it is NOT A MODIFIABLE FIELD BY EXTERNAL USERS
     const { data: createData, error: createError } =
       await supabaseAdmin.auth.admin.createUser({
         email: cleanEmail,
@@ -90,7 +94,6 @@ export async function POST(req: Request) {
           name: cleanName,
           full_name: cleanName,
           phone: cleanPhone,
-          role: cleanRole,
         },
       });
 
