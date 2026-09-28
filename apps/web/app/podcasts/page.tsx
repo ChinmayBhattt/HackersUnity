@@ -21,18 +21,6 @@ import {
 import { FaSpotify, FaYoutube } from 'react-icons/fa6';
 import { PODCAST_EPISODES, PodcastEpisode } from '@/lib/podcasts-data';
 
-function GooglePodcastsIcon({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="3" y="9.5" width="2.5" height="5" rx="1.25" fill="#EA4335" />
-      <rect x="7" y="6.5" width="2.5" height="11" rx="1.25" fill="#FBBC04" />
-      <rect x="11" y="3.5" width="2.5" height="17" rx="1.25" fill="#4285F4" />
-      <rect x="15" y="6.5" width="2.5" height="11" rx="1.25" fill="#34A853" />
-      <rect x="19" y="9.5" width="2.5" height="5" rx="1.25" fill="#EA4335" />
-    </svg>
-  );
-}
-
 const STREAMING_PARTNERS = [
   {
     name: 'Spotify',
@@ -47,13 +35,6 @@ const STREAMING_PARTNERS = [
     icon: FaYoutube,
     iconColor: 'text-[#FF0000]',
     color: 'border-red-500/20 dark:border-red-500/15',
-  },
-  {
-    name: 'Google Podcasts',
-    badge: 'Web & Android',
-    icon: GooglePodcastsIcon,
-    iconColor: 'text-amber-500',
-    color: 'border-amber-500/20 dark:border-amber-500/15',
   },
 ];
 
@@ -408,7 +389,7 @@ export default function PodcastsPage() {
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5 w-full max-w-4xl mx-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-5 w-full max-w-2xl mx-auto">
               {STREAMING_PARTNERS.map((partner) => {
                 const Icon = partner.icon;
                 return (
