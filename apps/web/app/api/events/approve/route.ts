@@ -1,86 +1,41 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://example.supabase.co';
-const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy';
-const serverSupabase = createClient(supabaseUrl, supabaseSecretKey);
-
-export async function GET(req: Request) {
-  try {
-    const url = new URL(req.url);
-    const eventId = url.searchParams.get('id') || url.searchParams.get('eventId');
-    const slug = url.searchParams.get('slug');
-
-    if (!eventId && !slug) {
-      return new Response(renderResultHtml('Error', 'Missing Event ID or Slug', false), {
-        headers: { 'Content-Type': 'text/html' },
-        status: 400,
-      });
-    }
-
-    const isUuid = Boolean(eventId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId));
-
-    let updateRes: any = null;
-    if (isUuid) {
-      updateRes = await serverSupabase
-        .from('events')
-        .update({ status: 'PUBLISHED', updated_at: new Date().toISOString() })
-        .eq('id', eventId)
-        .select('*')
-        .single();
-    } else {
-      const target = slug || eventId;
-      updateRes = await serverSupabase
-        .from('events')
-        .update({ status: 'PUBLISHED', updated_at: new Date().toISOString() })
-        .eq('slug', target)
-        .select('*')
-        .single();
-    }
-
-    if (updateRes?.error || !updateRes?.data) {
-      // Try by slug fallback
-      const fallbackTarget = slug || eventId;
-      const secondTry = await serverSupabase
-        .from('events')
-        .update({ status: 'PUBLISHED', updated_at: new Date().toISOString() })
-        .eq('slug', fallbackTarget)
-        .select('*')
-        .single();
-
-      if (secondTry?.error || !secondTry?.data) {
-        return new Response(
-          renderResultHtml('Approval Failed', updateRes?.error?.message || 'Hackathon event not found in database.', false),
-          { headers: { 'Content-Type': 'text/html' }, status: 404 }
-        );
-      }
-      updateRes = secondTry;
-    }
-
-    const event = updateRes.data;
-    const origin = url.origin || 'https://hackersunity.com';
-    const liveUrl = `${origin}/hackathons/${event.slug || event.id}`;
-
-    return new Response(
-      renderResultHtml(
-        'Hackathon Approved & Published! 🎉',
-        `The hackathon <strong>"${event.title}"</strong> has been successfully approved and is now live on Hacker's Unity for the global community.`,
-        true,
-        liveUrl,
-        event.title
-      ),
-      { headers: { 'Content-Type': 'text/html; charset=utf-8' }, status: 200 }
-    );
-  } catch (err: any) {
-    return new Response(
-      renderResultHtml('Server Error', err.message || 'An unexpected error occurred during approval.', false),
-      { headers: { 'Content-Type': 'text/html' }, status: 500 }
-    );
-  }
-}
+// SELINE: new imports to handle authentication and authorization
+import {
+  authenticateRequest,
+  createAdminClient,
+  forbiddenResponse,
+  unauthorizedResponse,
+} from '@/lib/api-auth';
 
 export async function POST(req: Request) {
   try {
+
+    // SELINE: removed module-lvl supabase client and replaced with admin client for server-side auth
+    const auth = await authenticateRequest(req);
+    if (!auth) {
+      return unauthorizedResponse('You must be signed in to approve events.');
+    }
+
+    const serverSupabase = createAdminClient();
+
+    // SELINE : check if the authenticated user has admin privileges. only allow SUPER_ADMIN or ADMIN roles to approve events
+    const { data: profile, error: profileError } = await serverSupabase
+      .from('profiles')
+      .select('role')
+      .eq('id', auth.userId)
+      .maybeSingle();
+
+    if (profileError) {
+      return NextResponse.json(
+        { error: 'Failed to verify administrator permissions.' },
+        { status: 500 }
+      );
+    }
+
+    if (!profile || !['ADMIN', 'SUPER_ADMIN'].includes(profile.role)) {
+      return forbiddenResponse('Only administrators can approve events.');
+    }
+
     const body = await req.json();
     const { eventId, slug } = body;
 
@@ -105,7 +60,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ success: true, event: data });
-  } catch (err: any) {
+  } catch (err: any) { // SELINE: flagged eslint error
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
 }

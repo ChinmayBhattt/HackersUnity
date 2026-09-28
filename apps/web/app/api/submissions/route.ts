@@ -1,12 +1,96 @@
 import { NextResponse } from 'next/server';
+import { isIP } from 'node:net';
 import {
   authenticateRequest,
   createAdminClient,
+  forbiddenResponse,
   unauthorizedResponse,
 } from '@/lib/api-auth';
 
+// SELINE: default allowed webhook hosts for Google Apps Script
+const DEFAULT_WEBHOOK_HOSTS = new Set([
+  'script.google.com',
+  'script.googleusercontent.com',
+]);
+
+// SELINE: helper func to check if a hostname is private or reserved IP
+// used to validate webhook URLs to prevent SSRF attacks
+function isPrivateOrReservedIp(hostname: string): boolean {
+  const normalizedHostname = hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  const ipVersion = isIP(normalizedHostname);
+
+  if (ipVersion === 6) {
+    return (
+      normalizedHostname === '::' ||
+      normalizedHostname === '::1' ||
+      normalizedHostname.startsWith('fc') ||
+      normalizedHostname.startsWith('fd') ||
+      normalizedHostname.startsWith('fe8') ||
+      normalizedHostname.startsWith('fe9') ||
+      normalizedHostname.startsWith('fea') ||
+      normalizedHostname.startsWith('feb')
+    );
+  }
+
+  if (ipVersion !== 4) return false;
+
+  const octets = normalizedHostname.split('.').map(Number);
+  const [first, second] = octets;
+  return (
+    first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    (first === 100 && second >= 64 && second <= 127) ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 0) ||
+    (first === 192 && second === 168) ||
+    (first === 198 && (second === 18 || second === 19)) ||
+    first >= 224
+  );
+}
+
+function getAllowedWebhookHosts(): Set<string> {
+  const configuredHosts = process.env.ALLOWED_WEBHOOK_HOSTS
+    ?.split(',')
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean);
+
+  return new Set(configuredHosts?.length ? configuredHosts : DEFAULT_WEBHOOK_HOSTS);
+}
+
+function validateWebhookUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length > 2048) return null;
+
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase();
+
+    if (
+      url.protocol !== 'https:' ||
+      url.username ||
+      url.password ||
+      url.port ||
+      isPrivateOrReservedIp(hostname) ||
+      !getAllowedWebhookHosts().has(hostname)
+    ) {
+      return null;
+    }
+
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: Request) {
   try {
+    // SELINE: req without valid session receive unauthorized response
+    const auth = await authenticateRequest(req);
+    if (!auth) {
+      return unauthorizedResponse('You must be signed in to view submissions.');
+    }
+
     const { searchParams } = new URL(req.url);
     const eventId = searchParams.get('eventId');
 
@@ -17,18 +101,36 @@ export async function GET(req: Request) {
     const serverSupabase = createAdminClient();
     let resolvedEventId = eventId;
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
-    if (!isUuid) {
-      const { data: eventData } = await serverSupabase
-        .from('events')
-        .select('id')
-        .eq('slug', eventId)
-        .maybeSingle();
-      if (eventData?.id) {
-        resolvedEventId = eventData.id;
-      } else {
-        // Event not found in DB (e.g. mock/local event)
-        return NextResponse.json({ success: true, submissions: [] });
-      }
+    let eventQuery = serverSupabase.from('events').select('id, organizer_id').limit(1);
+    eventQuery = isUuid ? eventQuery.eq('id', eventId) : eventQuery.eq('slug', eventId);
+
+    const { data: eventData, error: eventError } = await eventQuery.maybeSingle();
+    if (eventError) {
+      return NextResponse.json({ error: 'Failed to load event access details.' }, { status: 500 });
+    }
+
+    if (!eventData?.id) {
+      // Event not found in DB (e.g. mock/local event)
+      return NextResponse.json({ success: true, submissions: [] });
+    }
+
+    resolvedEventId = eventData.id;
+
+    const { data: callerProfile, error: profileError } = await serverSupabase
+      .from('profiles')
+      .select('role')
+      .eq('id', auth.userId)
+      .maybeSingle();
+
+    if (profileError) {
+      return NextResponse.json({ error: 'Failed to verify submission access.' }, { status: 500 });
+    }
+
+    const isOrganizer = eventData.organizer_id === auth.userId;
+    // SELINE: only admin/super-admin can view submissions for events they don't organize
+    const isAdmin = callerProfile?.role === 'ADMIN' || callerProfile?.role === 'SUPER_ADMIN';
+    if (!isOrganizer && !isAdmin) {
+      return forbiddenResponse('You are not authorized to view submissions for this event.');
     }
 
     const { data, error } = await serverSupabase
@@ -58,7 +160,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const auth = await authenticateRequest();
+    const auth = await authenticateRequest(req);
     if (!auth) {
       return unauthorizedResponse('You must be signed in to submit a project.');
     }
@@ -69,9 +171,15 @@ export async function POST(req: Request) {
 
     // Trigger Google Apps Script Webhook
     if (action === 'sync_webhook' && webhookUrl && submission) {
+      const validatedWebhookUrl = validateWebhookUrl(webhookUrl);
+      if (!validatedWebhookUrl) {
+        return NextResponse.json({ error: 'Webhook URL is not allowed.' }, { status: 400 });
+      }
+
       try {
-        await fetch(webhookUrl, {
+        await fetch(validatedWebhookUrl, {
           method: 'POST',
+          redirect: 'error',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             timestamp: new Date().toISOString(),
@@ -115,6 +223,24 @@ export async function POST(req: Request) {
       // Bind submission to authenticated user ID
       const targetSubmitterId = auth.userId;
 
+      // SELINE: check if a submission already exists for this user and event to preserve status and score
+      const { data: existingSubmission, error: existingSubmissionError } = await serverSupabase
+        .from('submissions')
+        .select('status, score')
+        .eq('event_id', targetEventId)
+        .eq('submitter_id', targetSubmitterId)
+        .maybeSingle();
+
+      if (existingSubmissionError) {
+        return NextResponse.json(
+          { error: 'Failed to verify the existing submission.' },
+          { status: 500 }
+        );
+      }
+
+      const protectedStatus = existingSubmission?.status ?? 'SUBMITTED';
+      const protectedScore = existingSubmission?.score ?? 0;
+
       // Ensure submitter profile exists
       const { data: prof } = await serverSupabase
         .from('profiles')
@@ -141,8 +267,9 @@ export async function POST(req: Request) {
         demo_url: submission.demoVideoUrl || '',
         video_url: submission.demoVideoUrl || '',
         track: submission.track || 'General',
-        status: submission.status || 'SUBMITTED',
-        score: submission.score || 0,
+        // SELINE: removed both 0 and submitted as fallback to prevent overwriting existing status with default
+        status: protectedStatus,
+        score: protectedScore,
         created_at: submission.submittedAt || new Date().toISOString(),
       };
 
