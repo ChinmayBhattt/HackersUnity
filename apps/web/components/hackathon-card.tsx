@@ -181,8 +181,17 @@ export function HackathonCard({ event, isBookmarked, onBookmarkChange }: Hackath
               </div>
               <div className="overflow-hidden">
                 <div className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-semibold">Prize Pool</div>
-                <div className="font-extrabold text-[#ea580c] text-sm truncate" title={event.prize || formatCurrency(event.totalPrizeValue)}>
-                  {event.prize || formatCurrency(event.totalPrizeValue)}
+                <div
+                  className="font-extrabold text-[#ea580c] text-sm truncate"
+                  title={
+                    event.slug === 'code-e-manipal-2-0' || event.slug === 'code-e-manipal' || event.id === '5d8e3b96-a647-4ecb-a24c-904729d9f7f6'
+                      ? '₹1,00,000'
+                      : event.prize || formatCurrency(event.totalPrizeValue, (event.currency as 'USD' | 'INR') || 'USD')
+                  }
+                >
+                  {event.slug === 'code-e-manipal-2-0' || event.slug === 'code-e-manipal' || event.id === '5d8e3b96-a647-4ecb-a24c-904729d9f7f6'
+                    ? '₹1,00,000'
+                    : event.prize || formatCurrency(event.totalPrizeValue, (event.currency as 'USD' | 'INR') || 'USD')}
                 </div>
               </div>
             </div>
@@ -206,7 +215,11 @@ export function HackathonCard({ event, isBookmarked, onBookmarkChange }: Hackath
               href={`/hackathons/${event.slug}`}
               className="flex-1 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200/80 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-slate-700 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white border border-slate-200 dark:border-white/[0.08] text-xs font-bold flex items-center justify-center gap-1 transition-all"
             >
-              <span>{event.ctaText || 'Explore Details'}</span>
+              <span>
+                {event.slug === 'code-e-manipal-2-0' || event.slug === 'code-e-manipal' || event.id === '5d8e3b96-a647-4ecb-a24c-904729d9f7f6'
+                  ? 'Explore Details'
+                  : event.ctaText || 'Explore Details'}
+              </span>
               <ArrowUpRight className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
             </Link>
 

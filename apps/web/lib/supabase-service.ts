@@ -45,7 +45,17 @@ export function mapDbEventToExtended(item: any): ExtendedEvent {
   const teamSizeDisplay = minTeam === maxTeam ? `${minTeam}` : `${minTeam}-${maxTeam}`;
 
   const prizeVal = Number(item.total_prize_value || 0);
-  const formattedPrize = prizeVal > 0 ? (item.prize || `$${prizeVal.toLocaleString()}`) : 'Perks & Swag';
+  const isManipal =
+    item.slug === 'code-e-manipal-2-0' ||
+    item.slug === 'code-e-manipal' ||
+    item.slug === 'evt_ai_1789569251573' ||
+    item.id === '5d8e3b96-a647-4ecb-a24c-904729d9f7f6';
+  const currency = isManipal ? 'INR' : (item.currency || 'INR');
+  const formattedPrize = isManipal
+    ? '₹1,00,000'
+    : prizeVal > 0
+    ? (item.prize && !item.prize.includes('$') ? item.prize : (currency === 'INR' ? `₹${prizeVal.toLocaleString('en-IN')}` : `$${prizeVal.toLocaleString('en-US')}`))
+    : 'Perks & Swag';
 
   return {
     id: item.id,
@@ -112,6 +122,7 @@ export function mapDbEventToExtended(item: any): ExtendedEvent {
     customQuestions: item.custom_questions || [],
     registrationFields: item.registration_fields || ['name', 'email', 'phone', 'college', 'city', 'github', 'linkedin', 'skills'],
     previewToken: item.preview_token || item.previewToken || (item.slug ? getEventPreviewToken(item) : undefined),
+    ctaText: isManipal ? 'Explore Details' : (item.cta_text || item.ctaText || undefined),
   };
 }
 

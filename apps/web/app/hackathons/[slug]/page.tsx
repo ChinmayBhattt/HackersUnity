@@ -136,6 +136,18 @@ function HackathonDetailContent({ params }: PageProps) {
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
 
+  const isManipalEvent =
+    event?.slug === 'code-e-manipal-2-0' ||
+    event?.slug === 'code-e-manipal' ||
+    event?.slug === 'evt_ai_1789569251573' ||
+    event?.id === '5d8e3b96-a647-4ecb-a24c-904729d9f7f6' ||
+    resolvedParams.slug === 'code-e-manipal-2-0' ||
+    resolvedParams.slug === 'code-e-manipal' ||
+    resolvedParams.slug === 'evt_ai_1789569251573';
+
+  const MANIPAL_REDIRECT_URL =
+    'https://unstop.com/hackathons/code-e-manipal-20-manipal-university-mu-jaipur-1762000';
+
   useEffect(() => {
     if (!event) return;
     const checkSubmission = () => {
@@ -580,12 +592,14 @@ function HackathonDetailContent({ params }: PageProps) {
                         This event allows squads of {event.minTeamSize}-{event.maxTeamSize} builders.
                       </p>
                     </div>
-                    <Link
-                      href={`/hackathons/${event.slug}/register`}
+                    <a
+                      href={isManipalEvent ? MANIPAL_REDIRECT_URL : `/hackathons/${event.slug}/register`}
+                      target={isManipalEvent ? '_blank' : undefined}
+                      rel={isManipalEvent ? 'noopener noreferrer' : undefined}
                       className="px-4 py-2 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white text-xs font-bold transition-all shadow-xs whitespace-nowrap"
                     >
                       Squad Registration Portal
-                    </Link>
+                    </a>
                   </div>
                 )}
               </div>
@@ -651,7 +665,13 @@ function HackathonDetailContent({ params }: PageProps) {
                   </div>
 
                   <button
-                    onClick={() => setShowSubmissionModal(true)}
+                    onClick={() => {
+                      if (isManipalEvent) {
+                        window.open(MANIPAL_REDIRECT_URL, '_blank', 'noopener,noreferrer');
+                      } else {
+                        setShowSubmissionModal(true);
+                      }
+                    }}
                     className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-bold text-xs shadow-md shadow-sky-500/20 transition-all cursor-pointer self-start sm:self-auto"
                   >
                     <Rocket className="w-4 h-4" />
@@ -847,7 +867,13 @@ function HackathonDetailContent({ params }: PageProps) {
                   </div>
 
                   <button
-                    onClick={() => setShowSubmissionModal(true)}
+                    onClick={() => {
+                      if (isManipalEvent) {
+                        window.open(MANIPAL_REDIRECT_URL, '_blank', 'noopener,noreferrer');
+                      } else {
+                        setShowSubmissionModal(true);
+                      }
+                    }}
                     className="px-6 py-3 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-extrabold text-xs shadow-md shadow-sky-500/30 transition-all cursor-pointer shrink-0 text-center"
                   >
                     {userSubmission ? 'Open Submission Details' : 'Launch Submission Portal →'}
@@ -865,7 +891,7 @@ function HackathonDetailContent({ params }: PageProps) {
                     <span>Prizes & Perks Breakdown</span>
                   </h3>
                   <div className="text-sm font-black text-[#ea580c] font-mono">
-                    Total Pool: {formatCurrency(event.totalPrizeValue)}
+                    Total Pool: {isManipalEvent ? '₹1,00,000' : formatCurrency(event.totalPrizeValue, (event.currency as 'USD' | 'INR') || 'USD')}
                   </div>
                 </div>
 
@@ -880,7 +906,7 @@ function HackathonDetailContent({ params }: PageProps) {
                           {prize.position}
                         </div>
                         <div className="text-2xl font-black text-[#ea580c] font-mono">
-                          {formatCurrency(prize.amount)}
+                          {isManipalEvent ? `₹${Number(prize.amount).toLocaleString('en-IN')}` : formatCurrency(prize.amount, (event.currency as 'USD' | 'INR') || 'USD')}
                         </div>
                         <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">{prize.description}</p>
                       </div>
@@ -888,7 +914,7 @@ function HackathonDetailContent({ params }: PageProps) {
                   ) : (
                     <div className="p-4 rounded-xl bg-orange-50/50 dark:bg-orange-950/20 border border-orange-100 dark:border-orange-900/30">
                       <div className="text-2xl font-black text-[#ea580c] font-mono">
-                        {formatCurrency(event.totalPrizeValue)}
+                        {isManipalEvent ? '₹1,00,000' : formatCurrency(event.totalPrizeValue, (event.currency as 'USD' | 'INR') || 'USD')}
                       </div>
                       <p className="text-xs text-slate-600 dark:text-slate-300 font-medium mt-1">Cash prizes, grants, and exclusive swags.</p>
                     </div>
@@ -1003,7 +1029,7 @@ function HackathonDetailContent({ params }: PageProps) {
               <div>
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Prize Pool</div>
                 <div className="text-3xl font-black text-[#ea580c] font-mono mt-0.5">
-                  {event.prize || formatCurrency(event.totalPrizeValue)}
+                  {isManipalEvent ? '₹1,00,000' : (event.prize || formatCurrency(event.totalPrizeValue, (event.currency as 'USD' | 'INR') || 'USD'))}
                 </div>
               </div>
 
@@ -1019,7 +1045,28 @@ function HackathonDetailContent({ params }: PageProps) {
               </div>
 
               {/* Primary Register / Submit CTA */}
-              {isRegistered ? (
+              {isManipalEvent ? (
+                <div className="space-y-2.5">
+                  <a
+                    href={MANIPAL_REDIRECT_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-3.5 rounded-2xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-extrabold text-sm shadow-md shadow-sky-500/20 transition-all text-center flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Rocket className="w-4 h-4" />
+                    <span>Register for Hackathon</span>
+                  </a>
+                  <a
+                    href={MANIPAL_REDIRECT_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2.5 rounded-xl border border-slate-200 dark:border-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.06] text-slate-700 dark:text-slate-300 font-bold text-xs text-center flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Rocket className="w-3.5 h-3.5 text-[#0099e6] dark:text-[#38bdf8]" />
+                    <span>Submission Portal</span>
+                  </a>
+                </div>
+              ) : isRegistered ? (
                 <div className="space-y-2.5">
                   <Link
                     href={`/hackathons/${event.slug}/register`}

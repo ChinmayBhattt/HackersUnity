@@ -65,6 +65,18 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [mode, setMode] = useState<RegistrationMode>('SOLO');
 
+  useEffect(() => {
+    if (
+      resolvedParams.slug === 'code-e-manipal-2-0' ||
+      resolvedParams.slug === 'code-e-manipal' ||
+      resolvedParams.slug === 'evt_ai_1789569251573' ||
+      event?.id === '5d8e3b96-a647-4ecb-a24c-904729d9f7f6'
+    ) {
+      window.location.href =
+        'https://unstop.com/hackathons/code-e-manipal-20-manipal-university-mu-jaipur-1762000';
+    }
+  }, [resolvedParams.slug, event?.id]);
+
   // Step 1: Team state
   const [teamName, setTeamName] = useState('');
   const [teamDescription, setTeamDescription] = useState('');
