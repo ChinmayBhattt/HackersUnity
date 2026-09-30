@@ -215,7 +215,7 @@ export async function fetchPublishedEvents(): Promise<ExtendedEvent[]> {
     // Merge remote list, curated platform MOCK_EVENTS, and custom events (avoiding duplicate slugs/ids)
     const map = new Map<string, ExtendedEvent>();
     
-    // 1. Seed with curated mock events (Hack in Hills #1, Code-ए-Manipal #2, etc.)
+    // 1. Seed with curated mock events (Code-ए-Manipal #1, etc.)
     MOCK_EVENTS.forEach((e) => {
       if (!deletedIds.includes(e.id) && !deletedIds.includes(e.slug)) {
         map.set(e.id || e.slug, e);
