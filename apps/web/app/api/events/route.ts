@@ -198,7 +198,7 @@ export async function PATCH(req: Request) {
       userRole === 'ADMIN' ||
       userRole === 'SUPER_ADMIN' ||
       auth?.email === 'chinmaybhatt26@gmail.com' ||
-      auth?.email === 'info@hackersunity.com' ||
+      auth?.email === 'hackerunity.community@gmail.com' ||
       auth?.email === process.env.ADMIN_EMAIL;
 
     let isCoHost = false;
