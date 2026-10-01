@@ -181,7 +181,7 @@ const FAQ_ITEMS: FAQItem[] = [
     category: 'PODCASTS',
     question: 'How can I apply to be a podcast guest or hackathon mentor?',
     answer:
-      'We welcome seasoned engineers, founders, and industry leaders! If you would like to share your knowledge as a podcast guest or mentor hackathon participants, please reach out through our Contact Us page or email us at hackerunity.community@gmail.com.',
+      'We welcome seasoned engineers, founders, and industry leaders! If you would like to share your knowledge as a podcast guest or mentor hackathon participants, please reach out through our Contact Us page or email us at info@hackersunity.com.',
     tags: ['mentor', 'speaker', 'guest', 'apply', 'teach'],
   },
 
