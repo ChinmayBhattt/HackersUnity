@@ -103,7 +103,22 @@ export function mapDbEventToExtended(item: any): ExtendedEvent {
       typeof item.participants_count === 'number' ? item.participants_count : 0
     )}`,
     featured: Boolean(item.featured),
-    tags: item.tags || ['Hackathon', 'Innovation'],
+    tags: (item.tags || ['Hackathon', 'Innovation']).filter(
+      (t: string) => typeof t === 'string' && !t.startsWith('hu_order:')
+    ),
+    displayOrder: (() => {
+      if (typeof item.display_order === 'number' && !isNaN(item.display_order)) {
+        return item.display_order;
+      }
+      if (Array.isArray(item.tags)) {
+        const orderTag = item.tags.find((t: string) => typeof t === 'string' && t.startsWith('hu_order:'));
+        if (orderTag) {
+          const parsed = parseInt(orderTag.replace('hu_order:', ''), 10);
+          if (!isNaN(parsed)) return parsed;
+        }
+      }
+      return undefined;
+    })(),
     bannerGradient: item.banner_gradient || 'from-sky-950/60 via-slate-900/80 to-black',
     tracks: item.tracks || [],
     stages: item.stages || [],
@@ -290,7 +305,34 @@ export async function fetchPublishedEvents(): Promise<ExtendedEvent[]> {
       }
     });
 
-    return Array.from(map.values());
+    const sortEventsList = (eventsList: ExtendedEvent[]): ExtendedEvent[] => {
+      let clientOrder: string[] = [];
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem('hackers_unity_showcase_order');
+          if (raw) clientOrder = JSON.parse(raw);
+        } catch {}
+      }
+
+      return [...eventsList].sort((a, b) => {
+        let orderA = typeof a.displayOrder === 'number' ? a.displayOrder : 999999;
+        let orderB = typeof b.displayOrder === 'number' ? b.displayOrder : 999999;
+
+        if (clientOrder.length > 0) {
+          const idxA = clientOrder.findIndex((id) => id === a.id || id === a.slug);
+          const idxB = clientOrder.findIndex((id) => id === b.id || id === b.slug);
+          if (idxA !== -1) orderA = idxA;
+          if (idxB !== -1) orderB = idxB;
+        }
+
+        if (orderA !== orderB) {
+          return orderA - orderB;
+        }
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      });
+    };
+
+    return sortEventsList(Array.from(map.values()));
   } catch (err) {
     console.warn('Supabase fetchPublishedEvents exception:', err);
     const deletedIds: string[] =
@@ -314,7 +356,27 @@ export async function fetchPublishedEvents(): Promise<ExtendedEvent[]> {
         map.set(e.id, e);
       }
     });
-    return Array.from(map.values());
+
+    let clientOrder: string[] = [];
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('hackers_unity_showcase_order');
+        if (raw) clientOrder = JSON.parse(raw);
+      } catch {}
+    }
+
+    return Array.from(map.values()).sort((a, b) => {
+      let orderA = typeof a.displayOrder === 'number' ? a.displayOrder : 999999;
+      let orderB = typeof b.displayOrder === 'number' ? b.displayOrder : 999999;
+      if (clientOrder.length > 0) {
+        const idxA = clientOrder.findIndex((id) => id === a.id || id === a.slug);
+        const idxB = clientOrder.findIndex((id) => id === b.id || id === b.slug);
+        if (idxA !== -1) orderA = idxA;
+        if (idxB !== -1) orderB = idxB;
+      }
+      if (orderA !== orderB) return orderA - orderB;
+      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    });
   }
 }
 

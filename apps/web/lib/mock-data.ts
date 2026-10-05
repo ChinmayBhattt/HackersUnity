@@ -37,6 +37,7 @@ export interface ExtendedEvent extends EventPublic {
   tracks: { title: string; prize: string; description: string }[];
   sponsors: { name: string; tier: string; logoText: string }[];
   adminInviteCode?: string;
+  displayOrder?: number;
 }
 
 export interface ExtendedHacker extends UserPublic {
