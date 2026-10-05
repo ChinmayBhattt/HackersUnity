@@ -159,11 +159,47 @@ export async function GET(req: NextRequest) {
       }
     });
 
+    let diskOrder: string[] = [];
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const orderFile = path.join(process.cwd(), 'data', 'showcase-order.json');
+      if (fs.existsSync(orderFile)) {
+        const raw = fs.readFileSync(orderFile, 'utf8');
+        diskOrder = JSON.parse(raw).orderedEventIds || [];
+      }
+    } catch {}
+
     const eventsWithCounts = allEvents.map((evt: any) => {
       const regCount = (regCounts[evt.id] || 0) + (evt.slug ? (regCounts[evt.slug] || 0) : 0);
       const subCount = (subCounts[evt.id] || 0) + (evt.slug ? (subCounts[evt.slug] || 0) : 0);
+
+      let displayOrder: number = 999999;
+      if (typeof evt.display_order === 'number' && !isNaN(evt.display_order)) {
+        displayOrder = evt.display_order;
+      } else if (Array.isArray(evt.tags)) {
+        const orderTag = evt.tags.find((t: string) => typeof t === 'string' && t.startsWith('hu_order:'));
+        if (orderTag) {
+          const parsed = parseInt(orderTag.replace('hu_order:', ''), 10);
+          if (!isNaN(parsed)) displayOrder = parsed;
+        }
+      }
+
+      if (diskOrder.length > 0) {
+        const diskIdx = diskOrder.findIndex((id) => id === evt.id || id === evt.slug);
+        if (diskIdx !== -1) {
+          displayOrder = diskIdx;
+        }
+      }
+
+      const cleanTags = Array.isArray(evt.tags)
+        ? evt.tags.filter((t: string) => typeof t === 'string' && !t.startsWith('hu_order:'))
+        : [];
+
       return {
         ...evt,
+        tags: cleanTags,
+        display_order: displayOrder,
         registration_count: regCount,
         submission_count: subCount,
       };
@@ -380,6 +416,90 @@ export async function PATCH(req: NextRequest) {
         success: true,
         message: `Blog "${data.title}" moved back to Pending Review.`,
         blog: data,
+      });
+    }
+
+    // ── Reorder Homepage Showcase Hackathons ──
+    if (action === 'reorder_showcase' || action === 'reorder_events') {
+      const { orderedEventIds } = body;
+      if (!Array.isArray(orderedEventIds) || orderedEventIds.length === 0) {
+        return NextResponse.json({ error: 'Missing or empty orderedEventIds array' }, { status: 400 });
+      }
+
+      // 1. Save ordered list to local data file data/showcase-order.json as reliable backup/cache
+      try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const dataDir = path.join(process.cwd(), 'data');
+        if (!fs.existsSync(dataDir)) {
+          fs.mkdirSync(dataDir, { recursive: true });
+        }
+        fs.writeFileSync(
+          path.join(dataDir, 'showcase-order.json'),
+          JSON.stringify({ orderedEventIds, updatedAt: new Date().toISOString() }, null, 2)
+        );
+      } catch (fsErr) {
+        console.warn('Could not write data/showcase-order.json:', fsErr);
+      }
+
+      // 2. Fetch existing events from Supabase to preserve other tags
+      const { data: existingEvents } = await supabase
+        .from('events')
+        .select('id, slug, tags');
+
+      const eventMap = new Map<string, any>();
+      (existingEvents || []).forEach((e: any) => {
+        if (e.id) eventMap.set(e.id, e);
+        if (e.slug) eventMap.set(e.slug, e);
+      });
+
+      // 3. Update each event's display_order and tags with hu_order:<index>
+      const updatePromises = orderedEventIds.map(async (idOrSlug: string, index: number) => {
+        const existing = eventMap.get(idOrSlug);
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrSlug);
+
+        const currentTags: string[] = Array.isArray(existing?.tags) ? existing.tags : [];
+        const cleanTags = currentTags.filter((t: string) => typeof t === 'string' && !t.startsWith('hu_order:'));
+        cleanTags.push(`hu_order:${index}`);
+
+        // Try updating display_order first
+        let query = supabase.from('events').update({
+          display_order: index,
+          tags: cleanTags,
+          updated_at: new Date().toISOString(),
+        });
+        query = isUuid ? query.eq('id', idOrSlug) : query.eq('slug', idOrSlug);
+        let { error } = await query;
+
+        // If display_order column doesn't exist yet in postgres, fallback to tags only
+        if (error && (error.code === '42703' || error.code === 'PGRST204' || error.message?.includes('column'))) {
+          let retry = supabase.from('events').update({
+            tags: cleanTags,
+            updated_at: new Date().toISOString(),
+          });
+          retry = isUuid ? retry.eq('id', idOrSlug) : retry.eq('slug', idOrSlug);
+          await retry;
+        }
+      });
+
+      await Promise.all(updatePromises);
+
+      // 4. Broadcast realtime event
+      try {
+        const channel = supabase.channel('public:events_realtime');
+        await channel.send({
+          type: 'broadcast',
+          event: 'event_updated',
+          payload: { action: 'showcase_reordered', orderedEventIds },
+        });
+      } catch (broadcastErr) {
+        console.warn('Realtime broadcast error:', broadcastErr);
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Homepage showcase order saved successfully!',
+        orderedEventIds,
       });
     }
 
