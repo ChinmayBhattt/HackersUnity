@@ -24,6 +24,7 @@ import {
   ChevronLeft,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { getEventImageSrc } from '@/lib/event-images';
 
 export interface ShowcaseEvent {
   id: string;
@@ -41,6 +42,7 @@ export interface ShowcaseEvent {
   total_prize_value?: number;
   currency?: string;
   banner_url?: string;
+  image?: string;
   logo_url?: string;
   status: string;
   display_order?: number;
@@ -374,15 +376,15 @@ export function AdminShowcaseReorder({
 
       {/* ─── Live Carousel Mini-Preview Ribbon ──────────────────────────── */}
       {orderedList.length > 0 && (
-        <div className="bg-slate-900 border border-slate-800 p-4 sm:p-5 rounded-3xl shadow-md text-white">
+        <div className="bg-slate-100/90 dark:bg-[#0c1017] border border-slate-200/90 dark:border-white/[0.08] p-4 sm:p-5 rounded-3xl shadow-xs transition-colors">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <h3 className="text-xs sm:text-sm font-black tracking-wide uppercase text-slate-300">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <h3 className="text-xs sm:text-sm font-black tracking-wide uppercase text-slate-800 dark:text-slate-200">
                 Live Homepage Carousel Preview (Left to Right)
               </h3>
             </div>
-            <span className="text-[11px] text-slate-400 font-medium">
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
               Horizontal Scroll Order • {orderedList.length} Events
             </span>
           </div>
@@ -392,18 +394,25 @@ export function AdminShowcaseReorder({
               const isFirst = idx === 0;
               const isCenter = idx === centerIndex;
               const isLast = idx === orderedList.length - 1;
+              const thumbSrc = getEventImageSrc({
+                id: event.id,
+                slug: event.slug,
+                title: event.title,
+                image: event.image || event.banner_url,
+                bannerUrl: event.banner_url || event.image,
+              });
 
               return (
                 <div
                   key={event.id}
-                  className={`w-52 shrink-0 bg-slate-950/80 rounded-2xl p-3 border transition-all relative ${
+                  className={`w-52 shrink-0 bg-white dark:bg-slate-950/80 rounded-2xl p-3 border transition-all relative shadow-xs ${
                     isFirst
-                      ? 'border-amber-500/80 shadow-md shadow-amber-500/10'
+                      ? 'border-amber-400 dark:border-amber-500/80 ring-2 ring-amber-400/20 shadow-md shadow-amber-500/10'
                       : isCenter
-                      ? 'border-sky-500/80 shadow-md shadow-sky-500/10'
+                      ? 'border-sky-400 dark:border-sky-500/80 ring-2 ring-sky-400/20 shadow-md shadow-sky-500/10'
                       : isLast
-                      ? 'border-purple-500/80 shadow-md shadow-purple-500/10'
-                      : 'border-white/[0.08]'
+                      ? 'border-purple-400 dark:border-purple-500/80 ring-2 ring-purple-400/20 shadow-md shadow-purple-500/10'
+                      : 'border-slate-200 dark:border-white/[0.08]'
                   }`}
                 >
                   {/* Position Tag */}
@@ -411,43 +420,42 @@ export function AdminShowcaseReorder({
                     <span
                       className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
                         isFirst
-                          ? 'bg-amber-500 text-black font-extrabold'
+                          ? 'bg-amber-500 text-white dark:text-black font-extrabold'
                           : isCenter
-                          ? 'bg-sky-500 text-black font-extrabold'
+                          ? 'bg-sky-500 text-white dark:text-black font-extrabold'
                           : isLast
-                          ? 'bg-purple-500 text-white font-extrabold'
-                          : 'bg-white/[0.1] text-slate-300'
+                          ? 'bg-purple-600 dark:bg-purple-500 text-white font-extrabold'
+                          : 'bg-slate-100 dark:bg-white/[0.1] text-slate-700 dark:text-slate-300'
                       }`}
                     >
                       {isFirst ? '#1 START' : isCenter ? `#${idx + 1} CENTER` : isLast ? `#${idx + 1} END` : `#${idx + 1}`}
                     </span>
-                    <span className="text-[10px] font-mono font-bold text-slate-400">
+                    <span className="text-[10px] font-mono font-bold text-slate-500 dark:text-slate-400">
                       {event.event_type || 'ONLINE'}
                     </span>
                   </div>
 
                   {/* Thumbnail */}
-                  <div className="relative w-full h-20 rounded-xl overflow-hidden bg-slate-800 mb-2 border border-white/[0.06]">
-                    {event.banner_url ? (
-                      <Image
-                        src={event.banner_url}
+                  <div className="relative w-full h-20 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 mb-2 border border-slate-200 dark:border-white/[0.06]">
+                    {thumbSrc ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={thumbSrc}
                         alt={event.title}
-                        fill
-                        className="object-cover"
-                        unoptimized
+                        className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-sky-950 to-slate-900">
-                        <Trophy className="w-6 h-6 text-sky-400/60" />
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-sky-500/10 to-blue-500/20 text-[#0099e6]">
+                        <Trophy className="w-6 h-6" />
                       </div>
                     )}
                   </div>
 
                   {/* Title & Prize */}
-                  <h4 className="text-xs font-bold text-white truncate mb-0.5" title={event.title}>
+                  <h4 className="text-xs font-bold text-slate-900 dark:text-white truncate mb-0.5" title={event.title}>
                     {event.title}
                   </h4>
-                  <p className="text-[11px] font-semibold text-emerald-400 truncate">
+                  <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 truncate">
                     {event.total_prize_value && event.total_prize_value > 0
                       ? formatCurrency(event.total_prize_value, event.currency === 'USD' ? 'USD' : 'INR')
                       : 'Perks & Swag'}
@@ -476,6 +484,14 @@ export function AdminShowcaseReorder({
             const isLast = idx === orderedList.length - 1;
             const isBeingDragged = draggedIndex === idx;
             const isTargeted = dragOverIndex === idx;
+
+            const cardThumbSrc = getEventImageSrc({
+              id: event.id,
+              slug: event.slug,
+              title: event.title,
+              image: event.image || event.banner_url,
+              bannerUrl: event.banner_url || event.image,
+            });
 
             return (
               <div
@@ -527,13 +543,12 @@ export function AdminShowcaseReorder({
 
                   {/* Banner Image */}
                   <div className="relative w-16 h-14 sm:w-20 sm:h-14 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 border border-slate-200 dark:border-white/[0.08]">
-                    {event.banner_url ? (
-                      <Image
-                        src={event.banner_url}
+                    {cardThumbSrc ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={cardThumbSrc}
                         alt={event.title}
-                        fill
-                        className="object-cover"
-                        unoptimized
+                        className="w-full h-full object-cover"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-sky-500/10 to-blue-500/20 text-[#0099e6]">
