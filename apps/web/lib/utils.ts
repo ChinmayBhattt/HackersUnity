@@ -164,3 +164,146 @@ export function formatBuildersCount(count: number | null | undefined): string {
   if (num < 100) return `${num} Builders`;
   return `${num.toLocaleString()}+ Builders`;
 }
+
+export interface ReceiptDownloadData {
+  receiptNo: string;
+  eventName: string;
+  teamName: string;
+  leaderName: string;
+  leaderEmail: string;
+  paymentId?: string;
+  bankUtr?: string;
+  amount: number | string;
+  currency?: string;
+  date?: string;
+  paymentMethod?: string;
+}
+
+export function downloadReceiptPdf(data: ReceiptDownloadData): void {
+  if (typeof window === 'undefined') return;
+
+  const receiptNo = data.receiptNo || 'HU-REC-XXXX';
+  const eventName = data.eventName || 'Hackathon';
+  const teamName = data.teamName || 'Squad';
+  const leaderName = data.leaderName || 'Participant';
+  const leaderEmail = data.leaderEmail || 'support@hackersunity.com';
+  const paymentId = data.paymentId || 'N/A';
+  const bankUtr = data.bankUtr || 'N/A';
+  const amount = Number(data.amount || 0).toLocaleString('en-IN');
+  const dateStr = data.date || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const paymentMethod = (data.paymentMethod || 'UPI').toUpperCase();
+
+  const printWindow = window.open('', '_blank', 'width=750,height=900');
+  const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Receipt-${receiptNo}</title>
+  <style>
+    @page { size: A4 portrait; margin: 15mm; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    body { background-color: #f8fafc; color: #0f172a; padding: 30px; display: flex; justify-content: center; }
+    .card { background: #ffffff; width: 100%; max-width: 620px; border: 1px solid #e2e8f0; border-radius: 24px; padding: 36px; box-shadow: 0 10px 30px -10px rgba(0,0,0,0.06); }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 2px dashed #e2e8f0; margin-bottom: 24px; }
+    .brand-tag { font-size: 11px; font-weight: 800; color: #0099e6; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+    .title { font-size: 24px; font-weight: 900; color: #0f172a; letter-spacing: -0.02em; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; border-radius: 999px; font-size: 12px; font-weight: 800; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 24px; margin-bottom: 26px; }
+    .label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+    .val { font-size: 14px; font-weight: 800; color: #0f172a; word-break: break-word; }
+    .val.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .table-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; margin-bottom: 24px; }
+    .table-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; font-size: 13px; color: #475569; }
+    .table-row.total { border-top: 2px solid #cbd5e1; margin-top: 10px; padding-top: 12px; font-size: 15px; font-weight: 900; color: #0f172a; }
+    .table-row.total .amt { color: #ea580c; font-size: 22px; font-weight: 900; font-family: ui-monospace, monospace; }
+    .footer { text-align: center; border-top: 1px solid #f1f5f9; padding-top: 20px; font-size: 11px; color: #94a3b8; line-height: 1.6; }
+    .seal { display: inline-block; padding: 4px 10px; border-radius: 6px; background: #eff6ff; color: #0284c7; font-size: 10px; font-weight: 800; margin-top: 8px; }
+    @media print {
+      body { background: white; padding: 0; }
+      .card { border: none; box-shadow: none; padding: 0; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div>
+        <div class="brand-tag">Hacker's Unity Platform</div>
+        <h1 class="title">Official Payment Receipt</h1>
+      </div>
+      <div class="badge">
+        <span>✓</span>
+        <span>VERIFIED PAID</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div>
+        <div class="label">Receipt Number</div>
+        <div class="val mono">${receiptNo}</div>
+      </div>
+      <div>
+        <div class="label">Payment Date</div>
+        <div class="val">${dateStr}</div>
+      </div>
+      <div>
+        <div class="label">Event Title</div>
+        <div class="val">${eventName}</div>
+      </div>
+      <div>
+        <div class="label">Squad / Team</div>
+        <div class="val">${teamName}</div>
+      </div>
+      <div>
+        <div class="label">Team Leader / Builder</div>
+        <div class="val">${leaderName}</div>
+      </div>
+      <div>
+        <div class="label">Email Address</div>
+        <div class="val mono">${leaderEmail}</div>
+      </div>
+    </div>
+
+    <div class="table-box">
+      <div class="table-row">
+        <span>Payment ID (Razorpay)</span>
+        <span class="mono" style="font-weight: 700; color: #0f172a;">${paymentId}</span>
+      </div>
+      <div class="table-row">
+        <span>Bank UTR / Reference</span>
+        <span class="mono" style="font-weight: 700; color: #059669;">${bankUtr}</span>
+      </div>
+      <div class="table-row">
+        <span>Payment Method</span>
+        <span style="font-weight: 800; color: #0f172a;">${paymentMethod}</span>
+      </div>
+      <div class="table-row total">
+        <span>Amount Paid</span>
+        <span class="amt">₹${amount}</span>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>This is an official computer-generated receipt issued by Hacker's Unity (hackersunity.com).</div>
+      <div class="seal">AUTHENTIC DIGITAL RECEIPT • HACKER'S UNITY ACCOUNTS</div>
+    </div>
+  </div>
+
+  <script>
+    window.onload = function() {
+      setTimeout(function() {
+        window.print();
+      }, 200);
+    };
+  </script>
+</body>
+</html>`;
+
+  if (printWindow) {
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  } else {
+    window.print();
+  }
+}

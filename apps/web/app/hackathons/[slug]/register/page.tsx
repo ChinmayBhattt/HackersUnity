@@ -52,7 +52,7 @@ import {
   fetchTeamByInviteCode,
   checkPaymentStatusSupabase,
 } from '@/lib/supabase-service';
-import { formatCurrency, formatDate, formatDateTime, getDaysLeft } from '@/lib/utils';
+import { formatCurrency, formatDate, formatDateTime, getDaysLeft, downloadReceiptPdf } from '@/lib/utils';
 import { EventStatus } from '@hackers-unity/shared-types';
 import { removeRegistrationForEvent } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
@@ -2189,11 +2189,24 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
             <div className="pt-2 flex items-center justify-between border-t border-slate-100 dark:border-white/[0.08]">
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() =>
+                  downloadReceiptPdf({
+                    receiptNo: paymentData?.receipt || paymentData?.receiptNo || 'HU-REC-XXXX',
+                    eventName: event?.title || 'Hackathon Arena',
+                    teamName: createdTeamData?.name || teamName || 'Squad',
+                    leaderName: fullName || user?.name || 'Participant',
+                    leaderEmail: email || user?.email || '',
+                    paymentId: paymentData?.id || paymentData?.razorpay_payment_id || 'N/A',
+                    bankUtr: paymentData?.bankUtr || paymentData?.bank_utr || 'N/A',
+                    amount: paymentData?.amount || feeAmount,
+                    date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                    paymentMethod: paymentData?.method || 'UPI',
+                  })
+                }
                 className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
               >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print Receipt</span>
+                <Download className="w-3.5 h-3.5 text-[#0099e6] dark:text-[#38bdf8]" />
+                <span>Download Receipt</span>
               </button>
               <button
                 type="button"

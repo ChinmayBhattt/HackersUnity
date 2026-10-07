@@ -87,7 +87,7 @@ import {
 } from '@/lib/supabase-service';
 import { supabase } from '@/lib/supabase';
 import { HackathonCard } from '@/components/hackathon-card';
-import { formatDate, formatCurrency, getEventPrivateLink } from '@/lib/utils';
+import { formatDate, formatCurrency, getEventPrivateLink, downloadReceiptPdf } from '@/lib/utils';
 import { AuthModal } from '@/components/auth-modal';
 import { EditEventModal } from '@/components/edit-event-modal';
 import { PublicProfileModal } from '@/components/public-profile-modal';
@@ -2584,11 +2584,26 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={() =>
+                    downloadReceiptPdf({
+                      receiptNo: selectedReceiptPayment?.receipt_number || 'HU-REC-XXXX',
+                      eventName: selectedReceiptPayment?.event_title || selectedReceiptPayment?.eventName || 'Hackathon Arena',
+                      teamName: selectedReceiptPayment?.team_name || selectedReceiptPayment?.teamName || 'Squad',
+                      leaderName: selectedReceiptPayment?.participant_name || user?.name || 'Participant',
+                      leaderEmail: selectedReceiptPayment?.participant_email || user?.email || '',
+                      paymentId: selectedReceiptPayment?.razorpay_payment_id || 'N/A',
+                      bankUtr: selectedReceiptPayment?.bank_utr || 'N/A',
+                      amount: Number(selectedReceiptPayment?.amount || 0),
+                      date: selectedReceiptPayment?.created_at
+                        ? new Date(selectedReceiptPayment.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                      paymentMethod: selectedReceiptPayment?.payment_method || selectedReceiptPayment?.paymentMethod || 'UPI',
+                    })
+                  }
                   className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
                 >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Print Receipt</span>
+                  <Download className="w-3.5 h-3.5 text-[#0099e6] dark:text-[#38bdf8]" />
+                  <span>Download Receipt</span>
                 </button>
                 {selectedReceiptPayment?.razorpay_payment_id && (
                   <button
