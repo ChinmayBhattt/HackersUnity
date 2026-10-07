@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Save, Trophy, Calendar, MapPin, Tag, Globe, Sparkles } from 'lucide-react';
+import { X, Save, Trophy, Calendar, MapPin, Tag, Globe, Sparkles, CreditCard } from 'lucide-react';
 import { ExtendedEvent } from '@/lib/mock-data';
 import { EventStatus, EventType } from '@hackers-unity/shared-types';
 import { RichTextEditor } from '@/components/rich-text-editor';
@@ -28,6 +28,8 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
   const [ctaText, setCtaText] = useState('Learn More');
   const [featured, setFeatured] = useState(true);
   const [organizerName, setOrganizerName] = useState('');
+  const [registrationType, setRegistrationType] = useState<'FREE' | 'PAID'>('FREE');
+  const [entryFee, setEntryFee] = useState<number | string>(0);
 
   useEffect(() => {
     if (event) {
@@ -44,6 +46,8 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
       setParticipantsDisplay(event.participantsDisplay || `${event.participantsCount || 500}+`);
       setCtaText(event.ctaText || 'Learn More');
       setFeatured(!!event.featured);
+      setRegistrationType(event.registrationType === 'PAID' || Number(event.entryFee) > 0 ? 'PAID' : 'FREE');
+      setEntryFee(event.entryFee !== undefined && event.entryFee !== null ? event.entryFee : 0);
     }
   }, [event]);
 
@@ -74,6 +78,9 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
       participantsDisplay: participantsDisplay.trim() || event.participantsDisplay,
       ctaText: ctaText.trim() || 'Learn More',
       featured: featured,
+      registrationType: registrationType,
+      entryFee: registrationType === 'PAID' ? (Number(entryFee) || 59) : 0,
+      currency: event.currency || 'INR',
     };
 
     onSave(updated);
@@ -203,6 +210,62 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
                 placeholder="50000"
               />
             </div>
+          </div>
+
+          {/* Registration Fee Model */}
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <CreditCard className="w-3.5 h-3.5 text-[#0099e6]" />
+                <span>Registration Fee Model</span>
+              </label>
+              <div className="flex items-center gap-1 bg-slate-200/80 dark:bg-white/[0.08] p-1 rounded-xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setRegistrationType('FREE')}
+                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                    registrationType === 'FREE'
+                      ? 'bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  Free Entry
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRegistrationType('PAID');
+                    if (!entryFee || Number(entryFee) === 0) setEntryFee(59);
+                  }}
+                  className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                    registrationType === 'PAID'
+                      ? 'bg-[#0099e6] text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  Paid Entry (₹)
+                </button>
+              </div>
+            </div>
+
+            {registrationType === 'PAID' && (
+              <div className="pt-2 border-t border-slate-200/60 dark:border-white/[0.06] flex items-center justify-between gap-3 animate-in fade-in">
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  <span>Entry fee collected per squad via Razorpay</span>
+                </div>
+                <div className="flex items-center gap-1.5 w-36">
+                  <span className="text-sm font-bold text-slate-700 dark:text-slate-300">₹</span>
+                  <input
+                    type="number"
+                    min="1"
+                    value={entryFee}
+                    onChange={(e) => setEntryFee(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.04] text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
+                    placeholder="59"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Location / Venue with Autosuggest & Maps */}

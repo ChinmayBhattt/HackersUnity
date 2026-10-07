@@ -1052,10 +1052,10 @@ function HackathonDetailContent({ params }: PageProps) {
                   <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Registration Fee</span>
                 </div>
                 <div className="text-right">
-                  {event.registrationType === 'PAID' && Number(event.entryFee || 0) > 0 ? (
+                  {(Number(event.entryFee || 0) > 0 || event.registrationType === 'PAID') ? (
                     <div>
-                      <span className="text-sm font-black text-slate-900 dark:text-white">
-                        ₹{Number(event.entryFee).toLocaleString('en-IN')}
+                      <span className="text-sm font-black text-[#ea580c] dark:text-[#f97316] font-mono">
+                        ₹{Number(event.entryFee || 99).toLocaleString('en-IN')}
                       </span>
                       <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">per squad</span>
                     </div>
@@ -1170,8 +1170,8 @@ function HackathonDetailContent({ params }: PageProps) {
                   >
                     <Rocket className="w-4 h-4" />
                     <span>
-                      {event.registrationType === 'PAID' && Number(event.entryFee || 0) > 0
-                        ? `Register • ₹${Number(event.entryFee).toLocaleString('en-IN')} / Team`
+                      {(Number(event.entryFee || 0) > 0 || event.registrationType === 'PAID')
+                        ? `Register • ₹${Number(event.entryFee || 99).toLocaleString('en-IN')} / Team`
                         : 'Register for Hackathon'}
                     </span>
                   </Link>

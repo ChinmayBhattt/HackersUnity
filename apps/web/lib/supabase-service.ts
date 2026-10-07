@@ -130,7 +130,7 @@ export function mapDbEventToExtended(item: any): ExtendedEvent {
     difficulty: item.difficulty || 'OPEN',
     rulesText: item.rules_text || '',
     registrationType: item.registration_type || (Number(item.entry_fee) > 0 ? 'PAID' : 'FREE'),
-    entryFee: item.entry_fee !== undefined && item.entry_fee !== null ? Number(item.entry_fee) : (item.registration_type === 'PAID' ? 59 : null),
+    entryFee: Number(item.entry_fee) > 0 ? Number(item.entry_fee) : (item.registration_type === 'PAID' ? 99 : 0),
     currency: item.currency || 'INR',
     registrationCapacity: item.registration_capacity || null,
     approvalMode: item.approval_mode || 'MANUAL',
