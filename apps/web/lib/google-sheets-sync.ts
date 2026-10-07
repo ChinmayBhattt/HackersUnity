@@ -84,6 +84,11 @@ export const TABLE_CONFIG: Record<string, TableMapping> = {
     primaryKey: 'id',
     description: 'Per-user delivered notifications and read states',
   },
+  payments: {
+    sheetName: 'Payments',
+    primaryKey: 'id',
+    description: 'Hackathon registration fee payments and Razorpay transactions',
+  },
 };
 
 // ─── 2. CREDENTIAL RESOLUTION & AUTH ──────────────────────────────────────────
@@ -725,4 +730,43 @@ export async function handleDatabaseWebhook(
     table,
     message: `Unsupported event type: ${type}`,
   };
+}
+
+/**
+ * Explicit helper to sync a completed payment record to the Payments tab
+ */
+export async function syncPaymentToGoogleSheets(payment: Record<string, any>): Promise<any> {
+  try {
+    return await handleDatabaseWebhook({
+      type: 'INSERT',
+      table: 'payments',
+      schema: 'public',
+      old_record: null,
+      record: {
+        id: payment.id,
+        team_name: payment.team_name,
+        team_leader_name: payment.team_leader_name,
+        team_leader_email: payment.team_leader_email,
+        team_leader_phone: payment.team_leader_phone || '',
+        transaction_date: payment.transaction_date || payment.created_at || new Date().toISOString(),
+        utr_number: payment.utr_number || 'N/A',
+        amount: payment.amount,
+        currency: payment.currency || 'INR',
+        event_name: payment.event_name,
+        event_id: payment.event_id,
+        team_id: payment.team_id || '',
+        team_type: payment.team_type || 'Squad',
+        team_size: payment.team_size || 1,
+        razorpay_order_id: payment.razorpay_order_id,
+        razorpay_payment_id: payment.razorpay_payment_id || '',
+        payment_method: payment.payment_method || 'upi',
+        status: payment.status || 'PAID',
+        receipt_number: payment.receipt_number || '',
+        created_at: payment.created_at || new Date().toISOString(),
+      },
+    });
+  } catch (err: any) {
+    console.warn('[SheetsSync] Failed to sync payment to Google Sheets:', err?.message || err);
+    return null;
+  }
 }

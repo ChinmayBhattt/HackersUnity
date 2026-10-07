@@ -31,6 +31,13 @@ import {
   Lock,
   UserMinus,
   Search,
+  CreditCard,
+  Receipt,
+  CheckCircle,
+  FileText,
+  ShieldAlert,
+  Printer,
+  Download,
 } from 'lucide-react';
 import { useEvent } from '@/lib/hooks/use-events';
 import { useAuth } from '@/lib/auth-context';
@@ -43,11 +50,25 @@ import {
   deleteTeamSupabase,
   removeTeamMemberSupabase,
   fetchTeamByInviteCode,
+  checkPaymentStatusSupabase,
 } from '@/lib/supabase-service';
 import { formatCurrency, formatDate, formatDateTime, getDaysLeft } from '@/lib/utils';
 import { EventStatus } from '@hackers-unity/shared-types';
 import { removeRegistrationForEvent } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
+
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined') return resolve(false);
+    if ((window as any).Razorpay) return resolve(true);
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
 
 interface RegisterPageProps {
   params: Promise<{ slug: string }>;
@@ -62,7 +83,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
   const { user, supabaseUser } = useAuth();
   const { teams, loading: teamsLoading, createTeam, joinTeam, refresh: refreshTeams } = useEventTeams(event?.id || '');
 
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
   const [mode, setMode] = useState<RegistrationMode>('SOLO');
 
   useEffect(() => {
@@ -131,6 +152,163 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
   const [registeredRole, setRegisteredRole] = useState('');
 
   const [isAlreadyRegistered, setIsAlreadyRegistered] = useState(false);
+
+  // Payment states
+  const feeAmount = Number(event?.entryFee || 0);
+  const isPaidEvent = Boolean(event && event.registrationType === 'PAID' && feeAmount > 0);
+  const [paymentStatus, setPaymentStatus] = useState<'UNPAID' | 'PAID' | 'LOADING'>('LOADING');
+  const [paymentData, setPaymentData] = useState<any | null>(null);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+
+  // Check live payment status from Supabase
+  useEffect(() => {
+    if (!event) return;
+    if (!isPaidEvent) {
+      setPaymentStatus('PAID');
+      return;
+    }
+
+    const currentEventId = event.id;
+    const targetTeamId = createdTeamId || selectedTeamId || null;
+    const currentUserId = supabaseUser?.id || user?.id || null;
+
+    if (!currentUserId && !targetTeamId) {
+      setPaymentStatus('UNPAID');
+      return;
+    }
+
+    let isMounted = true;
+    async function loadPayment() {
+      try {
+        const res = await checkPaymentStatusSupabase(currentEventId, targetTeamId, currentUserId);
+        if (isMounted) {
+          if (res.isPaid && res.payment) {
+            setPaymentStatus('PAID');
+            setPaymentData(res.payment);
+          } else {
+            setPaymentStatus('UNPAID');
+          }
+        }
+      } catch {
+        if (isMounted) setPaymentStatus('UNPAID');
+      }
+    }
+
+    loadPayment();
+    return () => {
+      isMounted = false;
+    };
+  }, [event?.id, isPaidEvent, createdTeamId, selectedTeamId, supabaseUser?.id, user?.id]);
+
+  const handlePayNow = async () => {
+    if (!event || isProcessingPayment) return;
+    setIsProcessingPayment(true);
+    setPaymentError(null);
+
+    try {
+      const loaded = await loadRazorpayScript();
+      if (!loaded) {
+        setPaymentError('Could not load Razorpay payment gateway. Please check your internet connection.');
+        setIsProcessingPayment(false);
+        return;
+      }
+
+      const targetTeamId = createdTeamId || selectedTeamId || null;
+      const response = await fetch('/api/payments/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventId: event.id,
+          teamId: targetTeamId,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        if (data.alreadyPaid) {
+          setPaymentStatus('PAID');
+          setPaymentData(data.payment);
+          setIsProcessingPayment(false);
+          return;
+        }
+        setPaymentError(data.error || 'Failed to initialize payment order.');
+        setIsProcessingPayment(false);
+        return;
+      }
+
+      if (data.isFree) {
+        setPaymentStatus('PAID');
+        setIsProcessingPayment(false);
+        return;
+      }
+
+      const options = {
+        key: data.keyId,
+        amount: data.amount,
+        currency: data.currency,
+        name: "Hacker's Unity",
+        description: `Squad Registration Fee: ${event.title}`,
+        image: '/favicon.ico',
+        order_id: data.orderId,
+        prefill: data.prefill || {
+          name: fullName,
+          email: email,
+          contact: phone,
+        },
+        notes: data.notes || {},
+        theme: {
+          color: '#0099e6',
+        },
+        handler: async function (paymentResponse: any) {
+          try {
+            const verifyRes = await fetch('/api/payments/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpayOrderId: paymentResponse.razorpay_order_id,
+                razorpayPaymentId: paymentResponse.razorpay_payment_id,
+                razorpaySignature: paymentResponse.razorpay_signature,
+                eventId: event.id,
+                teamId: targetTeamId,
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+            if (verifyRes.ok && verifyData.success) {
+              setPaymentStatus('PAID');
+              setPaymentData(verifyData.payment);
+            } else {
+              setPaymentError(
+                verifyData.error ||
+                  'Payment verification failed. If money was deducted, our webhook will update your status shortly.'
+              );
+            }
+          } catch (vErr: any) {
+            setPaymentError('Verification request failed. Please check your dashboard in a minute.');
+          } finally {
+            setIsProcessingPayment(false);
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setIsProcessingPayment(false);
+          },
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', function (failResp: any) {
+        setPaymentError(failResp.error?.description || 'Payment was cancelled or failed. You can retry anytime.');
+        setIsProcessingPayment(false);
+      });
+      rzp.open();
+    } catch (err: any) {
+      setPaymentError(err.message || 'An unexpected error occurred during payment.');
+      setIsProcessingPayment(false);
+    }
+  };
 
   // Update profile defaults when user loads
   useEffect(() => {
@@ -647,10 +825,11 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
           </div>
 
           {/* Stepper Progress */}
-          <div className="mt-8 pt-6 border-t border-slate-200/80 dark:border-white/[0.08] flex items-center justify-between max-w-xl mx-auto">
-            <div className="flex items-center gap-3">
+          <div className="mt-8 pt-6 border-t border-slate-200/80 dark:border-white/[0.08] flex items-center justify-between max-w-2xl mx-auto">
+            {/* Step 1: Squad Mode */}
+            <div className="flex items-center gap-2 sm:gap-3">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition-colors ${
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-xs transition-colors ${
                   currentStep === 1
                     ? 'bg-[#0099e6] text-white ring-4 ring-sky-100 dark:ring-sky-950'
                     : currentStep > 1
@@ -660,21 +839,22 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
               >
                 {currentStep > 1 ? <Check className="w-4 h-4" /> : '1'}
               </div>
-              <span className={`text-xs font-bold ${currentStep === 1 ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
-                1. Squad Mode
+              <span className={`text-[11px] sm:text-xs font-bold ${currentStep === 1 ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
+                1. Squad
               </span>
             </div>
 
-            <div className="flex-1 h-0.5 mx-4 bg-slate-200 dark:bg-white/[0.1]">
+            <div className="flex-1 h-0.5 mx-2 sm:mx-3 bg-slate-200 dark:bg-white/[0.1]">
               <div
                 className="h-full bg-[#0099e6] transition-all duration-300"
-                style={{ width: currentStep === 1 ? '0%' : currentStep === 2 ? '50%' : '100%' }}
+                style={{ width: currentStep === 1 ? '0%' : '100%' }}
               />
             </div>
 
-            <div className="flex items-center gap-3">
+            {/* Step 2: Builder Details */}
+            <div className="flex items-center gap-2 sm:gap-3">
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition-colors ${
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-xs transition-colors ${
                   currentStep === 2
                     ? 'bg-[#0099e6] text-white ring-4 ring-sky-100 dark:ring-sky-950'
                     : currentStep > 2
@@ -684,32 +864,76 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
               >
                 {currentStep > 2 ? <Check className="w-4 h-4" /> : '2'}
               </div>
-              <span className={`text-xs font-bold ${currentStep === 2 ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
-                2. Builder Details
+              <span className={`text-[11px] sm:text-xs font-bold ${currentStep === 2 ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
+                2. Details
               </span>
             </div>
 
-            <div className="flex-1 h-0.5 mx-4 bg-slate-200 dark:bg-white/[0.1]">
+            <div className="flex-1 h-0.5 mx-2 sm:mx-3 bg-slate-200 dark:bg-white/[0.1]">
               <div
-                className="h-full bg-emerald-500 transition-all duration-300"
-                style={{ width: currentStep === 3 ? '100%' : '0%' }}
+                className="h-full bg-[#0099e6] transition-all duration-300"
+                style={{ width: currentStep < 3 ? '0%' : '100%' }}
               />
             </div>
 
-            <div className="flex items-center gap-3">
+            {/* Step 3: Confirmed */}
+            <div
+              onClick={() => {
+                if (currentStep > 3 || isAlreadyRegistered) setCurrentStep(3);
+              }}
+              className={`flex items-center gap-2 sm:gap-3 ${currentStep > 3 || isAlreadyRegistered ? 'cursor-pointer' : ''}`}
+            >
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition-colors ${
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-xs transition-colors ${
                   currentStep === 3
                     ? 'bg-emerald-500 text-white ring-4 ring-emerald-100 dark:ring-emerald-950'
+                    : currentStep > 3
+                    ? 'bg-emerald-500 text-white'
                     : 'bg-slate-200 dark:bg-white/[0.1] text-slate-600 dark:text-slate-400'
                 }`}
               >
-                3
+                {currentStep >= 3 ? <Check className="w-4 h-4" /> : '3'}
               </div>
-              <span className={`text-xs font-bold ${currentStep === 3 ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
+              <span className={`text-[11px] sm:text-xs font-bold ${currentStep === 3 ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
                 3. Confirmed
               </span>
             </div>
+
+            {/* Step 4: Payment (If Paid Event) */}
+            {isPaidEvent && (
+              <>
+                <div className="flex-1 h-0.5 mx-2 sm:mx-3 bg-slate-200 dark:bg-white/[0.1]">
+                  <div
+                    className="h-full bg-emerald-500 transition-all duration-300"
+                    style={{ width: currentStep === 4 ? '100%' : '0%' }}
+                  />
+                </div>
+
+                <div
+                  onClick={() => {
+                    if (currentStep >= 3 || isAlreadyRegistered) setCurrentStep(4);
+                  }}
+                  className={`flex items-center gap-2 sm:gap-3 ${currentStep >= 3 || isAlreadyRegistered ? 'cursor-pointer' : ''}`}
+                >
+                  <div
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-xs transition-colors ${
+                      currentStep === 4
+                        ? paymentStatus === 'PAID'
+                          ? 'bg-emerald-500 text-white ring-4 ring-emerald-100 dark:ring-emerald-950'
+                          : 'bg-[#0099e6] text-white ring-4 ring-sky-100 dark:ring-sky-950'
+                        : paymentStatus === 'PAID'
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-slate-200 dark:bg-white/[0.1] text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    {paymentStatus === 'PAID' ? <Check className="w-4 h-4" /> : '4'}
+                  </div>
+                  <span className={`text-[11px] sm:text-xs font-bold ${currentStep === 4 ? 'text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400'}`}>
+                    4. Payment
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1626,17 +1850,249 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                 </div>
               )}
 
+              {/* ─── Payment Callout for Paid Events ─── */}
+              {isPaidEvent && (
+                <div className="max-w-md mx-auto p-5 rounded-2xl border transition-all text-left space-y-3 bg-white dark:bg-[#0c1017] border-sky-200 dark:border-sky-800/50 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-[#0099e6] dark:text-[#38bdf8]" />
+                      <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                        Squad Registration Fee
+                      </h4>
+                    </div>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                        paymentStatus === 'PAID'
+                          ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                          : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
+                      }`}
+                    >
+                      {paymentStatus === 'PAID' ? '✓ Paid & Confirmed' : 'Payment Pending'}
+                    </span>
+                  </div>
+
+                  {paymentStatus === 'PAID' ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-slate-600 dark:text-slate-400">
+                        Your squad&apos;s registration fee of{' '}
+                        <strong className="text-slate-900 dark:text-white">
+                          ₹{paymentData?.amount || feeAmount}
+                        </strong>{' '}
+                        is confirmed. Only one payment was required for the entire squad.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep(4)}
+                        className="text-xs font-bold text-[#0099e6] dark:text-[#38bdf8] hover:underline flex items-center gap-1.5 cursor-pointer pt-1"
+                      >
+                        <Receipt className="w-3.5 h-3.5" />
+                        <span>View Payment Receipt & Details →</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                        Your squad has been created and your invitation link is ready! To confirm your squad&apos;s slot, complete the one-time squad entry fee of{' '}
+                        <strong className="text-slate-900 dark:text-white">₹{feeAmount}</strong>.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep(4)}
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-[#0099e6] to-sky-600 hover:from-[#0284c7] hover:to-sky-700 text-white font-extrabold text-xs shadow-md shadow-sky-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all"
+                      >
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>Proceed to Payment (₹{feeAmount}) →</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Navigation CTAs */}
               <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+                {isPaidEvent && paymentStatus !== 'PAID' ? (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(4)}
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-bold text-xs shadow-md shadow-sky-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    <span>Pay Entry Fee (₹{feeAmount})</span>
+                  </button>
+                ) : (
+                  <Link
+                    href={`/hackathons/${event.slug}`}
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-bold text-xs shadow-md shadow-sky-500/20 transition-all"
+                  >
+                    View Hackathon Arena
+                  </Link>
+                )}
+                <Link
+                  href="/dashboard"
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 font-bold text-xs transition-colors text-center"
+                >
+                  Go to My Dashboard
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* ═════════ STEP 4: PAYMENT (RAZORPAY) ═════════ */}
+          {currentStep === 4 && (
+            <div className="p-8 sm:p-12 space-y-8 animate-in zoom-in-95">
+              {/* Step Header */}
+              <div className="text-center space-y-2">
+                <span
+                  className={`inline-block px-3.5 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider ${
+                    paymentStatus === 'PAID'
+                      ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                      : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
+                  }`}
+                >
+                  {paymentStatus === 'PAID' ? 'Payment Confirmed' : 'Step 4 • Squad Payment'}
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                  {paymentStatus === 'PAID' ? 'Your Payment is Confirmed!' : 'Complete Squad Entry Fee'}
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-md mx-auto">
+                  {paymentStatus === 'PAID'
+                    ? `Registration fee for ${event.title} has been received and confirmed.`
+                    : `Pay the one-time registration fee for your entire squad via Razorpay.`}
+                </p>
+              </div>
+
+              {paymentError && (
+                <div className="max-w-md mx-auto p-4 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/40 text-xs text-red-700 dark:text-red-400 font-medium flex items-center gap-3">
+                  <ShieldAlert className="w-5 h-5 shrink-0 text-red-500" />
+                  <span>{paymentError}</span>
+                </div>
+              )}
+
+              {/* Order Summary Card */}
+              <div className="max-w-md mx-auto rounded-3xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] shadow-lg p-6 space-y-5 text-left">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/[0.08] pb-4">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Event</span>
+                    <h4 className="text-sm font-black text-slate-900 dark:text-white">{event.title}</h4>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Squad</span>
+                    <h4 className="text-sm font-black text-[#0099e6] dark:text-[#38bdf8]">
+                      {createdTeamData?.name || teamName || 'Solo Builder'}
+                    </h4>
+                  </div>
+                </div>
+
+                {/* Price Breakdown */}
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>Squad Registration Fee (Full Team)</span>
+                    <span className="font-semibold text-slate-900 dark:text-white">₹{feeAmount}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                    <span>Platform & Gateway Convenience Fee</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">₹0 (Included)</span>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-100 dark:border-white/[0.08] pt-3 text-sm font-black text-slate-900 dark:text-white">
+                    <span>Total Payable</span>
+                    <span className="text-[#ea580c] font-mono text-base">₹{feeAmount}</span>
+                  </div>
+                </div>
+
+                {/* Payment Status State Details */}
+                {paymentStatus === 'PAID' ? (
+                  <div className="pt-2 space-y-4 border-t border-slate-100 dark:border-white/[0.08]">
+                    <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                        <span className="flex items-center gap-1.5">
+                          <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                          <span>Status</span>
+                        </span>
+                        <span>CONFIRMED / PAID</span>
+                      </div>
+                      <div className="flex justify-between text-[11px] text-slate-600 dark:text-slate-300 pt-1 border-t border-emerald-200/60 dark:border-emerald-800/40">
+                        <span>UTR / Bank Ref:</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">
+                          {paymentData?.utr_number || 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-[11px] text-slate-600 dark:text-slate-300">
+                        <span>Payment ID:</span>
+                        <span className="font-mono text-slate-700 dark:text-slate-300">
+                          {paymentData?.razorpay_payment_id || 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-[11px] text-slate-600 dark:text-slate-300">
+                        <span>Method:</span>
+                        <span className="font-bold uppercase text-slate-700 dark:text-slate-300">
+                          {paymentData?.payment_method || 'UPI'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowReceiptModal(true)}
+                      className="w-full py-3 rounded-2xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-white/[0.1] hover:bg-slate-50 dark:hover:bg-white/[0.05] text-slate-800 dark:text-slate-200 text-xs font-extrabold flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-2xs"
+                    >
+                      <Receipt className="w-4 h-4 text-[#0099e6] dark:text-[#38bdf8]" />
+                      <span>View & Download Receipt</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="pt-2 space-y-4 border-t border-slate-100 dark:border-white/[0.08]">
+                    {/* Supported payment badges */}
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 px-1">
+                      <span>Supported Payment Methods:</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-300">UPI, QR, Cards, NetBanking</span>
+                    </div>
+
+                    {/* Pay Now Button */}
+                    <button
+                      type="button"
+                      onClick={handlePayNow}
+                      disabled={isProcessingPayment}
+                      className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#0099e6] to-sky-600 hover:from-[#0284c7] hover:to-sky-700 text-white font-extrabold text-sm shadow-md shadow-sky-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {isProcessingPayment ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Connecting to Razorpay...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-4 h-4" />
+                          <span>Pay Now • ₹{feeAmount}</span>
+                        </>
+                      )}
+                    </button>
+
+                    <p className="text-[10px] text-slate-400 text-center flex items-center justify-center gap-1">
+                      <Lock className="w-3 h-3 text-slate-400" />
+                      <span>256-bit Secure Razorpay Checkout</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(3)}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 dark:border-white/[0.1] hover:bg-slate-100 dark:hover:bg-white/[0.06] text-slate-700 dark:text-slate-300 font-bold text-xs transition-colors cursor-pointer"
+                >
+                  ← Back to Squad Details
+                </button>
                 <Link
                   href={`/hackathons/${event.slug}`}
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-bold text-xs shadow-md shadow-sky-500/20 transition-all"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-bold text-xs shadow-md shadow-sky-500/20 transition-all text-center"
                 >
                   View Hackathon Arena
                 </Link>
                 <Link
                   href="/dashboard"
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 font-bold text-xs transition-colors"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 font-bold text-xs transition-colors text-center"
                 >
                   Go to My Dashboard
                 </Link>
@@ -1645,6 +2101,111 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
           )}
         </div>
       </div>
+
+      {/* ─── MODAL: Payment Receipt ─── */}
+      {showReceiptModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-black/75 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-lg bg-white dark:bg-[#0c1017] rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200 dark:border-white/[0.08] space-y-6 text-left">
+            {/* Receipt Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/[0.08] pb-4">
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#0099e6]">
+                  HACKER&apos;S UNITY
+                </span>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white">Official Payment Receipt</h3>
+              </div>
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                <CheckCircle className="w-6 h-6" />
+              </div>
+            </div>
+
+            {/* Receipt Metadata Grid */}
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Receipt No</span>
+                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                  {paymentData?.receipt_number || 'HU-REC-XXXX'}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Date</span>
+                <span className="font-medium text-slate-800 dark:text-slate-200">
+                  {formatDate(paymentData?.transaction_date || paymentData?.created_at || new Date().toISOString())}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Event</span>
+                <span className="font-bold text-slate-900 dark:text-white">{event.title}</span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Squad Name</span>
+                <span className="font-bold text-slate-900 dark:text-white">
+                  {paymentData?.team_name || createdTeamData?.name || teamName || 'Solo Builder'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Team Leader</span>
+                <span className="font-medium text-slate-800 dark:text-slate-200">
+                  {paymentData?.team_leader_name || fullName}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Email</span>
+                <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
+                  {paymentData?.team_leader_email || email}
+                </span>
+              </div>
+            </div>
+
+            {/* Transaction Verification Details */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/[0.08] space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Payment ID:</span>
+                <span className="font-mono text-slate-800 dark:text-slate-200">
+                  {paymentData?.razorpay_payment_id || 'N/A'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Bank UTR / Ref:</span>
+                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                  {paymentData?.utr_number || 'N/A'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Payment Method:</span>
+                <span className="font-bold uppercase text-slate-800 dark:text-slate-200">
+                  {paymentData?.payment_method || 'UPI'}
+                </span>
+              </div>
+              <div className="flex justify-between border-t border-slate-200/60 dark:border-white/[0.08] pt-2 text-sm font-black text-slate-900 dark:text-white">
+                <span>Amount Paid</span>
+                <span className="text-[#ea580c] font-mono text-base">
+                  ₹{paymentData?.amount || feeAmount}
+                </span>
+              </div>
+            </div>
+
+            {/* Receipt Modal Footer */}
+            <div className="pt-2 flex items-center justify-between border-t border-slate-100 dark:border-white/[0.08]">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print Receipt</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowReceiptModal(false)}
+                className="px-5 py-2 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-bold text-xs cursor-pointer transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── MODAL: Delete Squad Confirmation ─── */}
       {showDeleteSquadModal && (

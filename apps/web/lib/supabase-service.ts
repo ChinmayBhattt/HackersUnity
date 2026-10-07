@@ -643,6 +643,8 @@ export async function createEventInSupabase(
       difficulty: event.difficulty || 'OPEN',
       rules_text: event.rulesText || null,
       registration_type: event.registrationType || 'FREE',
+      entry_fee: event.entryFee !== undefined && event.entryFee !== null ? Number(event.entryFee) : 0,
+      currency: event.currency || 'INR',
       registration_capacity: event.registrationCapacity || 2000,
       approval_mode: event.approvalMode || 'AUTO',
       custom_questions: event.customQuestions || [],
@@ -764,6 +766,8 @@ export async function updateEventInSupabase(
     if (updates.organizerAvatar !== undefined) updatePayload.organizer_avatar = updates.organizerAvatar;
     if (updates.organizerId !== undefined) updatePayload.organizer_id = updates.organizerId;
     if (updates.registrationType !== undefined) updatePayload.registration_type = updates.registrationType;
+    if (updates.entryFee !== undefined) updatePayload.entry_fee = updates.entryFee !== null ? Number(updates.entryFee) : 0;
+    if (updates.currency !== undefined) updatePayload.currency = updates.currency;
     if (updates.registrationCapacity !== undefined) updatePayload.registration_capacity = updates.registrationCapacity;
     if (updates.approvalMode !== undefined) updatePayload.approval_mode = updates.approvalMode;
     if (updates.eligibility !== undefined) updatePayload.eligibility = updates.eligibility;
@@ -3519,4 +3523,89 @@ export function subscribeToProfilesRealtime(onChange: () => void): () => void {
   };
 }
 
+/**
+ * ─── PAYMENTS: FETCH USER PAYMENTS ──────────────────────────────────────────
+ */
+export async function fetchUserPaymentsSupabase(userId: string): Promise<any[]> {
+  if (!userId) return [];
+  try {
+    const { data, error } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
 
+    if (error) {
+      console.warn('[Supabase] fetchUserPaymentsSupabase error:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.warn('[Supabase] fetchUserPaymentsSupabase exception:', err);
+    return [];
+  }
+}
+
+/**
+ * ─── PAYMENTS: FETCH EVENT PAYMENTS (FOR ORGANIZER DASHBOARD) ───────────────
+ */
+export async function fetchEventPaymentsSupabase(eventId: string): Promise<any[]> {
+  if (!eventId) return [];
+  try {
+    const { data, error } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('[Supabase] fetchEventPaymentsSupabase error:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.warn('[Supabase] fetchEventPaymentsSupabase exception:', err);
+    return [];
+  }
+}
+
+/**
+ * ─── PAYMENTS: CHECK PAYMENT STATUS FOR TEAM OR REGISTRATION ────────────────
+ */
+export async function checkPaymentStatusSupabase(
+  eventId: string,
+  teamId?: string | null,
+  userId?: string | null
+): Promise<{ isPaid: boolean; payment?: any }> {
+  if (!eventId) return { isPaid: false };
+  try {
+    let query = supabase
+      .from('payments')
+      .select('*')
+      .eq('event_id', eventId)
+      .eq('status', 'PAID');
+
+    if (teamId) {
+      query = query.eq('team_id', teamId);
+    } else if (userId) {
+      query = query.eq('user_id', userId);
+    } else {
+      return { isPaid: false };
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+      console.warn('[Supabase] checkPaymentStatusSupabase error:', error.message);
+      return { isPaid: false };
+    }
+
+    return {
+      isPaid: Boolean(data && data.status === 'PAID'),
+      payment: data || null,
+    };
+  } catch (err) {
+    console.warn('[Supabase] checkPaymentStatusSupabase exception:', err);
+    return { isPaid: false };
+  }
+}

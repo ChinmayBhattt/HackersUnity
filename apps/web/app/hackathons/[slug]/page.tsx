@@ -29,6 +29,7 @@ import {
   Copy,
   Check,
   PenTool,
+  CreditCard,
 } from 'lucide-react';
 import { useEvent } from '@/lib/hooks/use-events';
 import { useEventRegistration } from '@/lib/hooks/use-registration';
@@ -1044,6 +1045,28 @@ function HackathonDetailContent({ params }: PageProps) {
                 </div>
               </div>
 
+              {/* Entry Fee Box */}
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/[0.08]">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-[#0099e6] dark:text-[#38bdf8]" />
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Registration Fee</span>
+                </div>
+                <div className="text-right">
+                  {event.registrationType === 'PAID' && Number(event.entryFee || 0) > 0 ? (
+                    <div>
+                      <span className="text-sm font-black text-slate-900 dark:text-white">
+                        ₹{Number(event.entryFee).toLocaleString('en-IN')}
+                      </span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">per squad</span>
+                    </div>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 text-xs font-black">
+                      Free Entry
+                    </span>
+                  )}
+                </div>
+              </div>
+
               {/* Primary Register / Submit CTA */}
               {isManipalEvent ? (
                 <div className="space-y-2.5">
@@ -1146,7 +1169,11 @@ function HackathonDetailContent({ params }: PageProps) {
                     className="w-full py-3.5 rounded-2xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-extrabold text-sm shadow-md shadow-sky-500/20 transition-all text-center flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <Rocket className="w-4 h-4" />
-                    <span>Register for Hackathon</span>
+                    <span>
+                      {event.registrationType === 'PAID' && Number(event.entryFee || 0) > 0
+                        ? `Register • ₹${Number(event.entryFee).toLocaleString('en-IN')} / Team`
+                        : 'Register for Hackathon'}
+                    </span>
                   </Link>
                   {userSubmission ? (
                     <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/90 dark:border-emerald-800/40 text-left space-y-1.5 animate-in fade-in">

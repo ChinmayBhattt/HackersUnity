@@ -29,3 +29,4 @@ export * from './event';
 export * from './registration';
 export * from './team';
 export * from './notification';
+export * from './payment';
