@@ -82,16 +82,16 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in overflow-y-auto">
-      <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-8">
+      <div className="w-full max-w-2xl bg-white dark:bg-[#0c1017] rounded-3xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden my-8">
         {/* Header */}
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+        <div className="p-6 border-b border-slate-100 dark:border-white/10 flex items-center justify-between bg-slate-50/80 dark:bg-white/[0.02]">
           <div>
             <span className="text-[10px] font-bold text-[#0099e6] uppercase tracking-wider">Organizer Controls</span>
-            <h3 className="text-xl font-black text-slate-900">Edit Hackathon Event</h3>
+            <h3 className="text-xl font-black text-slate-900 dark:text-white">Edit Hackathon Event</h3>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-white/10 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -101,7 +101,7 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
         <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-5 max-h-[75vh] overflow-y-auto">
           {/* Title */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
               Hackathon Title *
             </label>
             <input
@@ -109,14 +109,14 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#0099e6] focus:border-transparent"
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.04] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#0099e6] focus:border-transparent"
               placeholder="e.g. CodeWars Hackathon"
             />
           </div>
 
           {/* Organizer / Host Name */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
               Host / Organizer (College or Organization Name & Lead) *
             </label>
             <input
@@ -124,7 +124,7 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
               required
               value={organizerName}
               onChange={(e) => setOrganizerName(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#0099e6] focus:border-transparent"
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.04] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#0099e6] focus:border-transparent"
               placeholder="e.g. Hacker's Unity"
             />
           </div>
@@ -143,34 +143,34 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
           {/* Status & Mode Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                 Event Status
               </label>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as EventStatus)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0099e6] bg-white cursor-pointer"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer"
               >
-                <option value={EventStatus.PUBLISHED}>Open for Registration (Live)</option>
-                <option value={EventStatus.ONGOING}>Ongoing (Live Now)</option>
-                <option value={EventStatus.COMPLETED}>Completed / Past Event</option>
-                <option value={EventStatus.REGISTRATION_CLOSED}>Registration Closed</option>
+                <option value={EventStatus.PUBLISHED} className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">Open for Registration (Live)</option>
+                <option value={EventStatus.ONGOING} className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">Ongoing (Live Now)</option>
+                <option value={EventStatus.COMPLETED} className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">Completed / Past Event</option>
+                <option value={EventStatus.REGISTRATION_CLOSED} className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">Registration Closed</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                 Mode / Format
               </label>
               <select
                 value={mode}
                 onChange={(e) => setMode(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0099e6] bg-white cursor-pointer"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer"
               >
-                <option value="In-Person">In-Person (Offline)</option>
-                <option value="Online">Online / Virtual</option>
-                <option value="Offline">Offline</option>
-                <option value="Hybrid">Hybrid</option>
+                <option value="In-Person" className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">In-Person (Offline)</option>
+                <option value="Online" className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">Online / Virtual</option>
+                <option value="Offline" className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">Offline</option>
+                <option value="Hybrid" className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">Hybrid</option>
               </select>
             </div>
           </div>
@@ -178,7 +178,7 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
           {/* Prize Pool Display & Numeric Value */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
                 <Trophy className="w-3.5 h-3.5 text-[#ea580c]" />
                 <span>Prize Pool Text</span>
               </label>
@@ -186,20 +186,20 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
                 type="text"
                 value={prizeDisplay}
                 onChange={(e) => setPrizeDisplay(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-[#ea580c] focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.04] text-xs font-bold text-[#ea580c] focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
                 placeholder="e.g. ₹50,000 or $2100 + Swags"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                 Approx Total Prize ($ / ₹ Value)
               </label>
               <input
                 type="number"
                 value={prizeAmount}
                 onChange={(e) => setPrizeAmount(Number(e.target.value))}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-mono font-bold focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.04] text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
                 placeholder="50000"
               />
             </div>
@@ -218,14 +218,14 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
 
           {/* Registered Hackers Display */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
               Registered Count Display
             </label>
             <input
               type="text"
               value={participantsDisplay}
               onChange={(e) => setParticipantsDisplay(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.04] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
               placeholder="e.g. 500+ or 1,000+"
             />
           </div>
@@ -233,7 +233,7 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
           {/* Registration Link & CTA Text */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
                 <Globe className="w-3.5 h-3.5 text-[#0099e6]" />
                 <span>Portal / Registration URL</span>
               </label>
@@ -241,20 +241,20 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
                 type="text"
                 value={registrationLink}
                 onChange={(e) => setRegistrationLink(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.04] text-xs font-mono text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
                 placeholder="https://devfolio.co/... or https://devpost.com"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                 CTA Button Text
               </label>
               <input
                 type="text"
                 value={ctaText}
                 onChange={(e) => setCtaText(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.04] text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
                 placeholder="Learn More"
               />
             </div>
@@ -262,15 +262,15 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
 
           {/* Tags */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
-              <Tag className="w-3.5 h-3.5 text-slate-500" />
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+              <Tag className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
               <span>Domain Tags (comma-separated)</span>
             </label>
             <input
               type="text"
               value={tagsInput}
               onChange={(e) => setTagsInput(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.04] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
               placeholder="AI/ML, Web3, Blockchain, IoT"
             />
           </div>
@@ -282,20 +282,20 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
               id="featured-check"
               checked={featured}
               onChange={(e) => setFeatured(e.target.checked)}
-              className="w-4 h-4 text-[#0099e6] rounded border-slate-300 focus:ring-[#0099e6]"
+              className="w-4 h-4 text-[#0099e6] rounded border-slate-300 dark:border-white/20 bg-white dark:bg-white/[0.05] focus:ring-[#0099e6]"
             />
-            <label htmlFor="featured-check" className="text-xs font-bold text-slate-800 flex items-center gap-1 cursor-pointer">
+            <label htmlFor="featured-check" className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1 cursor-pointer">
               <Sparkles className="w-3.5 h-3.5 text-[#ea580c]" />
               <span>Feature this Hackathon prominently on Home page</span>
             </label>
           </div>
 
           {/* Action Buttons */}
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+          <div className="pt-4 border-t border-slate-100 dark:border-white/10 flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 transition-colors cursor-pointer"
             >
               Cancel
             </button>

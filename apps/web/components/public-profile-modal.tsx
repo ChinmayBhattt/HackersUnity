@@ -130,6 +130,10 @@ export function PublicProfileModal({
               color: #0f172a !important;
               margin: 0.4rem 0 0.2rem 0 !important;
             }
+            .dark .public-bio-content h1,
+            .dark .public-bio-content h2 {
+              color: #f8fafc !important;
+            }
             .public-bio-content blockquote {
               border-left: 3px solid #0099e6 !important;
               padding: 0.25rem 0.6rem !important;
@@ -138,6 +142,10 @@ export function PublicProfileModal({
               background-color: rgba(0, 153, 230, 0.06) !important;
               border-radius: 0 0.375rem 0.375rem 0 !important;
               color: #334155 !important;
+            }
+            .dark .public-bio-content blockquote {
+              color: #cbd5e1 !important;
+              background-color: rgba(0, 153, 230, 0.12) !important;
             }
             .public-bio-content a {
               color: #0099e6 !important;
@@ -152,9 +160,9 @@ export function PublicProfileModal({
         }}
       />
 
-      <div className="w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-3 animate-in zoom-in-95 duration-200">
+      <div className="w-full max-w-xl bg-white dark:bg-[#0c1017] rounded-3xl shadow-2xl border border-slate-200 dark:border-white/10 overflow-hidden my-3 animate-in zoom-in-95 duration-200">
         {/* Top Minimal Header Bar */}
-        <div className="bg-slate-950 px-4 py-2 text-white flex items-center justify-between text-[11px] font-semibold">
+        <div className="bg-slate-950 px-4 py-2 text-white flex items-center justify-between text-[11px] font-semibold border-b border-white/5">
           <div className="flex items-center gap-2">
             <span className="flex h-2 w-2 relative">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -198,7 +206,7 @@ export function PublicProfileModal({
             <div className="flex items-end justify-between -mt-12 sm:-mt-14 mb-3">
               {/* Avatar with ring and pinned green status dot */}
               <div className="relative">
-                <div className="w-22 h-22 sm:w-24 sm:h-24 rounded-2xl bg-white p-1 shadow-2xl ring-4 ring-white overflow-hidden">
+                <div className="w-22 h-22 sm:w-24 sm:h-24 rounded-2xl bg-white dark:bg-[#0c1017] p-1 shadow-2xl ring-4 ring-white dark:ring-[#0c1017] overflow-hidden">
                   {avatarUrl && (avatarUrl.startsWith('data:') || avatarUrl.startsWith('http')) ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img src={avatarUrl} alt={name} className="w-full h-full object-cover rounded-xl" />
@@ -209,47 +217,47 @@ export function PublicProfileModal({
                   )}
                 </div>
                 {/* Pinned Green Dot */}
-                <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-500 ring-2 ring-white flex items-center justify-center shadow-xs">
+                <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-[#0c1017] flex items-center justify-center shadow-xs">
                   <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                 </span>
               </div>
 
               {/* Status Badge */}
               <div className="pb-1">
-                <span className="px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-black flex items-center gap-1.5 shadow-2xs">
-                  <Flame className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                <span className="px-3.5 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 text-xs font-black flex items-center gap-1.5 shadow-2xs">
+                  <Flame className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span>Open for Squads</span>
                 </span>
               </div>
             </div>
 
-            {/* User Identity Details (100% on clean white surface with clear contrast & breathing room) */}
+            {/* User Identity Details (100% on clean surface with clear contrast & breathing room) */}
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
                   {name}
                 </h1>
-                <span className="p-1 rounded-full bg-sky-100 text-[#0099e6]" title="Verified Builder Identity">
+                <span className="p-1 rounded-full bg-sky-100 dark:bg-sky-500/10 text-[#0099e6]" title="Verified Builder Identity">
                   <CheckCircle2 className="w-4 h-4" />
                 </span>
               </div>
 
               {professionType === 'STUDENT' && (
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400">
                   <GraduationCap className="w-4 h-4 text-[#0099e6] shrink-0" />
                   <span>{degree.split('(')[0].trim()} in {branch.split('(')[0].trim()}</span>
                 </div>
               )}
 
               {professionType === 'PROFESSIONAL' && (
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400">
                   <Briefcase className="w-4 h-4 text-[#0099e6] shrink-0" />
                   <span>{jobTitle} {company ? `at ${company}` : ''}</span>
                 </div>
               )}
 
               {professionType === 'FREELANCER' && (
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400">
                   <Code2 className="w-4 h-4 text-[#0099e6] shrink-0" />
                   <span>{freelanceTitle}</span>
                 </div>
@@ -257,33 +265,33 @@ export function PublicProfileModal({
             </div>
 
             {/* 3. Credentials Bento Strip (Clean 3-column cards with fixed height and balanced spacing) */}
-            <div className="grid grid-cols-3 gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 shadow-2xs">
+            <div className="grid grid-cols-3 gap-3 p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/[0.08] shadow-2xs">
               {professionType === 'STUDENT' && (
                 <>
-                  <div className="p-3 rounded-xl bg-white border border-slate-200/60 shadow-2xs flex flex-col justify-between min-h-[64px]" title={college}>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <div className="p-3 rounded-xl bg-white dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06] shadow-2xs flex flex-col justify-between min-h-[64px]" title={college}>
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                       <Building2 className="w-3 h-3 text-[#0099e6]" />
                       <span>Institution</span>
                     </span>
-                    <div className="text-xs font-black text-slate-900 line-clamp-2 leading-tight mt-1">
+                    <div className="text-xs font-black text-slate-900 dark:text-white line-clamp-2 leading-tight mt-1">
                       {college}
                     </div>
                   </div>
-                  <div className="p-3 rounded-xl bg-white border border-slate-200/60 shadow-2xs flex flex-col justify-between min-h-[64px]">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <div className="p-3 rounded-xl bg-white dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06] shadow-2xs flex flex-col justify-between min-h-[64px]">
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                       <Calendar className="w-3 h-3 text-[#0099e6]" />
                       <span>Passout Year</span>
                     </span>
-                    <div className="text-xs font-black text-slate-900 mt-1">
+                    <div className="text-xs font-black text-slate-900 dark:text-white mt-1">
                       Class of {graduationYear}
                     </div>
                   </div>
-                  <div className="p-3 rounded-xl bg-white border border-slate-200/60 shadow-2xs flex flex-col justify-between min-h-[64px]" title={branch}>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <div className="p-3 rounded-xl bg-white dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06] shadow-2xs flex flex-col justify-between min-h-[64px]" title={branch}>
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                       <Layers className="w-3 h-3 text-[#0099e6]" />
                       <span>Branch</span>
                     </span>
-                    <div className="text-xs font-black text-slate-900 line-clamp-2 leading-tight mt-1">
+                    <div className="text-xs font-black text-slate-900 dark:text-white line-clamp-2 leading-tight mt-1">
                       {branch}
                     </div>
                   </div>
@@ -292,30 +300,30 @@ export function PublicProfileModal({
 
               {professionType === 'PROFESSIONAL' && (
                 <>
-                  <div className="p-3 rounded-xl bg-white border border-slate-200/60 shadow-2xs flex flex-col justify-between min-h-[64px]" title={company}>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <div className="p-3 rounded-xl bg-white dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06] shadow-2xs flex flex-col justify-between min-h-[64px]" title={company}>
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                       <Building2 className="w-3 h-3 text-[#0099e6]" />
                       <span>Company / Org</span>
                     </span>
-                    <div className="text-xs font-black text-slate-900 line-clamp-2 leading-tight mt-1">
+                    <div className="text-xs font-black text-slate-900 dark:text-white line-clamp-2 leading-tight mt-1">
                       {company}
                     </div>
                   </div>
-                  <div className="p-3 rounded-xl bg-white border border-slate-200/60 shadow-2xs flex flex-col justify-between min-h-[64px]">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <div className="p-3 rounded-xl bg-white dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06] shadow-2xs flex flex-col justify-between min-h-[64px]">
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                       <Calendar className="w-3 h-3 text-[#0099e6]" />
                       <span>Experience</span>
                     </span>
-                    <div className="text-xs font-black text-slate-900 mt-1">
+                    <div className="text-xs font-black text-slate-900 dark:text-white mt-1">
                       {experienceYears}
                     </div>
                   </div>
-                  <div className="p-3 rounded-xl bg-white border border-slate-200/60 shadow-2xs flex flex-col justify-between min-h-[64px]" title={industry}>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <div className="p-3 rounded-xl bg-white dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06] shadow-2xs flex flex-col justify-between min-h-[64px]" title={industry}>
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                       <Layers className="w-3 h-3 text-[#0099e6]" />
                       <span>Industry</span>
                     </span>
-                    <div className="text-xs font-black text-slate-900 line-clamp-2 leading-tight mt-1">
+                    <div className="text-xs font-black text-slate-900 dark:text-white line-clamp-2 leading-tight mt-1">
                       {industry}
                     </div>
                   </div>
@@ -324,30 +332,30 @@ export function PublicProfileModal({
 
               {professionType === 'FREELANCER' && (
                 <>
-                  <div className="p-3 rounded-xl bg-white border border-slate-200/60 shadow-2xs flex flex-col justify-between min-h-[64px]">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <div className="p-3 rounded-xl bg-white dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06] shadow-2xs flex flex-col justify-between min-h-[64px]">
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                       <Code2 className="w-3 h-3 text-[#0099e6]" />
                       <span>Track</span>
                     </span>
-                    <div className="text-xs font-black text-slate-900 mt-1">
+                    <div className="text-xs font-black text-slate-900 dark:text-white mt-1">
                       Independent Hacker
                     </div>
                   </div>
-                  <div className="p-3 rounded-xl bg-white border border-slate-200/60 shadow-2xs flex flex-col justify-between min-h-[64px]">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <div className="p-3 rounded-xl bg-white dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06] shadow-2xs flex flex-col justify-between min-h-[64px]">
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                       <Calendar className="w-3 h-3 text-[#0099e6]" />
                       <span>Builder Level</span>
                     </span>
-                    <div className="text-xs font-black text-slate-900 mt-1">
+                    <div className="text-xs font-black text-slate-900 dark:text-white mt-1">
                       {freelanceLevel}
                     </div>
                   </div>
-                  <div className="p-3 rounded-xl bg-white border border-slate-200/60 shadow-2xs flex flex-col justify-between min-h-[64px]" title={freelanceDomain}>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <div className="p-3 rounded-xl bg-white dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06] shadow-2xs flex flex-col justify-between min-h-[64px]" title={freelanceDomain}>
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                       <Layers className="w-3 h-3 text-[#0099e6]" />
                       <span>Focus Domain</span>
                     </span>
-                    <div className="text-xs font-black text-slate-900 line-clamp-2 leading-tight mt-1">
+                    <div className="text-xs font-black text-slate-900 dark:text-white line-clamp-2 leading-tight mt-1">
                       {freelanceDomain}
                     </div>
                   </div>
@@ -357,11 +365,11 @@ export function PublicProfileModal({
 
             {/* 4. About & Specialties Section */}
             <div>
-              <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-[#0099e6]" />
                 <span>About & Specialties</span>
               </h3>
-              <div className="p-3.5 rounded-2xl bg-white border border-slate-200/80 text-xs text-slate-700 leading-relaxed font-sans shadow-2xs">
+              <div className="p-3.5 rounded-2xl bg-white dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/[0.08] text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-sans shadow-2xs">
                 {bio ? (
                   <div
                     className="public-bio-content"
@@ -370,14 +378,14 @@ export function PublicProfileModal({
                     }}
                   />
                 ) : (
-                  <p className="text-slate-400 italic">No bio provided yet.</p>
+                  <p className="text-slate-400 dark:text-slate-500 italic">No bio provided yet.</p>
                 )}
               </div>
             </div>
 
             {/* 5. Skills & Tech Stacks */}
             <div>
-              <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <Terminal className="w-3.5 h-3.5 text-[#0099e6]" />
                 <span>Skills & Tech Stacks</span>
               </h3>
@@ -385,7 +393,7 @@ export function PublicProfileModal({
                 {skills.map((skill) => (
                   <span
                     key={skill}
-                    className="px-3 py-1 rounded-xl bg-sky-50 text-[#0099e6] border border-sky-200/80 text-xs font-bold shadow-2xs"
+                    className="px-3 py-1 rounded-xl bg-sky-50 dark:bg-sky-500/10 text-[#0099e6] border border-sky-200/80 dark:border-sky-500/20 text-xs font-bold shadow-2xs"
                   >
                     #{skill}
                   </span>
@@ -395,7 +403,7 @@ export function PublicProfileModal({
 
             {/* 6. Verified Social Links (Clean 3-column unified buttons with pixel-aligned icons) */}
             <div>
-              <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider mb-2 flex items-center gap-1.5">
                 <Globe className="w-3.5 h-3.5 text-[#0099e6]" />
                 <span>Verified Socials & Profiles</span>
               </h3>
@@ -406,7 +414,7 @@ export function PublicProfileModal({
                     href={github}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-between transition-all group shadow-2xs min-h-[46px]"
+                    className="p-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 dark:bg-white/[0.08] dark:hover:bg-white/[0.12] dark:border dark:border-white/10 text-white text-xs font-bold flex items-center justify-between transition-all group shadow-2xs min-h-[46px]"
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="w-6 h-6 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
@@ -417,14 +425,14 @@ export function PublicProfileModal({
                     <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-white shrink-0" />
                   </a>
                 ) : (
-                  <div className="p-2.5 rounded-2xl bg-slate-50 text-slate-400 text-xs font-medium flex items-center justify-between border border-slate-200/70 min-h-[46px]">
+                  <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-white/[0.02] text-slate-400 dark:text-slate-500 text-xs font-medium flex items-center justify-between border border-slate-200/70 dark:border-white/[0.06] min-h-[46px]">
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-slate-200/60 flex items-center justify-center shrink-0">
+                      <div className="w-6 h-6 rounded-lg bg-slate-200/60 dark:bg-white/[0.06] flex items-center justify-center shrink-0">
                         <Github className="w-3.5 h-3.5 opacity-40 shrink-0" />
                       </div>
                       <span>GitHub</span>
                     </div>
-                    <span className="text-[10px] text-slate-400 font-mono">Unlinked</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">Unlinked</span>
                   </div>
                 )}
 
@@ -434,7 +442,7 @@ export function PublicProfileModal({
                     href={linkedin}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-between transition-all group shadow-2xs min-h-[46px]"
+                    className="p-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 dark:bg-white/[0.08] dark:hover:bg-white/[0.12] dark:border dark:border-white/10 text-white text-xs font-bold flex items-center justify-between transition-all group shadow-2xs min-h-[46px]"
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="w-6 h-6 rounded-lg bg-[#0077b5] flex items-center justify-center shrink-0">
@@ -445,14 +453,14 @@ export function PublicProfileModal({
                     <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-white shrink-0" />
                   </a>
                 ) : (
-                  <div className="p-2.5 rounded-2xl bg-slate-50 text-slate-400 text-xs font-medium flex items-center justify-between border border-slate-200/70 min-h-[46px]">
+                  <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-white/[0.02] text-slate-400 dark:text-slate-500 text-xs font-medium flex items-center justify-between border border-slate-200/70 dark:border-white/[0.06] min-h-[46px]">
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-slate-200/60 flex items-center justify-center shrink-0">
+                      <div className="w-6 h-6 rounded-lg bg-slate-200/60 dark:bg-white/[0.06] flex items-center justify-center shrink-0">
                         <Linkedin className="w-3.5 h-3.5 opacity-40 shrink-0" />
                       </div>
                       <span>LinkedIn</span>
                     </div>
-                    <span className="text-[10px] text-slate-400 font-mono">Unlinked</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">Unlinked</span>
                   </div>
                 )}
 
@@ -462,7 +470,7 @@ export function PublicProfileModal({
                     href={portfolio}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="p-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-between transition-all group shadow-2xs min-h-[46px]"
+                    className="p-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 dark:bg-white/[0.08] dark:hover:bg-white/[0.12] dark:border dark:border-white/10 text-white text-xs font-bold flex items-center justify-between transition-all group shadow-2xs min-h-[46px]"
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="w-6 h-6 rounded-lg bg-[#0099e6] flex items-center justify-center shrink-0">
@@ -473,14 +481,14 @@ export function PublicProfileModal({
                     <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-white shrink-0" />
                   </a>
                 ) : (
-                  <div className="p-2.5 rounded-2xl bg-slate-50 text-slate-400 text-xs font-medium flex items-center justify-between border border-slate-200/70 min-h-[46px]">
+                  <div className="p-2.5 rounded-2xl bg-slate-50 dark:bg-white/[0.02] text-slate-400 dark:text-slate-500 text-xs font-medium flex items-center justify-between border border-slate-200/70 dark:border-white/[0.06] min-h-[46px]">
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-slate-200/60 flex items-center justify-center shrink-0">
+                      <div className="w-6 h-6 rounded-lg bg-slate-200/60 dark:bg-white/[0.06] flex items-center justify-center shrink-0">
                         <Globe className="w-3.5 h-3.5 opacity-40 shrink-0" />
                       </div>
                       <span>Portfolio</span>
                     </div>
-                    <span className="text-[10px] text-slate-400 font-mono">Unlinked</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">Unlinked</span>
                   </div>
                 )}
               </div>
@@ -488,34 +496,34 @@ export function PublicProfileModal({
 
             {/* 7. Proof of Work Stats */}
             <div className="grid grid-cols-3 gap-3 pt-1">
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 text-center shadow-2xs">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Hackathons</div>
-                <div className="text-xl font-black text-slate-900 mt-0.5">4</div>
-                <div className="text-[10px] text-slate-500 font-medium">Participated</div>
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/[0.08] text-center shadow-2xs">
+                <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Hackathons</div>
+                <div className="text-xl font-black text-slate-900 dark:text-white mt-0.5">4</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Participated</div>
               </div>
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 text-center shadow-2xs">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Squads</div>
-                <div className="text-xl font-black text-slate-900 mt-0.5">3</div>
-                <div className="text-[10px] text-slate-500 font-medium">Formed / Joined</div>
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/[0.08] text-center shadow-2xs">
+                <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Squads</div>
+                <div className="text-xl font-black text-slate-900 dark:text-white mt-0.5">3</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Formed / Joined</div>
               </div>
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 text-center shadow-2xs">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Podiums</div>
-                <div className="text-xl font-black text-emerald-600 mt-0.5">2</div>
-                <div className="text-[10px] text-slate-500 font-medium">Track Wins</div>
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/[0.08] text-center shadow-2xs">
+                <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Podiums</div>
+                <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-0.5">2</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Track Wins</div>
               </div>
             </div>
           </div>
         </div>
 
         {/* 8. Minimalist Clean Footer */}
-        <div className="px-6 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+        <div className="px-6 py-2.5 bg-slate-50 dark:bg-white/[0.02] border-t border-slate-100 dark:border-white/[0.08] flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
             <span>Private credentials (email, phone) protected.</span>
           </div>
           <button
             onClick={onClose}
-            className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
+            className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white/10 dark:hover:bg-white/20 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
           >
             Close
           </button>

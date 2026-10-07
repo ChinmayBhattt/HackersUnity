@@ -427,11 +427,11 @@ export default function SettingsPage() {
   if (!loading && !user) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-20 text-center flex-1 flex flex-col items-center justify-center">
-        <div className="w-20 h-20 rounded-3xl bg-sky-50 border border-sky-200 flex items-center justify-center text-[#0099e6] mb-6 shadow-sm">
+        <div className="w-20 h-20 rounded-3xl bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20 flex items-center justify-center text-[#0099e6] mb-6 shadow-sm">
           <Shield className="w-10 h-10" />
         </div>
-        <h1 className="text-3xl font-black text-slate-900 tracking-tight">Account & Settings</h1>
-        <p className="text-sm text-slate-500 mt-2 max-w-md">
+        <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">Account & Settings</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-md">
           Sign in or create an account to manage your profile, security settings, social handles, and preferences.
         </p>
         <div className="mt-8 flex items-center gap-4">
@@ -443,7 +443,7 @@ export default function SettingsPage() {
           </button>
           <Link
             href="/"
-            className="px-6 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
+            className="px-6 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 font-bold text-xs transition-colors"
           >
             Back to Home
           </Link>
@@ -480,16 +480,16 @@ export default function SettingsPage() {
           <div className="flex items-center gap-2 mb-2">
             <Link
               href="/dashboard"
-              className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-[#0099e6] transition-colors"
+              className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-[#0099e6] dark:hover:text-[#0099e6] transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Back to Dashboard</span>
             </Link>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
             Account & Settings
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 font-medium">
             Manage your personal profile, credentials, public socials, avatar, and security preferences.
           </p>
         </div>
@@ -498,14 +498,14 @@ export default function SettingsPage() {
           <button
             type="button"
             onClick={() => setShowPublicPreview(true)}
-            className="px-4 py-2.5 rounded-2xl bg-sky-50 hover:bg-sky-100 text-[#0099e6] border border-sky-200 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+            className="px-4 py-2.5 rounded-2xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-500/10 dark:hover:bg-sky-500/20 text-[#0099e6] dark:text-sky-400 border border-sky-200 dark:border-sky-500/30 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
           >
             <Eye className="w-4 h-4" />
             <span>Preview Public Profile</span>
           </button>
           <Link
             href="/dashboard"
-            className="px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all"
+            className="px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 dark:border dark:border-white/[0.08] text-xs font-bold flex items-center gap-1.5 transition-all"
           >
             <Compass className="w-4 h-4 text-[#0099e6]" />
             <span>Go to Analytics Dashboard</span>
@@ -517,9 +517,9 @@ export default function SettingsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Sidebar Navigation (4 cols) */}
         <div className="lg:col-span-4 space-y-4">
-          <div className="p-5 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-2">
+          <div className="p-5 rounded-3xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] shadow-sm space-y-2">
             {/* User Mini Profile Badge */}
-            <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-sky-50/70 border border-sky-100 mb-3">
+            <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-sky-50/70 dark:bg-sky-500/10 border border-sky-100 dark:border-sky-500/20 mb-3">
               <div className="w-12 h-12 rounded-2xl bg-[#0099e6] text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0 overflow-hidden">
                 {avatar && avatar.startsWith('http') ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
@@ -529,8 +529,8 @@ export default function SettingsPage() {
                 )}
               </div>
               <div className="overflow-hidden">
-                <div className="font-extrabold text-sm text-slate-900 truncate">{name || 'Hacker'}</div>
-                <div className="text-[11px] text-slate-500 font-mono truncate">{email}</div>
+                <div className="font-extrabold text-sm text-slate-900 dark:text-white truncate">{name || 'Hacker'}</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate">{email}</div>
               </div>
             </div>
 
@@ -539,13 +539,13 @@ export default function SettingsPage() {
               onClick={() => setActiveTab('profile')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer text-left ${activeTab === 'profile'
                 ? 'bg-[#0099e6] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-white'
                 }`}
             >
               <UserIcon className="w-4 h-4 shrink-0" />
               <div className="flex-1">
                 <div>Profile Information</div>
-                <div className={`text-[10px] font-normal ${activeTab === 'profile' ? 'text-white/80' : 'text-slate-400'}`}>
+                <div className={`text-[10px] font-normal ${activeTab === 'profile' ? 'text-white/80' : 'text-slate-400 dark:text-slate-500'}`}>
                   Avatar, bio, college & skills
                 </div>
               </div>
@@ -555,13 +555,13 @@ export default function SettingsPage() {
               onClick={() => setActiveTab('socials')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer text-left ${activeTab === 'socials'
                 ? 'bg-[#0099e6] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-white'
                 }`}
             >
               <Globe className="w-4 h-4 shrink-0" />
               <div className="flex-1">
                 <div>Socials & Portfolio</div>
-                <div className={`text-[10px] font-normal ${activeTab === 'socials' ? 'text-white/80' : 'text-slate-400'}`}>
+                <div className={`text-[10px] font-normal ${activeTab === 'socials' ? 'text-white/80' : 'text-slate-400 dark:text-slate-500'}`}>
                   GitHub, LinkedIn, Website
                 </div>
               </div>
@@ -571,13 +571,13 @@ export default function SettingsPage() {
               onClick={() => setActiveTab('security')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer text-left ${activeTab === 'security'
                 ? 'bg-[#0099e6] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-white'
                 }`}
             >
               <Lock className="w-4 h-4 shrink-0" />
               <div className="flex-1">
                 <div>Security & Password</div>
-                <div className={`text-[10px] font-normal ${activeTab === 'security' ? 'text-white/80' : 'text-slate-400'}`}>
+                <div className={`text-[10px] font-normal ${activeTab === 'security' ? 'text-white/80' : 'text-slate-400 dark:text-slate-500'}`}>
                   Password & 2FA credentials
                 </div>
               </div>
@@ -587,13 +587,13 @@ export default function SettingsPage() {
               onClick={() => setActiveTab('notifications')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer text-left ${activeTab === 'notifications'
                 ? 'bg-[#0099e6] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-white'
                 }`}
             >
               <Bell className="w-4 h-4 shrink-0" />
               <div className="flex-1">
                 <div>Notification Alerts</div>
-                <div className={`text-[10px] font-normal ${activeTab === 'notifications' ? 'text-white/80' : 'text-slate-400'}`}>
+                <div className={`text-[10px] font-normal ${activeTab === 'notifications' ? 'text-white/80' : 'text-slate-400 dark:text-slate-500'}`}>
                   Email & team invite updates
                 </div>
               </div>
@@ -603,13 +603,13 @@ export default function SettingsPage() {
               onClick={() => setActiveTab('danger')}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer text-left ${activeTab === 'danger'
                 ? 'bg-rose-600 text-white shadow-xs'
-                : 'text-rose-600 hover:bg-rose-50'
+                : 'text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10'
                 }`}
             >
               <Trash2 className="w-4 h-4 shrink-0" />
               <div className="flex-1">
                 <div>Account Management</div>
-                <div className={`text-[10px] font-normal ${activeTab === 'danger' ? 'text-white/80' : 'text-rose-400'}`}>
+                <div className={`text-[10px] font-normal ${activeTab === 'danger' ? 'text-white/80' : 'text-rose-400 dark:text-rose-500'}`}>
                   Sign out & account actions
                 </div>
               </div>
@@ -621,19 +621,19 @@ export default function SettingsPage() {
         <div className="lg:col-span-8 space-y-6">
           {/* 1. Tab: Profile Information */}
           {activeTab === 'profile' && (
-            <div className="p-7 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6 animate-in fade-in">
-              <div className="border-b border-slate-100 pb-4">
-                <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <div className="p-7 rounded-3xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] shadow-sm space-y-6 animate-in fade-in">
+              <div className="border-b border-slate-100 dark:border-white/[0.06] pb-4">
+                <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
                   <UserIcon className="w-5 h-5 text-[#0099e6]" />
                   <span>Public Profile Information</span>
                 </h2>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   This info is displayed to organizers and teammates when you register or form squads.
                 </p>
               </div>
 
               {profileError && (
-                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+                <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-semibold flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{profileError}</span>
                 </div>
@@ -642,7 +642,7 @@ export default function SettingsPage() {
               <form onSubmit={handleSaveProfile} className="space-y-6">
                 {/* Profile Cover Banner */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-2">
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-2">
                     Profile Cover Banner & Theme
                   </label>
                   <BannerUpload
@@ -654,7 +654,7 @@ export default function SettingsPage() {
 
                 {/* Avatar Uploader */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-2">
+                  <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-2">
                     Profile Photo / Logo
                   </label>
                   <AvatarUpload
@@ -665,7 +665,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Username (@handle) & Public Profile Link */}
-                <div className="p-4 rounded-2xl bg-sky-50/60 dark:bg-sky-500/[0.04] border border-sky-100 dark:border-sky-500/10">
+                <div className="p-4 rounded-2xl bg-sky-50/60 dark:bg-sky-500/[0.05] border border-sky-100 dark:border-sky-500/20">
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
                       Public Username (@handle) *
@@ -706,7 +706,7 @@ export default function SettingsPage() {
                 {/* Name & Phone */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Full Name *</label>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Full Name *</label>
                     <div className="relative">
                       <UserIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                       <input
@@ -715,13 +715,13 @@ export default function SettingsPage() {
                         onChange={(e) => setName(e.target.value)}
                         required
                         placeholder="e.g. Chinmay Bhatt"
-                        className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
+                        className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Phone Number</label>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Phone Number</label>
                     <div className="relative">
                       <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                       <input
@@ -729,7 +729,7 @@ export default function SettingsPage() {
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="+91 98765 43210"
-                        className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
+                        className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
                       />
                     </div>
                   </div>
@@ -737,17 +737,17 @@ export default function SettingsPage() {
 
                 {/* Email (Readonly) */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Email Address</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Email Address</label>
                   <div className="relative">
                     <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
                       type="email"
                       value={email}
                       disabled
-                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-500 cursor-not-allowed"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-100 dark:bg-white/[0.02] border border-slate-200 dark:border-white/[0.06] text-xs font-semibold text-slate-500 dark:text-slate-400 cursor-not-allowed"
                     />
                   </div>
-                  <span className="text-[10px] text-slate-400 mt-1 block">Primary login email address cannot be modified directly.</span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">Primary login email address cannot be modified directly.</span>
                 </div>
 
                 {/* Bio / Summary with Rich Text Toolbar */}
@@ -763,10 +763,10 @@ export default function SettingsPage() {
                 {/* ═══ Dynamic Profession Selector ═══ */}
                 <div className="space-y-3 pt-2">
                   <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                    <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">
                       Current Occupation / Status *
                     </label>
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500">
                       Select your current role so squads and hackathon organizers can discover your background.
                     </span>
                   </div>
@@ -778,12 +778,12 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => setProfessionType('STUDENT')}
                       className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between gap-2 ${professionType === 'STUDENT'
-                        ? 'border-[#0099e6] bg-sky-50/60 shadow-xs ring-2 ring-[#0099e6]/20'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
+                        ? 'border-[#0099e6] bg-sky-50/60 dark:bg-sky-500/10 shadow-xs ring-2 ring-[#0099e6]/20'
+                        : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.03] hover:border-slate-300 dark:hover:border-white/20'
                         }`}
                     >
                       <div className="flex items-center justify-between">
-                        <div className={`p-2 rounded-xl ${professionType === 'STUDENT' ? 'bg-[#0099e6] text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        <div className={`p-2 rounded-xl ${professionType === 'STUDENT' ? 'bg-[#0099e6] text-white' : 'bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-300'}`}>
                           <GraduationCap className="w-4 h-4" />
                         </div>
                         {professionType === 'STUDENT' && (
@@ -793,8 +793,8 @@ export default function SettingsPage() {
                         )}
                       </div>
                       <div>
-                        <div className="text-xs font-black text-slate-900">Student / Learner</div>
-                        <div className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                        <div className="text-xs font-black text-slate-900 dark:text-white">Student / Learner</div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
                           College / School student, fresher & campus builder
                         </div>
                       </div>
@@ -805,12 +805,12 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => setProfessionType('PROFESSIONAL')}
                       className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between gap-2 ${professionType === 'PROFESSIONAL'
-                        ? 'border-[#0099e6] bg-sky-50/60 shadow-xs ring-2 ring-[#0099e6]/20'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
+                        ? 'border-[#0099e6] bg-sky-50/60 dark:bg-sky-500/10 shadow-xs ring-2 ring-[#0099e6]/20'
+                        : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.03] hover:border-slate-300 dark:hover:border-white/20'
                         }`}
                     >
                       <div className="flex items-center justify-between">
-                        <div className={`p-2 rounded-xl ${professionType === 'PROFESSIONAL' ? 'bg-[#0099e6] text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        <div className={`p-2 rounded-xl ${professionType === 'PROFESSIONAL' ? 'bg-[#0099e6] text-white' : 'bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-300'}`}>
                           <Briefcase className="w-4 h-4" />
                         </div>
                         {professionType === 'PROFESSIONAL' && (
@@ -820,8 +820,8 @@ export default function SettingsPage() {
                         )}
                       </div>
                       <div>
-                        <div className="text-xs font-black text-slate-900">Working Professional</div>
-                        <div className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                        <div className="text-xs font-black text-slate-900 dark:text-white">Working Professional</div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
                           Employed at startup, MNC, enterprise or tech lab
                         </div>
                       </div>
@@ -832,12 +832,12 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => setProfessionType('FREELANCER')}
                       className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between gap-2 ${professionType === 'FREELANCER'
-                        ? 'border-[#0099e6] bg-sky-50/60 shadow-xs ring-2 ring-[#0099e6]/20'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
+                        ? 'border-[#0099e6] bg-sky-50/60 dark:bg-sky-500/10 shadow-xs ring-2 ring-[#0099e6]/20'
+                        : 'border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.03] hover:border-slate-300 dark:hover:border-white/20'
                         }`}
                     >
                       <div className="flex items-center justify-between">
-                        <div className={`p-2 rounded-xl ${professionType === 'FREELANCER' ? 'bg-[#0099e6] text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        <div className={`p-2 rounded-xl ${professionType === 'FREELANCER' ? 'bg-[#0099e6] text-white' : 'bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-300'}`}>
                           <Code2 className="w-4 h-4" />
                         </div>
                         {professionType === 'FREELANCER' && (
@@ -847,8 +847,8 @@ export default function SettingsPage() {
                         )}
                       </div>
                       <div>
-                        <div className="text-xs font-black text-slate-900">Independent Hacker</div>
-                        <div className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                        <div className="text-xs font-black text-slate-900 dark:text-white">Independent Hacker</div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
                           Full-time builder, freelancer, or solo founder
                         </div>
                       </div>
@@ -857,11 +857,11 @@ export default function SettingsPage() {
                 </div>
 
                 {/* ═══ Conditional Fields based on Profession ═══ */}
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4 animate-in fade-in duration-200">
+                <div className="p-5 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/10 space-y-4 animate-in fade-in duration-200">
                   {/* IF STUDENT */}
                   {professionType === 'STUDENT' && (
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
                         <BookOpen className="w-4 h-4 text-[#0099e6]" />
                         <span>Academic & College Details</span>
                       </div>
@@ -869,7 +869,7 @@ export default function SettingsPage() {
                       {/* College Name & Passout Year */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">College / University Name *</label>
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">College / University Name *</label>
                           <div className="relative">
                             <GraduationCap className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                             <input
@@ -877,20 +877,20 @@ export default function SettingsPage() {
                               value={college}
                               onChange={(e) => setCollege(e.target.value)}
                               placeholder="e.g. IIT Delhi / BITS Pilani / Stanford"
-                              className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
+                              className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
                             />
                           </div>
                         </div>
 
                         <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Passout / Graduation Year *</label>
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Passout / Graduation Year *</label>
                           <select
                             value={graduationYear}
                             onChange={(e) => setGraduationYear(e.target.value)}
-                            className="w-full px-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer"
+                            className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer"
                           >
                             {ALL_GRADUATION_YEARS.map((yr) => (
-                              <option key={yr} value={yr}>
+                              <option key={yr} value={yr} className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">
                                 {yr === '2026' ? '2026 (Pre-Final Year)' : yr === '2025' ? '2025 (Final Year)' : yr === 'Other' ? 'Other (Enter custom year)' : yr}
                               </option>
                             ))}
@@ -901,7 +901,7 @@ export default function SettingsPage() {
                               placeholder="Type graduation year (e.g. 2017, 2033)"
                               value={customGradYear}
                               onChange={(e) => setCustomGradYear(e.target.value)}
-                              className="mt-2 w-full px-4 py-2 rounded-xl bg-white border border-[#0099e6] text-xs font-semibold text-slate-900 focus:outline-none ring-2 ring-sky-100"
+                              className="mt-2 w-full px-4 py-2 rounded-xl bg-white dark:bg-[#0c1017] border border-[#0099e6] text-xs font-semibold text-slate-900 dark:text-white focus:outline-none ring-2 ring-sky-100 dark:ring-sky-500/20"
                             />
                           )}
                         </div>
@@ -910,14 +910,14 @@ export default function SettingsPage() {
                       {/* Degree & Branch */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Degree / Program</label>
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Degree / Program</label>
                           <select
                             value={degree}
                             onChange={(e) => setDegree(e.target.value)}
-                            className="w-full px-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer"
+                            className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer"
                           >
                             {POPULAR_DEGREES.map((d) => (
-                              <option key={d} value={d}>{d}</option>
+                              <option key={d} value={d} className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">{d}</option>
                             ))}
                           </select>
                           {degree === 'Other' && (
@@ -926,20 +926,20 @@ export default function SettingsPage() {
                               placeholder="Specify your Degree / Course (e.g. B.Voc, B.F.A)..."
                               value={customDegree}
                               onChange={(e) => setCustomDegree(e.target.value)}
-                              className="mt-2 w-full px-4 py-2 rounded-xl bg-white border border-[#0099e6] text-xs font-semibold text-slate-900 focus:outline-none ring-2 ring-sky-100"
+                              className="mt-2 w-full px-4 py-2 rounded-xl bg-white dark:bg-[#0c1017] border border-[#0099e6] text-xs font-semibold text-slate-900 dark:text-white focus:outline-none ring-2 ring-sky-100 dark:ring-sky-500/20"
                             />
                           )}
                         </div>
 
                         <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Branch / Department</label>
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Branch / Department</label>
                           <select
                             value={branch}
                             onChange={(e) => setBranch(e.target.value)}
-                            className="w-full px-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer"
+                            className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer"
                           >
                             {POPULAR_BRANCHES.map((b) => (
-                              <option key={b} value={b}>{b}</option>
+                              <option key={b} value={b} className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">{b}</option>
                             ))}
                           </select>
                           {branch === 'Other' && (
@@ -948,7 +948,7 @@ export default function SettingsPage() {
                               placeholder="Specify your Branch (e.g. Cyber Forensics, Marine, Petroleum)..."
                               value={customBranch}
                               onChange={(e) => setCustomBranch(e.target.value)}
-                              className="mt-2 w-full px-4 py-2 rounded-xl bg-white border border-[#0099e6] text-xs font-semibold text-slate-900 focus:outline-none ring-2 ring-sky-100 animate-in fade-in"
+                              className="mt-2 w-full px-4 py-2 rounded-xl bg-white dark:bg-[#0c1017] border border-[#0099e6] text-xs font-semibold text-slate-900 dark:text-white focus:outline-none ring-2 ring-sky-100 dark:ring-sky-500/20 animate-in fade-in"
                             />
                           )}
                         </div>
@@ -956,13 +956,13 @@ export default function SettingsPage() {
 
                       {/* Optional Student Roll / ID */}
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Student ID / Roll No (Optional)</label>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Student ID / Roll No (Optional)</label>
                         <input
                           type="text"
                           value={studentId}
                           onChange={(e) => setStudentId(e.target.value)}
                           placeholder="e.g. 21BCE10482 (Optional for campus verification)"
-                          className="w-full px-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
+                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/10 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
                         />
                       </div>
                     </div>
@@ -971,7 +971,7 @@ export default function SettingsPage() {
                   {/* IF WORKING PROFESSIONAL */}
                   {professionType === 'PROFESSIONAL' && (
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
                         <Building2 className="w-4 h-4 text-[#0099e6]" />
                         <span>Workplace & Professional Details</span>
                       </div>
@@ -979,7 +979,7 @@ export default function SettingsPage() {
                       {/* Company Name & Role / Designation */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Company / Organization Name *</label>
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Company / Organization Name *</label>
                           <div className="relative">
                             <Building className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                             <input
@@ -987,13 +987,13 @@ export default function SettingsPage() {
                               value={company}
                               onChange={(e) => setCompany(e.target.value)}
                               placeholder="e.g. Google / Microsoft / Amazon / Startup"
-                              className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
+                              className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
                             />
                           </div>
                         </div>
 
                         <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Role / Designation *</label>
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Role / Designation *</label>
                           <div className="relative">
                             <Briefcase className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                             <input
@@ -1001,7 +1001,7 @@ export default function SettingsPage() {
                               value={jobTitle}
                               onChange={(e) => setJobTitle(e.target.value)}
                               placeholder="e.g. Senior Frontend Engineer / AI Architect"
-                              className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
+                              className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
                             />
                           </div>
                         </div>
@@ -1010,29 +1010,29 @@ export default function SettingsPage() {
                       {/* Experience & Industry */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Total Experience</label>
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Total Experience</label>
                           <select
                             value={experienceYears}
                             onChange={(e) => setExperienceYears(e.target.value)}
-                            className="w-full px-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer"
+                            className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer"
                           >
-                            <option value="Fresher (< 1 year)">Fresher (&lt; 1 year)</option>
-                            <option value="1-2 years">1 - 2 years (Associate / Junior)</option>
-                            <option value="3-5 years">3 - 5 years (Mid-Level / Senior)</option>
-                            <option value="5-8 years">5 - 8 years (Staff / Lead)</option>
-                            <option value="8+ years">8+ years (Principal / Architect / Director)</option>
+                            <option value="Fresher (< 1 year)" className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">Fresher (&lt; 1 year)</option>
+                            <option value="1-2 years" className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">1 - 2 years (Associate / Junior)</option>
+                            <option value="3-5 years" className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">3 - 5 years (Mid-Level / Senior)</option>
+                            <option value="5-8 years" className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">5 - 8 years (Staff / Lead)</option>
+                            <option value="8+ years" className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">8+ years (Principal / Architect / Director)</option>
                           </select>
                         </div>
 
                         <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Industry / Domain</label>
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Industry / Domain</label>
                           <select
                             value={industry}
                             onChange={(e) => setIndustry(e.target.value)}
-                            className="w-full px-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer"
+                            className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer"
                           >
                             {POPULAR_INDUSTRIES.map((ind) => (
-                              <option key={ind} value={ind}>{ind}</option>
+                              <option key={ind} value={ind} className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">{ind}</option>
                             ))}
                           </select>
                           {industry === 'Other' && (
@@ -1041,7 +1041,7 @@ export default function SettingsPage() {
                               placeholder="Specify your Industry / Sector..."
                               value={customIndustry}
                               onChange={(e) => setCustomIndustry(e.target.value)}
-                              className="mt-2 w-full px-4 py-2 rounded-xl bg-white border border-[#0099e6] text-xs font-semibold text-slate-900 focus:outline-none ring-2 ring-sky-100"
+                              className="mt-2 w-full px-4 py-2 rounded-xl bg-white dark:bg-[#0c1017] border border-[#0099e6] text-xs font-semibold text-slate-900 dark:text-white focus:outline-none ring-2 ring-sky-100 dark:ring-sky-500/20"
                             />
                           )}
                         </div>
@@ -1052,7 +1052,7 @@ export default function SettingsPage() {
                   {/* IF FREELANCER / INDEPENDENT */}
                   {professionType === 'FREELANCER' && (
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
                         <Code2 className="w-4 h-4 text-[#0099e6]" />
                         <span>Independent Builder & Specialty</span>
                       </div>
@@ -1060,40 +1060,40 @@ export default function SettingsPage() {
                       {/* Title & Level */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Primary Title / Specialty *</label>
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Primary Title / Specialty *</label>
                           <input
                             type="text"
                             value={freelanceTitle}
                             onChange={(e) => setFreelanceTitle(e.target.value)}
                             placeholder="e.g. Full-Stack Web3 Builder / AI Consultant"
-                            className="w-full px-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
+                            className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Experience Level</label>
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Experience Level</label>
                           <select
                             value={freelanceLevel}
                             onChange={(e) => setFreelanceLevel(e.target.value)}
-                            className="w-full px-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer"
+                            className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer"
                           >
-                            <option value="Early Stage Builder">Early Stage Builder (&lt; 2 yrs)</option>
-                            <option value="Intermediate Builder">Intermediate Builder (2-4 yrs)</option>
-                            <option value="Senior Architect / Lead">Senior Architect / Lead (5+ yrs)</option>
+                            <option value="Early Stage Builder" className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">Early Stage Builder (&lt; 2 yrs)</option>
+                            <option value="Intermediate Builder" className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">Intermediate Builder (2-4 yrs)</option>
+                            <option value="Senior Architect / Lead" className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">Senior Architect / Lead (5+ yrs)</option>
                           </select>
                         </div>
                       </div>
 
                       {/* Tech Domain */}
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Primary Focus Domain</label>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Primary Focus Domain</label>
                         <select
                           value={freelanceDomain}
                           onChange={(e) => setFreelanceDomain(e.target.value)}
-                          className="w-full px-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer"
+                          className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer"
                         >
                           {POPULAR_FREELANCE_DOMAINS.map((dom) => (
-                            <option key={dom} value={dom}>{dom}</option>
+                            <option key={dom} value={dom} className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">{dom}</option>
                           ))}
                         </select>
                         {freelanceDomain === 'Other' && (
@@ -1102,7 +1102,7 @@ export default function SettingsPage() {
                             placeholder="Specify your Focus Domain / Tech Stack..."
                             value={customDomain}
                             onChange={(e) => setCustomDomain(e.target.value)}
-                            className="mt-2 w-full px-4 py-2 rounded-xl bg-white border border-[#0099e6] text-xs font-semibold text-slate-900 focus:outline-none ring-2 ring-sky-100"
+                            className="mt-2 w-full px-4 py-2 rounded-xl bg-white dark:bg-[#0c1017] border border-[#0099e6] text-xs font-semibold text-slate-900 dark:text-white focus:outline-none ring-2 ring-sky-100 dark:ring-sky-500/20"
                           />
                         )}
                       </div>
@@ -1112,13 +1112,13 @@ export default function SettingsPage() {
 
                 {/* Skills Tag Management */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Skills & Tech Stacks</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Skills & Tech Stacks</label>
                   {skills.length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-3">
                       {skills.map((skill) => (
                         <span
                           key={skill}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 text-[#0099e6] border border-sky-200 text-xs font-bold"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-500/10 text-[#0099e6] dark:text-sky-400 border border-sky-200 dark:border-sky-500/30 text-xs font-bold"
                         >
                           <span>{skill}</span>
                           <button
@@ -1155,12 +1155,12 @@ export default function SettingsPage() {
                             }
                           }}
                           placeholder="Search or type a skill (e.g. Next.js, Rust, Docker)"
-                          className="w-full pl-10 pr-9 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6] focus:border-[#0099e6] transition-all"
+                          className="w-full pl-10 pr-9 py-2.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0099e6] focus:border-[#0099e6] transition-all"
                         />
                         <button
                           type="button"
                           onClick={() => setSkillsDropdownOpen(!skillsDropdownOpen)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
                         >
                           <ChevronDown className={`w-4 h-4 transition-transform ${skillsDropdownOpen ? 'rotate-180' : ''}`} />
                         </button>
@@ -1169,7 +1169,7 @@ export default function SettingsPage() {
                         type="button"
                         onClick={handleAddSkill}
                         disabled={!newSkillInput.trim()}
-                        className="px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Plus className="w-4 h-4" />
                         <span>Add</span>
@@ -1187,7 +1187,7 @@ export default function SettingsPage() {
                       if (filtered.length === 0 && !showCustom) return null;
 
                       return (
-                        <div className="absolute z-40 left-0 right-0 mt-1.5 max-h-56 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xl shadow-slate-200/50 animate-in fade-in slide-in-from-top-1 duration-150">
+                        <div className="absolute z-40 left-0 right-0 mt-1.5 max-h-56 overflow-y-auto rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/10 shadow-xl shadow-slate-200/50 dark:shadow-black/70 animate-in fade-in slide-in-from-top-1 duration-150">
                           {showCustom && (
                             <button
                               type="button"
@@ -1195,13 +1195,13 @@ export default function SettingsPage() {
                                 handleAddSkill();
                                 setSkillsDropdownOpen(false);
                               }}
-                              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-sky-50 transition-colors cursor-pointer border-b border-slate-100"
+                              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-sky-50 dark:hover:bg-sky-500/10 transition-colors cursor-pointer border-b border-slate-100 dark:border-white/[0.06]"
                             >
                               <div className="w-6 h-6 rounded-lg bg-[#0099e6] text-white flex items-center justify-center shrink-0">
                                 <Plus className="w-3.5 h-3.5" />
                               </div>
                               <div>
-                                <span className="text-xs font-bold text-slate-900">Add &quot;{newSkillInput.trim()}&quot;</span>
+                                <span className="text-xs font-bold text-slate-900 dark:text-white">Add &quot;{newSkillInput.trim()}&quot;</span>
                                 <span className="text-[10px] text-slate-400 ml-1.5">custom skill</span>
                               </div>
                             </button>
@@ -1211,16 +1211,16 @@ export default function SettingsPage() {
                               type="button"
                               key={skill}
                               onClick={() => handleSelectSkill(skill)}
-                              className="w-full flex items-center gap-2.5 px-4 py-2 text-left hover:bg-sky-50 transition-colors cursor-pointer group"
+                              className="w-full flex items-center gap-2.5 px-4 py-2 text-left hover:bg-sky-50 dark:hover:bg-sky-500/10 transition-colors cursor-pointer group"
                             >
-                              <div className="w-6 h-6 rounded-lg bg-slate-100 group-hover:bg-sky-100 text-slate-500 group-hover:text-[#0099e6] flex items-center justify-center shrink-0 transition-colors">
+                              <div className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-white/[0.06] group-hover:bg-sky-100 dark:group-hover:bg-sky-500/20 text-slate-500 group-hover:text-[#0099e6] flex items-center justify-center shrink-0 transition-colors">
                                 <Code2 className="w-3.5 h-3.5" />
                               </div>
-                              <span className="text-xs font-semibold text-slate-700 group-hover:text-slate-900">{skill}</span>
+                              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white">{skill}</span>
                             </button>
                           ))}
                           {filtered.length > 30 && (
-                            <div className="px-4 py-2 text-[10px] text-slate-400 font-medium text-center border-t border-slate-100">
+                            <div className="px-4 py-2 text-[10px] text-slate-400 font-medium text-center border-t border-slate-100 dark:border-white/[0.06]">
                               Type to filter — {filtered.length - 30} more skills available
                             </div>
                           )}
@@ -1231,8 +1231,8 @@ export default function SettingsPage() {
                 </div>
 
                 {/* Submit Action */}
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                  <div className="text-[11px] text-slate-500 font-medium hidden sm:block">
+                <div className="pt-4 border-t border-slate-100 dark:border-white/[0.06] flex items-center justify-between">
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium hidden sm:block">
                     ⚡ Saves to Supabase and broadcasts to squads in real-time
                   </div>
                   <button
@@ -1250,20 +1250,20 @@ export default function SettingsPage() {
 
           {/* 2. Tab: Socials & Portfolio */}
           {activeTab === 'socials' && (
-            <div className="p-7 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6 animate-in fade-in">
-              <div className="border-b border-slate-100 pb-4">
-                <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <div className="p-7 rounded-3xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] shadow-sm space-y-6 animate-in fade-in">
+              <div className="border-b border-slate-100 dark:border-white/[0.06] pb-4">
+                <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
                   <Globe className="w-5 h-5 text-[#0099e6]" />
                   <span>Social Handles & Proof of Work</span>
                 </h2>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   Connect your GitHub repositories, LinkedIn, and personal portfolio links.
                 </p>
               </div>
 
               <form onSubmit={handleSaveProfile} className="space-y-5">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">GitHub Profile URL or Handle</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">GitHub Profile URL or Handle</label>
                   <div className="relative">
                     <Github className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
@@ -1271,13 +1271,13 @@ export default function SettingsPage() {
                       value={github}
                       onChange={(e) => setGithub(e.target.value)}
                       placeholder="github.com/your-username or username"
-                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">LinkedIn Profile URL or Handle</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">LinkedIn Profile URL or Handle</label>
                   <div className="relative">
                     <Linkedin className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
@@ -1285,13 +1285,13 @@ export default function SettingsPage() {
                       value={linkedin}
                       onChange={(e) => setLinkedin(e.target.value)}
                       placeholder="linkedin.com/in/your-profile or username"
-                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Personal Portfolio or Website</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Personal Portfolio or Website</label>
                   <div className="relative">
                     <Globe className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
@@ -1299,12 +1299,12 @@ export default function SettingsPage() {
                       value={portfolio}
                       onChange={(e) => setPortfolio(e.target.value)}
                       placeholder="yourportfolio.dev or https://..."
-                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
                     />
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-slate-100 flex items-center justify-end">
+                <div className="pt-4 border-t border-slate-100 dark:border-white/[0.06] flex items-center justify-end">
                   <button
                     type="submit"
                     disabled={isSavingProfile}
@@ -1320,13 +1320,13 @@ export default function SettingsPage() {
 
           {/* 3. Tab: Security & Password */}
           {activeTab === 'security' && (
-            <div className="p-7 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6 animate-in fade-in">
-              <div className="border-b border-slate-100 pb-4">
-                <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-emerald-600" />
+            <div className="p-7 rounded-3xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] shadow-sm space-y-6 animate-in fade-in">
+              <div className="border-b border-slate-100 dark:border-white/[0.06] pb-4">
+                <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                   <span>Security & Credentials</span>
                 </h2>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   Update your authentication credentials and manage session security.
                 </p>
               </div>
@@ -1334,8 +1334,8 @@ export default function SettingsPage() {
               {passwordMsg && (
                 <div
                   className={`p-3.5 rounded-2xl text-xs font-semibold flex items-center gap-2 ${passwordMsg.type === 'success'
-                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
-                    : 'bg-rose-50 border border-rose-200 text-rose-700'
+                    ? 'bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400'
+                    : 'bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-700 dark:text-rose-400'
                     }`}
                 >
                   {passwordMsg.type === 'success' ? (
@@ -1349,7 +1349,7 @@ export default function SettingsPage() {
 
               <form onSubmit={handlePasswordChange} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">New Password</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">New Password</label>
                   <div className="relative">
                     <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
@@ -1358,13 +1358,13 @@ export default function SettingsPage() {
                       onChange={(e) => setNewPassword(e.target.value)}
                       required
                       placeholder="Minimum 6 characters"
-                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1.5">Confirm New Password</label>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Confirm New Password</label>
                   <div className="relative">
                     <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                     <input
@@ -1373,13 +1373,13 @@ export default function SettingsPage() {
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       required
                       placeholder="Re-enter your new password"
-                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 text-xs font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
                 </div>
 
                 <div className="pt-2 flex items-center justify-between">
-                  <span className="text-[11px] text-slate-400">Authenticated with Supabase Auth</span>
+                  <span className="text-[11px] text-slate-400 dark:text-slate-500">Authenticated with Supabase Auth</span>
                   <button
                     type="submit"
                     disabled={isUpdatingPassword}
@@ -1392,18 +1392,18 @@ export default function SettingsPage() {
               </form>
 
               {/* Two-Factor Info */}
-              <div className="pt-6 border-t border-slate-100">
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+              <div className="pt-6 border-t border-slate-100 dark:border-white/[0.06]">
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-sky-50 text-[#0099e6] flex items-center justify-center">
+                    <div className="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-500/10 text-[#0099e6] dark:text-sky-400 flex items-center justify-center">
                       <Smartphone className="w-4 h-4" />
                     </div>
                     <div>
-                      <div className="text-xs font-bold text-slate-900">Phone Authentication & SMS OTP</div>
-                      <div className="text-[11px] text-slate-500">Log in securely with one-time SMS codes.</div>
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">Phone Authentication & SMS OTP</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">Log in securely with one-time SMS codes.</div>
                     </div>
                   </div>
-                  <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">
+                  <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-500/20">
                     Active
                   </span>
                 </div>
@@ -1413,54 +1413,54 @@ export default function SettingsPage() {
 
           {/* 4. Tab: Notification Alerts */}
           {activeTab === 'notifications' && (
-            <div className="p-7 rounded-3xl bg-white border border-slate-200 shadow-sm space-y-6 animate-in fade-in">
-              <div className="border-b border-slate-100 pb-4">
-                <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <div className="p-7 rounded-3xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] shadow-sm space-y-6 animate-in fade-in">
+              <div className="border-b border-slate-100 dark:border-white/[0.06] pb-4">
+                <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
                   <Bell className="w-5 h-5 text-[#ea580c]" />
                   <span>Notification Preferences</span>
                 </h2>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   Control the communications and alerts you receive from Hacker’s Unity.
                 </p>
               </div>
 
               <div className="space-y-4">
-                <label className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between cursor-pointer hover:bg-slate-100/70 transition-colors">
+                <label className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 flex items-center justify-between cursor-pointer hover:bg-slate-100/70 dark:hover:bg-white/[0.06] transition-colors">
                   <div className="space-y-0.5">
-                    <div className="text-xs font-bold text-slate-900">Hackathon Deadlines & Milestones</div>
-                    <div className="text-[11px] text-slate-500">Get reminders before registration and submission deadlines end.</div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">Hackathon Deadlines & Milestones</div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Get reminders before registration and submission deadlines end.</div>
                   </div>
                   <input
                     type="checkbox"
                     checked={notifyHackathons}
                     onChange={(e) => setNotifyHackathons(e.target.checked)}
-                    className="w-4 h-4 text-[#0099e6] rounded border-slate-300 focus:ring-[#0099e6]"
+                    className="w-4 h-4 text-[#0099e6] rounded border-slate-300 dark:border-white/20 dark:bg-white/10 focus:ring-[#0099e6]"
                   />
                 </label>
 
-                <label className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between cursor-pointer hover:bg-slate-100/70 transition-colors">
+                <label className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 flex items-center justify-between cursor-pointer hover:bg-slate-100/70 dark:hover:bg-white/[0.06] transition-colors">
                   <div className="space-y-0.5">
-                    <div className="text-xs font-bold text-slate-900">Team Invites & Squad Requests</div>
-                    <div className="text-[11px] text-slate-500">Receive alerts when builders invite you to form hackathon squads.</div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">Team Invites & Squad Requests</div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Receive alerts when builders invite you to form hackathon squads.</div>
                   </div>
                   <input
                     type="checkbox"
                     checked={notifyInvites}
                     onChange={(e) => setNotifyInvites(e.target.checked)}
-                    className="w-4 h-4 text-[#0099e6] rounded border-slate-300 focus:ring-[#0099e6]"
+                    className="w-4 h-4 text-[#0099e6] rounded border-slate-300 dark:border-white/20 dark:bg-white/10 focus:ring-[#0099e6]"
                   />
                 </label>
 
-                <label className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between cursor-pointer hover:bg-slate-100/70 transition-colors">
+                <label className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 flex items-center justify-between cursor-pointer hover:bg-slate-100/70 dark:hover:bg-white/[0.06] transition-colors">
                   <div className="space-y-0.5">
-                    <div className="text-xs font-bold text-slate-900">Weekly Builder Digest</div>
-                    <div className="text-[11px] text-slate-500">A weekly summary of top upcoming hackathons, prizes, and leaderboards.</div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white">Weekly Builder Digest</div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">A weekly summary of top upcoming hackathons, prizes, and leaderboards.</div>
                   </div>
                   <input
                     type="checkbox"
                     checked={notifyDigest}
                     onChange={(e) => setNotifyDigest(e.target.checked)}
-                    className="w-4 h-4 text-[#0099e6] rounded border-slate-300 focus:ring-[#0099e6]"
+                    className="w-4 h-4 text-[#0099e6] rounded border-slate-300 dark:border-white/20 dark:bg-white/10 focus:ring-[#0099e6]"
                   />
                 </label>
               </div>
@@ -1482,20 +1482,20 @@ export default function SettingsPage() {
 
           {/* 5. Tab: Danger / Account Management */}
           {activeTab === 'danger' && (
-            <div className="p-7 rounded-3xl bg-white border border-rose-200 shadow-sm space-y-6 animate-in fade-in">
-              <div className="border-b border-rose-100 pb-4">
-                <h2 className="text-xl font-black text-rose-600 tracking-tight flex items-center gap-2">
-                  <Trash2 className="w-5 h-5 text-rose-600" />
+            <div className="p-7 rounded-3xl bg-white dark:bg-[#0c1017] border border-rose-200 dark:border-rose-500/20 shadow-sm space-y-6 animate-in fade-in">
+              <div className="border-b border-rose-100 dark:border-rose-500/10 pb-4">
+                <h2 className="text-xl font-black text-rose-600 dark:text-rose-400 tracking-tight flex items-center gap-2">
+                  <Trash2 className="w-5 h-5 text-rose-600 dark:text-rose-400" />
                   <span>Account Session & Actions</span>
                 </h2>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   Manage active login session or sign out of your account on this device.
                 </p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200/80 space-y-3">
-                <div className="text-xs font-bold text-rose-900">Sign Out of Hacker&apos;s Unity</div>
-                <p className="text-[11px] text-rose-700">
+              <div className="p-4 rounded-2xl bg-rose-50/60 dark:bg-rose-500/10 border border-rose-200/80 dark:border-rose-500/20 space-y-3">
+                <div className="text-xs font-bold text-rose-900 dark:text-rose-200">Sign Out of Hacker&apos;s Unity</div>
+                <p className="text-[11px] text-rose-700 dark:text-rose-300">
                   This will securely end your current Supabase authenticated session on this browser.
                 </p>
                 <button
