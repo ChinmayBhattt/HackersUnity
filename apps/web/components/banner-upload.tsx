@@ -88,7 +88,7 @@ export function BannerUpload({
     <>
       <div className="flex flex-col sm:flex-row sm:items-center gap-4">
         {/* Banner Preview Box */}
-        <div className="w-full sm:w-52 h-24 rounded-2xl bg-slate-900 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden shrink-0 relative shadow-xs">
+        <div className="w-full sm:w-52 h-24 rounded-2xl bg-slate-900 border-2 border-dashed border-slate-300 dark:border-white/20 flex items-center justify-center overflow-hidden shrink-0 relative shadow-xs">
           {hasBanner && currentBanner ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
@@ -126,7 +126,7 @@ export function BannerUpload({
               <button
                 type="button"
                 onClick={onBannerRemove}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold cursor-pointer transition-all"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30 text-xs font-bold cursor-pointer transition-all"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Remove Banner</span>
@@ -134,7 +134,7 @@ export function BannerUpload({
             )}
           </div>
 
-          <p className="text-[10px] text-slate-400 font-medium">
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
             JPG, PNG, WebP — Max 5MB. Recommended ratio 3:1. You can crop & adjust after uploading.
           </p>
         </div>
@@ -151,16 +151,16 @@ export function BannerUpload({
       {/* ─── Crop & Adjust Modal ──────────────────────────────────── */}
       {showCropModal && imageSrc && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-xl w-full overflow-hidden shadow-2xl border border-slate-200">
+          <div className="bg-white dark:bg-[#0c1017] rounded-3xl max-w-xl w-full overflow-hidden shadow-2xl dark:shadow-black/95 border border-slate-200 dark:border-white/10">
             {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-white/[0.08] flex items-center justify-between">
               <div>
-                <h3 className="text-base font-black text-slate-900">Adjust & Crop Banner</h3>
-                <p className="text-xs text-slate-500">Drag and scale your banner photo (recommended ratio 3:1)</p>
+                <h3 className="text-base font-black text-slate-900 dark:text-white">Adjust & Crop Banner</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Drag and scale your banner photo (recommended ratio 3:1)</p>
               </div>
               <button
                 onClick={() => setShowCropModal(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -181,7 +181,7 @@ export function BannerUpload({
             </div>
 
             {/* Controls */}
-            <div className="px-6 py-4 space-y-4 bg-slate-50 border-t border-slate-100">
+            <div className="px-6 py-4 space-y-4 bg-slate-50 dark:bg-white/[0.03] border-t border-slate-100 dark:border-white/[0.08]">
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 flex-1">
                   <ZoomOut className="w-4 h-4 text-slate-400" />
@@ -192,7 +192,7 @@ export function BannerUpload({
                     step={0.05}
                     value={zoom}
                     onChange={(e) => setZoom(Number(e.target.value))}
-                    className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0099e6]"
+                    className="w-full h-1.5 bg-slate-200 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-[#0099e6]"
                   />
                   <ZoomIn className="w-4 h-4 text-slate-400" />
                 </div>
@@ -200,7 +200,7 @@ export function BannerUpload({
                 <button
                   type="button"
                   onClick={() => setRotation((prev) => (prev + 90) % 360)}
-                  className="p-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-1.5 text-xs font-bold cursor-pointer"
+                  className="p-2 rounded-xl bg-white dark:bg-white/[0.06] border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/[0.1] transition-colors flex items-center gap-1.5 text-xs font-bold cursor-pointer"
                 >
                   <RotateCw className="w-3.5 h-3.5" />
                   <span>Rotate</span>
@@ -212,7 +212,7 @@ export function BannerUpload({
                 <button
                   type="button"
                   onClick={() => setShowCropModal(false)}
-                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-200 text-xs font-bold transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/[0.08] text-xs font-bold transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>

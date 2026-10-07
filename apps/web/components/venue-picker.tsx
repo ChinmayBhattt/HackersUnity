@@ -190,7 +190,7 @@ export function VenuePicker({
     <div className="space-y-3" ref={containerRef}>
       {/* Label and GPS Action */}
       <div className="flex items-center justify-between">
-        <label className="block text-xs font-bold text-slate-700">{label}</label>
+        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">{label}</label>
         <button
           type="button"
           onClick={handleDetectPreciseLocation}
@@ -349,7 +349,7 @@ export function VenuePicker({
             </a>
           </div>
 
-          <div className="w-full h-44 sm:h-52 bg-slate-100 relative">
+          <div className="w-full h-44 sm:h-52 bg-slate-100 dark:bg-slate-900 relative">
             <iframe
               title="Venue Google Maps Preview"
               width="100%"

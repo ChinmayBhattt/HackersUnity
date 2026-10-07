@@ -84,16 +84,16 @@ export function AvatarUpload({ currentAvatar, onAvatarChange, onAvatarRemove }: 
   return (
     <>
       <div>
-        <label className="block text-xs font-bold text-slate-700 mb-2">Profile Logo / Photo</label>
+        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">Profile Logo / Photo</label>
 
         <div className="flex items-center gap-4">
           {/* Current avatar preview */}
-          <div className="w-24 h-24 rounded-2xl bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden shrink-0">
+          <div className="w-24 h-24 rounded-2xl bg-slate-100 dark:bg-white/[0.04] border-2 border-dashed border-slate-300 dark:border-white/20 flex items-center justify-center overflow-hidden shrink-0">
             {hasAvatar ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={currentAvatar} alt="Profile logo" className="w-full h-full object-cover" />
             ) : (
-              <div className="text-slate-400 flex flex-col items-center gap-1">
+              <div className="text-slate-400 dark:text-slate-500 flex flex-col items-center gap-1">
                 <ImagePlus className="w-6 h-6" />
                 <span className="text-[10px] font-bold">No Logo</span>
               </div>
@@ -115,14 +115,14 @@ export function AvatarUpload({ currentAvatar, onAvatarChange, onAvatarRemove }: 
               <button
                 type="button"
                 onClick={onAvatarRemove}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 text-xs font-bold cursor-pointer transition-all"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20 text-xs font-bold cursor-pointer transition-all"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Remove Logo</span>
               </button>
             )}
 
-            <p className="text-[10px] text-slate-400 font-medium">
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
               JPG, PNG, WebP — Max 5MB. You can crop & adjust after uploading.
             </p>
           </div>
@@ -140,14 +140,14 @@ export function AvatarUpload({ currentAvatar, onAvatarChange, onAvatarRemove }: 
       {/* ─── Crop & Adjust Modal ──────────────────────────────────── */}
       {showCropModal && imageSrc && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in">
-          <div className="relative w-full max-w-lg bg-white rounded-3xl border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95">
+          <div className="relative w-full max-w-lg bg-white dark:bg-[#0c1017] rounded-3xl border border-slate-200 dark:border-white/10 shadow-2xl overflow-hidden animate-in zoom-in-95">
             {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <h3 className="text-sm font-black text-slate-900">Crop & Adjust Your Logo</h3>
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-white/10 flex items-center justify-between">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white">Crop & Adjust Your Logo</h3>
               <button
                 type="button"
                 onClick={handleCropCancel}
-                className="p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+                className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -171,7 +171,7 @@ export function AvatarUpload({ currentAvatar, onAvatarChange, onAvatarRemove }: 
             </div>
 
             {/* Controls */}
-            <div className="px-6 py-4 space-y-3 border-t border-slate-100">
+            <div className="px-6 py-4 space-y-3 border-t border-slate-100 dark:border-white/10">
               {/* Zoom slider */}
               <div className="flex items-center gap-3">
                 <ZoomOut className="w-4 h-4 text-slate-400 shrink-0" />
@@ -182,10 +182,10 @@ export function AvatarUpload({ currentAvatar, onAvatarChange, onAvatarRemove }: 
                   step={0.05}
                   value={zoom}
                   onChange={(e) => setZoom(Number(e.target.value))}
-                  className="flex-1 h-1.5 bg-slate-200 rounded-full appearance-none cursor-pointer accent-[#0099e6]"
+                  className="flex-1 h-1.5 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-[#0099e6]"
                 />
                 <ZoomIn className="w-4 h-4 text-slate-400 shrink-0" />
-                <span className="text-[11px] font-mono text-slate-500 w-10 text-right">{zoom.toFixed(1)}x</span>
+                <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 w-10 text-right">{zoom.toFixed(1)}x</span>
               </div>
 
               {/* Rotation slider */}
@@ -198,18 +198,18 @@ export function AvatarUpload({ currentAvatar, onAvatarChange, onAvatarRemove }: 
                   step={1}
                   value={rotation}
                   onChange={(e) => setRotation(Number(e.target.value))}
-                  className="flex-1 h-1.5 bg-slate-200 rounded-full appearance-none cursor-pointer accent-[#0099e6]"
+                  className="flex-1 h-1.5 bg-slate-200 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-[#0099e6]"
                 />
-                <span className="text-[11px] font-mono text-slate-500 w-10 text-right">{rotation}°</span>
+                <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400 w-10 text-right">{rotation}°</span>
               </div>
             </div>
 
             {/* Actions */}
-            <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+            <div className="px-6 py-4 border-t border-slate-100 dark:border-white/10 flex items-center justify-end gap-3">
               <button
                 type="button"
                 onClick={handleCropCancel}
-                className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer transition-all"
+                className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/10 text-slate-700 dark:text-slate-200 text-xs font-bold cursor-pointer transition-all"
               >
                 Cancel
               </button>

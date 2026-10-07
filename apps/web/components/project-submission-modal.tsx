@@ -286,24 +286,24 @@ export function ProjectSubmissionModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
-      <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+      <div className="relative w-full max-w-2xl bg-white dark:bg-[#0c1017] rounded-3xl shadow-2xl dark:shadow-black/95 border border-slate-200 dark:border-white/[0.1] overflow-hidden my-6">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 sm:p-6 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-sky-50/40">
+        <div className="flex items-center justify-between p-5 sm:p-6 border-b border-slate-100 dark:border-white/[0.08] bg-gradient-to-r from-slate-50 to-sky-50/40 dark:from-white/[0.03] dark:to-sky-950/20">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-[#0099e6] text-white flex items-center justify-center shadow-md shadow-sky-500/20">
               <Rocket className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                <h3 className="text-base sm:lg font-black text-slate-900 dark:text-white tracking-tight">
                   Project Submission Portal
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-100 text-[#0099e6] uppercase">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-100 dark:bg-sky-500/15 text-[#0099e6] dark:text-sky-400 uppercase">
                   Live Builder Portal
                 </span>
               </div>
-              <p className="text-xs text-slate-500 font-medium truncate max-w-sm sm:max-w-md">
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium truncate max-w-sm sm:max-w-md">
                 {eventName}
               </p>
             </div>
@@ -311,7 +311,7 @@ export function ProjectSubmissionModal({
 
           <button
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+            className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/[0.06] rounded-xl transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -319,12 +319,12 @@ export function ProjectSubmissionModal({
 
         {/* Delete Confirmation Overlay */}
         {showDeleteConfirm && (
-          <div className="p-6 bg-rose-50 border-b border-rose-200 text-slate-900 space-y-3 animate-in fade-in">
-            <div className="flex items-center gap-2 font-black text-sm text-rose-700">
-              <AlertCircle className="w-4 h-4 text-rose-600" />
+          <div className="p-6 bg-rose-50 dark:bg-rose-950/40 border-b border-rose-200 dark:border-rose-500/20 text-slate-900 dark:text-white space-y-3 animate-in fade-in">
+            <div className="flex items-center gap-2 font-black text-sm text-rose-700 dark:text-rose-400">
+              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
               <span>Confirm Project Submission Deletion?</span>
             </div>
-            <p className="text-xs text-rose-800 leading-relaxed font-medium">
+            <p className="text-xs text-rose-800 dark:text-rose-300 leading-relaxed font-medium">
               Are you sure you want to withdraw and delete your submission for{' '}
               <strong>&ldquo;{submissionData?.projectTitle}&rdquo;</strong>? This will remove your prototype from the judges review roster.
             </p>
@@ -341,7 +341,7 @@ export function ProjectSubmissionModal({
               <button
                 type="button"
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-white dark:bg-white/[0.06] border border-slate-200 dark:border-white/10 hover:bg-slate-100 dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 font-bold text-xs cursor-pointer"
               >
                 Cancel
               </button>
@@ -351,16 +351,16 @@ export function ProjectSubmissionModal({
 
         {/* Informational Guidance Banner */}
         {!isSubmitted && (
-          <div className="px-6 py-3 bg-amber-50/80 border-b border-amber-100 flex items-center justify-between gap-2 text-xs">
-            <div className="flex items-center gap-2 text-amber-800 font-medium">
-              <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+          <div className="px-6 py-3 bg-amber-50/80 dark:bg-amber-500/[0.08] border-b border-amber-100 dark:border-amber-500/20 flex items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-medium">
+              <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
               <span>Review all deliverables carefully. Red badges indicate mandatory fields.</span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 text-[10px] font-black uppercase">
+              <span className="px-2 py-0.5 rounded-md bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-400 text-[10px] font-black uppercase">
                 Required *
               </span>
-              <span className="px-2 py-0.5 rounded-md bg-slate-200 text-slate-700 text-[10px] font-bold uppercase">
+              <span className="px-2 py-0.5 rounded-md bg-slate-200 dark:bg-white/[0.08] text-slate-700 dark:text-slate-300 text-[10px] font-bold uppercase">
                 Optional
               </span>
             </div>
@@ -370,65 +370,65 @@ export function ProjectSubmissionModal({
         {/* ─── Success / Already Submitted Confirmation View ─────────── */}
         {isSubmitted && submissionData ? (
           <div className="p-6 sm:p-8 space-y-6 text-center animate-in fade-in">
-            <div className="w-16 h-16 rounded-3xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-sm">
+            <div className="w-16 h-16 rounded-3xl bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-sm">
               <CheckCircle2 className="w-9 h-9" />
             </div>
 
             <div className="space-y-1">
-              <h4 className="text-xl sm:text-2xl font-black text-slate-900">
+              <h4 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
                 Project Successfully Submitted!
               </h4>
-              <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
                 Your prototype is recorded and ready for organizer evaluation.
               </p>
             </div>
 
             {/* Submitted Summary Card */}
-            <div className="text-left bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3.5 text-xs">
-              <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5">
+            <div className="text-left bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 rounded-2xl p-5 space-y-3.5 text-xs">
+              <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-white/[0.08] pb-2.5">
                 <div>
-                  <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Project Title</div>
-                  <div className="text-sm font-black text-slate-900 mt-0.5">{submissionData.projectTitle}</div>
+                  <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Project Title</div>
+                  <div className="text-sm font-black text-slate-900 dark:text-white mt-0.5">{submissionData.projectTitle}</div>
                   {submissionData.tagline && (
-                    <p className="text-xs text-[#0099e6] font-semibold mt-0.5">{submissionData.tagline}</p>
+                    <p className="text-xs text-[#0099e6] dark:text-sky-400 font-semibold mt-0.5">{submissionData.tagline}</p>
                   )}
                 </div>
                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase border ${
                   submissionData.status === 'WINNER'
-                    ? 'bg-amber-100 text-amber-800 border-amber-300'
+                    ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-500/30'
                     : submissionData.status === 'ACCEPTED'
-                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                    ? 'bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/30'
                     : submissionData.status === 'REJECTED'
-                    ? 'bg-rose-100 text-rose-800 border-rose-300'
-                    : 'bg-sky-100 text-[#0099e6] border-sky-300'
+                    ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-500/30'
+                    : 'bg-sky-100 dark:bg-sky-500/20 text-[#0099e6] dark:text-sky-400 border-sky-300 dark:border-sky-500/30'
                 }`}>
                   STATUS: {submissionData.status || 'SUBMITTED'}
                 </span>
               </div>
 
               {submissionData.track && (
-                <div className="flex items-center gap-1.5 text-xs text-slate-700">
-                  <Layers className="w-3.5 h-3.5 text-[#0099e6]" />
+                <div className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300">
+                  <Layers className="w-3.5 h-3.5 text-[#0099e6] dark:text-sky-400" />
                   <span className="font-bold">Track:</span>
-                  <span className="font-semibold text-slate-900">{submissionData.track}</span>
+                  <span className="font-semibold text-slate-900 dark:text-white">{submissionData.track}</span>
                 </div>
               )}
 
               <div>
-                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Description</div>
-                <p className="text-slate-700 font-medium mt-1 line-clamp-3 leading-relaxed whitespace-pre-line">
+                <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Description</div>
+                <p className="text-slate-700 dark:text-slate-300 font-medium mt-1 line-clamp-3 leading-relaxed whitespace-pre-line">
                   {submissionData.projectDescription}
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                 <div>
-                  <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Repository / Live Link</div>
+                  <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Repository / Live Link</div>
                   <a
                     href={submissionData.projectLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[#0099e6] font-bold flex items-center gap-1 hover:underline truncate mt-0.5"
+                    className="text-[#0099e6] dark:text-sky-400 font-bold flex items-center gap-1 hover:underline truncate mt-0.5"
                   >
                     <Github className="w-3.5 h-3.5 shrink-0" />
                     <span className="truncate">{submissionData.projectLink}</span>
@@ -438,12 +438,12 @@ export function ProjectSubmissionModal({
 
                 {submissionData.demoVideoUrl && (
                   <div>
-                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Demo Video</div>
+                    <div className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">Demo Video</div>
                     <a
                       href={submissionData.demoVideoUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[#ea580c] font-bold flex items-center gap-1 hover:underline truncate mt-0.5"
+                      className="text-[#ea580c] dark:text-orange-400 font-bold flex items-center gap-1 hover:underline truncate mt-0.5"
                     >
                       <Video className="w-3.5 h-3.5 shrink-0" />
                       <span className="truncate">{submissionData.demoVideoUrl}</span>
@@ -454,12 +454,12 @@ export function ProjectSubmissionModal({
               </div>
 
               {(submissionData.zipFileName || submissionData.presentationUrl) && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/80">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/80 dark:border-white/[0.08]">
                   {submissionData.zipFileName && (
                     <div className="flex items-center gap-2">
-                      <Archive className="w-4 h-4 text-slate-500" />
-                      <span className="font-semibold text-slate-700">{submissionData.zipFileName}</span>
-                      <span className="text-[10px] text-slate-400 font-mono">({submissionData.zipFileSize})</span>
+                      <Archive className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                      <span className="font-semibold text-slate-700 dark:text-slate-300">{submissionData.zipFileName}</span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">({submissionData.zipFileSize})</span>
                     </div>
                   )}
                   {submissionData.presentationUrl && (
@@ -467,9 +467,9 @@ export function ProjectSubmissionModal({
                       href={submissionData.presentationUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-slate-700 font-bold flex items-center gap-1 hover:underline truncate"
+                      className="text-slate-700 dark:text-slate-300 font-bold flex items-center gap-1 hover:underline truncate"
                     >
-                      <Presentation className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                      <Presentation className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
                       <span className="truncate">Slide Deck / PPT</span>
                       <ExternalLink className="w-3 h-3 shrink-0" />
                     </a>
@@ -483,16 +483,16 @@ export function ProjectSubmissionModal({
               <button
                 type="button"
                 onClick={() => setIsSubmitted(false)}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/[0.06] text-slate-700 dark:text-slate-200 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <Edit3 className="w-3.5 h-3.5 text-[#0099e6]" />
+                <Edit3 className="w-3.5 h-3.5 text-[#0099e6] dark:text-sky-400" />
                 <span>Edit Submission Details</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowDeleteConfirm(true)}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-600 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-rose-200 dark:border-rose-500/30 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Delete Submission</span>
@@ -501,7 +501,7 @@ export function ProjectSubmissionModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-all cursor-pointer shadow-xs"
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 text-white font-bold text-xs transition-all cursor-pointer shadow-xs"
               >
                 Close Portal
               </button>
@@ -512,12 +512,12 @@ export function ProjectSubmissionModal({
           <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-6 max-h-[75vh] overflow-y-auto">
             {/* Section 1: Required Fields */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/[0.08] pb-2">
+                <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
                   <FileCheck className="w-4 h-4 text-[#0099e6]" />
                   <span>Mandatory Project Details</span>
                 </h4>
-                <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-600 text-[10px] font-black border border-rose-200 uppercase">
+                <span className="px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-400 text-[10px] font-black border border-rose-200 dark:border-rose-500/30 uppercase">
                   Required
                 </span>
               </div>
@@ -525,10 +525,10 @@ export function ProjectSubmissionModal({
               {/* 1. Project Title (Required) */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-800">
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
                     Project Title <span className="text-rose-500">*</span>
                   </label>
-                  <span className="px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-600 text-[10px] font-black uppercase">
+                  <span className="px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400 text-[10px] font-black uppercase">
                     Required
                   </span>
                 </div>
@@ -541,14 +541,14 @@ export function ProjectSubmissionModal({
                     if (errors.title) validate();
                   }}
                   onBlur={() => handleBlur('title')}
-                  className={`w-full px-4 py-2.5 rounded-xl bg-slate-50 border text-xs text-slate-900 outline-none transition-all placeholder:text-slate-400 ${
+                  className={`w-full px-4 py-2.5 rounded-xl border text-xs text-slate-900 dark:text-white outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 ${
                     touched.title && errors.title
-                      ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
-                      : 'border-slate-200 focus:border-[#0099e6] focus:bg-white'
+                      ? 'border-rose-400 bg-rose-50/20 dark:bg-rose-500/10 focus:border-rose-500'
+                      : 'bg-slate-50 dark:bg-white/[0.04] border-slate-200 dark:border-white/10 focus:border-[#0099e6] focus:bg-white dark:focus:bg-[#0c1017]'
                   }`}
                 />
                 {touched.title && errors.title && (
-                  <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1 mt-1 animate-in fade-in">
+                  <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-1 animate-in fade-in">
                     <AlertCircle className="w-3.5 h-3.5" />
                     <span>{errors.title}</span>
                   </p>
@@ -557,7 +557,7 @@ export function ProjectSubmissionModal({
 
               {/* 2. Tagline / Pitch (Optional) */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-[#0099e6]" />
                   <span>One-Line Tagline / Elevator Pitch</span>
                 </label>
@@ -566,23 +566,23 @@ export function ProjectSubmissionModal({
                   placeholder="e.g. Zero-latency collaboration engine for high-velocity teams"
                   value={tagline}
                   onChange={(e) => setTagline(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#0099e6] focus:bg-white text-xs text-slate-900 outline-none transition-all placeholder:text-slate-400"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 focus:border-[#0099e6] focus:bg-white dark:focus:bg-[#0c1017] text-xs text-slate-900 dark:text-white outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
               </div>
 
               {/* 3. Track Selection */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                   <Layers className="w-3.5 h-3.5 text-[#ea580c]" />
                   <span>Competition Track</span>
                 </label>
                 <select
                   value={track}
                   onChange={(e) => setTrack(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#0099e6] focus:bg-white text-xs text-slate-900 outline-none transition-all cursor-pointer"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 focus:border-[#0099e6] focus:bg-white dark:focus:bg-[#0c1017] text-xs text-slate-900 dark:text-white outline-none transition-all cursor-pointer"
                 >
                   {trackOptions.map((t, idx) => (
-                    <option key={idx} value={t}>
+                    <option key={idx} value={t} className="bg-white dark:bg-[#0c1017] text-slate-900 dark:text-white">
                       {t}
                     </option>
                   ))}
@@ -592,10 +592,10 @@ export function ProjectSubmissionModal({
               {/* 4. Project Description (Required) */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-800">
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
                     Detailed Project Description <span className="text-rose-500">*</span>
                   </label>
-                  <span className="text-[10px] text-slate-400 font-mono">
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
                     {description.length} chars (min 20)
                   </span>
                 </div>
@@ -608,14 +608,14 @@ export function ProjectSubmissionModal({
                     if (errors.description) validate();
                   }}
                   onBlur={() => handleBlur('description')}
-                  className={`w-full px-4 py-2.5 rounded-xl bg-slate-50 border text-xs text-slate-900 outline-none transition-all placeholder:text-slate-400 resize-none leading-relaxed ${
+                  className={`w-full px-4 py-2.5 rounded-xl border text-xs text-slate-900 dark:text-white outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 resize-none leading-relaxed ${
                     touched.description && errors.description
-                      ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
-                      : 'border-slate-200 focus:border-[#0099e6] focus:bg-white'
+                      ? 'border-rose-400 bg-rose-50/20 dark:bg-rose-500/10 focus:border-rose-500'
+                      : 'bg-slate-50 dark:bg-white/[0.04] border-slate-200 dark:border-white/10 focus:border-[#0099e6] focus:bg-white dark:focus:bg-[#0c1017]'
                   }`}
                 />
                 {touched.description && errors.description && (
-                  <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1 mt-1 animate-in fade-in">
+                  <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-1 animate-in fade-in">
                     <AlertCircle className="w-3.5 h-3.5" />
                     <span>{errors.description}</span>
                   </p>
@@ -625,11 +625,11 @@ export function ProjectSubmissionModal({
               {/* 5. Project Link / GitHub (Required) */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <Github className="w-3.5 h-3.5 text-slate-900" />
+                  <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <Github className="w-3.5 h-3.5 text-slate-900 dark:text-white" />
                     <span>GitHub Repository or Live Production Link <span className="text-rose-500">*</span></span>
                   </label>
-                  <span className="px-2 py-0.5 rounded-md bg-rose-50 border border-rose-200 text-rose-600 text-[10px] font-black uppercase">
+                  <span className="px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-500/15 border border-rose-200 dark:border-rose-500/30 text-rose-600 dark:text-rose-400 text-[10px] font-black uppercase">
                     Required
                   </span>
                 </div>
@@ -642,14 +642,14 @@ export function ProjectSubmissionModal({
                     if (errors.projectLink) validate();
                   }}
                   onBlur={() => handleBlur('projectLink')}
-                  className={`w-full px-4 py-2.5 rounded-xl bg-slate-50 border text-xs text-slate-900 outline-none transition-all placeholder:text-slate-400 ${
+                  className={`w-full px-4 py-2.5 rounded-xl border text-xs text-slate-900 dark:text-white outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 ${
                     touched.projectLink && errors.projectLink
-                      ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500'
-                      : 'border-slate-200 focus:border-[#0099e6] focus:bg-white'
+                      ? 'border-rose-400 bg-rose-50/20 dark:bg-rose-500/10 focus:border-rose-500'
+                      : 'bg-slate-50 dark:bg-white/[0.04] border-slate-200 dark:border-white/10 focus:border-[#0099e6] focus:bg-white dark:focus:bg-[#0c1017]'
                   }`}
                 />
                 {touched.projectLink && errors.projectLink && (
-                  <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1 mt-1 animate-in fade-in">
+                  <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-1 animate-in fade-in">
                     <AlertCircle className="w-3.5 h-3.5" />
                     <span>{errors.projectLink}</span>
                   </p>
@@ -658,21 +658,21 @@ export function ProjectSubmissionModal({
             </div>
 
             {/* Section 2: Optional Deliverables */}
-            <div className="space-y-4 pt-4 border-t border-slate-100">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+            <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-white/[0.08]">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/[0.08] pb-2">
+                <h4 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4 text-[#ea580c]" />
                   <span>Optional Supporting Deliverables</span>
                 </h4>
-                <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold uppercase">
+                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/[0.08] text-slate-600 dark:text-slate-400 text-[10px] font-bold uppercase">
                   Optional
                 </span>
               </div>
 
               {/* Submitter Name Override */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-slate-500" />
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                   <span>Submitter / Team Lead Name</span>
                 </label>
                 <input
@@ -680,13 +680,13 @@ export function ProjectSubmissionModal({
                   placeholder="Your Name"
                   value={submitterName}
                   onChange={(e) => setSubmitterName(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#0099e6] focus:bg-white text-xs text-slate-900 outline-none transition-all placeholder:text-slate-400"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 focus:border-[#0099e6] focus:bg-white dark:focus:bg-[#0c1017] text-xs text-slate-900 dark:text-white outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 />
               </div>
 
               {/* Demo Video URL */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                   <Video className="w-3.5 h-3.5 text-[#ea580c]" />
                   <span>Demo Video Walkthrough (Loom / YouTube / Drive)</span>
                 </label>
@@ -696,14 +696,14 @@ export function ProjectSubmissionModal({
                   value={demoVideoUrl}
                   onChange={(e) => setDemoVideoUrl(e.target.value)}
                   onBlur={() => handleBlur('demoVideoUrl')}
-                  className={`w-full px-4 py-2.5 rounded-xl bg-slate-50 border text-xs text-slate-900 outline-none transition-all placeholder:text-slate-400 ${
+                  className={`w-full px-4 py-2.5 rounded-xl border text-xs text-slate-900 dark:text-white outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 ${
                     touched.demoVideoUrl && errors.demoVideoUrl
-                      ? 'border-rose-400 bg-rose-50/20'
-                      : 'border-slate-200 focus:border-[#0099e6] focus:bg-white'
+                      ? 'border-rose-400 bg-rose-50/20 dark:bg-rose-500/10'
+                      : 'bg-slate-50 dark:bg-white/[0.04] border-slate-200 dark:border-white/10 focus:border-[#0099e6] focus:bg-white dark:focus:bg-[#0c1017]'
                   }`}
                 />
                 {touched.demoVideoUrl && errors.demoVideoUrl && (
-                  <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1 mt-1">
+                  <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-1">
                     <AlertCircle className="w-3.5 h-3.5" />
                     <span>{errors.demoVideoUrl}</span>
                   </p>
@@ -712,8 +712,8 @@ export function ProjectSubmissionModal({
 
               {/* Presentation / PPT URL */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Presentation className="w-3.5 h-3.5 text-emerald-600" />
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Presentation className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                   <span>Presentation / Pitch Deck (Google Slides / Canva / Pitch.com)</span>
                 </label>
                 <input
@@ -722,14 +722,14 @@ export function ProjectSubmissionModal({
                   value={presentationUrl}
                   onChange={(e) => setPresentationUrl(e.target.value)}
                   onBlur={() => handleBlur('presentationUrl')}
-                  className={`w-full px-4 py-2.5 rounded-xl bg-slate-50 border text-xs text-slate-900 outline-none transition-all placeholder:text-slate-400 ${
+                  className={`w-full px-4 py-2.5 rounded-xl border text-xs text-slate-900 dark:text-white outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 ${
                     touched.presentationUrl && errors.presentationUrl
-                      ? 'border-rose-400 bg-rose-50/20'
-                      : 'border-slate-200 focus:border-[#0099e6] focus:bg-white'
+                      ? 'border-rose-400 bg-rose-50/20 dark:bg-rose-500/10'
+                      : 'bg-slate-50 dark:bg-white/[0.04] border-slate-200 dark:border-white/10 focus:border-[#0099e6] focus:bg-white dark:focus:bg-[#0c1017]'
                   }`}
                 />
                 {touched.presentationUrl && errors.presentationUrl && (
-                  <p className="text-[11px] font-semibold text-rose-600 flex items-center gap-1 mt-1">
+                  <p className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1 mt-1">
                     <AlertCircle className="w-3.5 h-3.5" />
                     <span>{errors.presentationUrl}</span>
                   </p>
@@ -738,8 +738,8 @@ export function ProjectSubmissionModal({
 
               {/* ZIP File Upload */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Archive className="w-3.5 h-3.5 text-sky-600" />
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Archive className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
                   <span>Offline Source Code / ZIP Archive</span>
                 </label>
                 <input
@@ -750,16 +750,16 @@ export function ProjectSubmissionModal({
                   className="hidden"
                 />
                 {zipFileName ? (
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-sky-50 border border-sky-200 text-xs">
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/20 text-xs">
                     <div className="flex items-center gap-2 truncate">
                       <Archive className="w-4 h-4 text-[#0099e6] shrink-0" />
-                      <span className="font-bold text-slate-900 truncate">{zipFileName}</span>
-                      <span className="text-[10px] text-slate-500 font-mono">({zipFileSize})</span>
+                      <span className="font-bold text-slate-900 dark:text-white truncate">{zipFileName}</span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">({zipFileSize})</span>
                     </div>
                     <button
                       type="button"
                       onClick={removeZipFile}
-                      className="p-1 text-slate-400 hover:text-rose-600 rounded-lg cursor-pointer"
+                      className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -775,15 +775,15 @@ export function ProjectSubmissionModal({
                     onDrop={handleZipDrop}
                     className={`p-4 rounded-xl border-2 border-dashed text-center transition-all cursor-pointer ${
                       isDraggingZip
-                        ? 'border-[#0099e6] bg-sky-50/50'
-                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100/80 hover:border-slate-300'
+                        ? 'border-[#0099e6] bg-sky-50/50 dark:bg-sky-500/10'
+                        : 'border-slate-200 dark:border-white/15 bg-slate-50 dark:bg-white/[0.03] hover:bg-slate-100/80 dark:hover:bg-white/[0.06] hover:border-slate-300 dark:hover:border-white/25'
                     }`}
                   >
                     <UploadCloud className="w-5 h-5 text-slate-400 mx-auto mb-1" />
-                    <div className="text-xs font-bold text-slate-700">
+                    <div className="text-xs font-bold text-slate-700 dark:text-slate-300">
                       Click to upload ZIP or drag and drop
                     </div>
-                    <div className="text-[10px] text-slate-400 mt-0.5">
+                    <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
                       Supports .zip, .tar.gz up to 50MB
                     </div>
                   </div>
@@ -792,8 +792,8 @@ export function ProjectSubmissionModal({
 
               {/* Additional Resources */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Link2 className="w-3.5 h-3.5 text-purple-600" />
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Link2 className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                   <span>Supplemental Notes & Research Links</span>
                 </label>
                 <textarea
@@ -801,18 +801,18 @@ export function ProjectSubmissionModal({
                   placeholder="Figma prototypes, smart contracts, API docs, dataset sources, or research papers..."
                   value={additionalResources}
                   onChange={(e) => setAdditionalResources(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#0099e6] focus:bg-white text-xs text-slate-900 outline-none transition-all placeholder:text-slate-400 resize-none leading-relaxed"
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/10 focus:border-[#0099e6] focus:bg-white dark:focus:bg-[#0c1017] text-xs text-slate-900 dark:text-white outline-none transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500 resize-none leading-relaxed"
                 />
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100">
+            <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100 dark:border-white/[0.08]">
               {submissionData ? (
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                  className="px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Delete</span>
@@ -825,7 +825,7 @@ export function ProjectSubmissionModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 font-bold text-xs transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
