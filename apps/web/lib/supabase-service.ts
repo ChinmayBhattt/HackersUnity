@@ -3526,18 +3526,36 @@ export function subscribeToProfilesRealtime(onChange: () => void): () => void {
 /**
  * ─── PAYMENTS: FETCH USER PAYMENTS ──────────────────────────────────────────
  */
-export async function fetchUserPaymentsSupabase(userId: string): Promise<any[]> {
-  if (!userId) return [];
+export async function fetchUserPaymentsSupabase(userId: string, email?: string): Promise<any[]> {
+  if (!userId && !email) return [];
   try {
-    const { data, error } = await supabase
-      .from('payments')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+    let query = supabase.from('payments').select('*, events(slug, title, banner_url)');
+    if (userId && email) {
+      query = query.or(`user_id.eq.${userId},team_leader_email.eq.${email}`);
+    } else if (userId) {
+      query = query.eq('user_id', userId);
+    } else if (email) {
+      query = query.eq('team_leader_email', email);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
-      console.warn('[Supabase] fetchUserPaymentsSupabase error:', error.message);
-      return [];
+      // Fallback without events relation join in case table relationships aren't cached
+      let fallbackQuery = supabase.from('payments').select('*');
+      if (userId && email) {
+        fallbackQuery = fallbackQuery.or(`user_id.eq.${userId},team_leader_email.eq.${email}`);
+      } else if (userId) {
+        fallbackQuery = fallbackQuery.eq('user_id', userId);
+      } else if (email) {
+        fallbackQuery = fallbackQuery.eq('team_leader_email', email);
+      }
+      const { data: fallbackData, error: fallbackError } = await fallbackQuery.order('created_at', { ascending: false });
+      if (fallbackError) {
+        console.warn('[Supabase] fetchUserPaymentsSupabase error:', fallbackError.message);
+        return [];
+      }
+      return fallbackData || [];
     }
     return data || [];
   } catch (err) {

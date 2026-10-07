@@ -10,6 +10,12 @@ export interface UserRegistrationItem {
   isTeam: boolean;
   role: string;
   status: 'CONFIRMED' | 'SUBMITTED' | 'UNDER_REVIEW';
+  paymentStatus?: 'FREE' | 'UNPAID' | 'PAID' | 'FAILED' | 'REFUNDED';
+  paymentId?: string;
+  entryFee?: number;
+  currency?: string;
+  teamId?: string;
+  slug?: string;
 }
 
 const STORAGE_KEYS = {
