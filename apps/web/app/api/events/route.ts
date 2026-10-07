@@ -102,6 +102,8 @@ export async function POST(req: Request) {
       difficulty: event.difficulty || 'OPEN',
       rules_text: event.rulesText || null,
       registration_type: event.registrationType || 'FREE',
+      entry_fee: event.entryFee !== undefined && event.entryFee !== null ? Number(event.entryFee) : 0,
+      currency: event.currency || 'INR',
       registration_capacity: event.registrationCapacity || null,
       approval_mode: event.approvalMode || 'MANUAL',
       custom_questions: event.customQuestions || [],
@@ -248,6 +250,8 @@ export async function PATCH(req: Request) {
     if (updates.difficulty !== undefined) updatePayload.difficulty = updates.difficulty;
     if (updates.rulesText !== undefined) updatePayload.rules_text = updates.rulesText;
     if (updates.registrationType !== undefined) updatePayload.registration_type = updates.registrationType;
+    if (updates.entryFee !== undefined) updatePayload.entry_fee = updates.entryFee !== null ? Number(updates.entryFee) : 0;
+    if (updates.currency !== undefined) updatePayload.currency = updates.currency;
     if (updates.registrationCapacity !== undefined) updatePayload.registration_capacity = updates.registrationCapacity;
     if (updates.approvalMode !== undefined) updatePayload.approval_mode = updates.approvalMode;
     if (updates.customQuestions !== undefined) updatePayload.custom_questions = updates.customQuestions;
