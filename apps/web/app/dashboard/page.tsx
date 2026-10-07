@@ -52,6 +52,10 @@ import {
   Github,
   Video,
   Lock,
+  CreditCard,
+  Receipt,
+  Printer,
+  CheckCircle,
 } from 'lucide-react';
 import {
   getMyRegistrations,
@@ -79,6 +83,7 @@ import {
   fetchEventRegistrations,
   fetchAllSubmissionCounts,
   subscribeToAllSubmissions,
+  fetchUserPaymentsSupabase,
 } from '@/lib/supabase-service';
 import { supabase } from '@/lib/supabase';
 import { HackathonCard } from '@/components/hackathon-card';
@@ -97,8 +102,24 @@ export default function DashboardPage() {
 
   // Active Tab in the Left Sidebar
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'participations' | 'organizing' | 'bookmarks'
+    'overview' | 'participations' | 'organizing' | 'bookmarks' | 'payments'
   >('overview');
+
+  // Payments & Receipts States
+  const [payments, setPayments] = useState<any[]>([]);
+  const [paymentFilter, setPaymentFilter] = useState<'ALL' | 'PAID' | 'PENDING' | 'FAILED'>('ALL');
+  const [paymentSearch, setPaymentSearch] = useState('');
+  const [selectedReceiptPayment, setSelectedReceiptPayment] = useState<any | null>(null);
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [copiedPaymentKey, setCopiedPaymentKey] = useState<string | null>(null);
+
+  const copyPaymentValue = (text: string, key: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedPaymentKey(key);
+      setTimeout(() => setCopiedPaymentKey(null), 2000);
+    }
+  };
 
   // Realtime Data States
   const [registrations, setRegistrations] = useState<UserRegistrationItem[]>([]);
@@ -174,10 +195,13 @@ export default function DashboardPage() {
       const isDbUser = Boolean(userId && userId.length > 10 && userId.includes('-'));
 
       // Parallel remote fetch for maximum load speed
-      const [published, remoteRegs, hosted] = await Promise.all([
+      const [published, remoteRegs, hosted, userPayments] = await Promise.all([
         fetchPublishedEvents(),
         isDbUser ? fetchUserRegistrations(userId!) : Promise.resolve([]),
         isDbUser ? fetchOrganizerEvents(userId!) : Promise.resolve([]),
+        (isDbUser || user?.email)
+          ? fetchUserPaymentsSupabase(userId || '', user?.email || '')
+          : Promise.resolve([]),
       ]);
 
       const eventMap = new Map<string, ExtendedEvent>();
@@ -194,7 +218,9 @@ export default function DashboardPage() {
       const combinedEvents = Array.from(eventMap.values());
       setAllEvents(combinedEvents);
 
-      // 2. User Registrations
+      // 2. User Registrations & Payments
+      setPayments(userPayments || []);
+
       if (remoteRegs && remoteRegs.length > 0) {
         const userRegs: UserRegistrationItem[] = remoteRegs.map((r: any) => ({
           eventId: r.event_id,
@@ -204,6 +230,12 @@ export default function DashboardPage() {
           isTeam: r.is_team,
           role: r.role || 'Participant',
           status: r.status || 'CONFIRMED',
+          paymentStatus: r.payment_status || (Number(r.events?.entry_fee || 0) > 0 ? 'UNPAID' : 'FREE'),
+          paymentId: r.payment_id,
+          entryFee: Number(r.events?.entry_fee || 0),
+          currency: r.events?.currency || 'INR',
+          teamId: r.team_id,
+          slug: r.events?.slug || r.event_id,
         }));
         setRegistrations(userRegs);
       } else {
@@ -273,6 +305,13 @@ export default function DashboardPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bookmarks' },
+        () => {
+          loadDashboardData();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'payments' },
         () => {
           loadDashboardData();
         }
@@ -372,6 +411,71 @@ export default function DashboardPage() {
     if (hostSearch.trim()) {
       const q = hostSearch.toLowerCase();
       return evt.title.toLowerCase().includes(q) || evt.slug.toLowerCase().includes(q);
+    }
+    return true;
+  });
+
+  // Filtered Payments & Transaction Ledger
+  const allPaymentsList = (() => {
+    const list: any[] = [...payments];
+    const paidEventIds = new Set(
+      payments
+        .filter((p) => p.status === 'PAID')
+        .map((p) => p.event_id || p.eventId)
+    );
+
+    // Complement with any registrations that are UNPAID on a paid hackathon
+    registrations.forEach((reg) => {
+      const isPaid = reg.paymentStatus === 'PAID' || paidEventIds.has(reg.eventId);
+      if (!isPaid && (reg.entryFee || 0) > 0) {
+        list.push({
+          id: `pending_${reg.eventId}_${reg.teamId || 'reg'}`,
+          event_id: reg.eventId,
+          event_name: reg.eventName,
+          team_name: reg.teamName || 'Solo Builder',
+          team_type: reg.isTeam ? 'Squad' : 'Solo',
+          team_size: reg.isTeam ? 4 : 1,
+          team_leader_name: user?.name || 'Hacker',
+          team_leader_email: user?.email || '',
+          amount: reg.entryFee || 0,
+          currency: reg.currency || 'INR',
+          status: 'PENDING',
+          razorpay_order_id: 'ORDER_PENDING',
+          razorpay_payment_id: null,
+          utr_number: null,
+          payment_method: null,
+          receipt_number: 'PENDING-PAYMENT',
+          created_at: reg.registeredAt,
+          transaction_date: null,
+          slug: reg.slug || reg.eventId,
+          isPendingRegistration: true,
+        });
+      }
+    });
+
+    return list;
+  })();
+
+  const pendingPaymentsCount = allPaymentsList.filter((p) => p.status === 'PENDING').length;
+  const paidPaymentsCount = allPaymentsList.filter((p) => p.status === 'PAID').length;
+  const failedPaymentsCount = allPaymentsList.filter((p) => p.status === 'FAILED').length;
+  const totalAmountPaid = allPaymentsList
+    .filter((p) => p.status === 'PAID')
+    .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+  const filteredPayments = allPaymentsList.filter((p) => {
+    if (paymentFilter === 'PAID' && p.status !== 'PAID') return false;
+    if (paymentFilter === 'PENDING' && p.status !== 'PENDING') return false;
+    if (paymentFilter === 'FAILED' && p.status !== 'FAILED') return false;
+
+    if (paymentSearch.trim()) {
+      const q = paymentSearch.toLowerCase();
+      const matchName = (p.event_name || p.eventName || '').toLowerCase().includes(q);
+      const matchTeam = (p.team_name || p.teamName || '').toLowerCase().includes(q);
+      const matchRec = (p.receipt_number || p.receiptNumber || '').toLowerCase().includes(q);
+      const matchPayId = (p.razorpay_payment_id || '').toLowerCase().includes(q);
+      const matchUtr = (p.utr_number || '').toLowerCase().includes(q);
+      return matchName || matchTeam || matchRec || matchPayId || matchUtr;
     }
     return true;
   });
@@ -779,6 +883,35 @@ export default function DashboardPage() {
                 </div>
                 <div className={`text-[10px] font-normal ${activeTab === 'bookmarks' ? 'text-white/80' : 'text-slate-400'}`}>
                   Saved hackathon cards
+                </div>
+              </div>
+            </button>
+
+            {/* Nav Tab 5: Payments & Dues */}
+            <button
+              onClick={() => setActiveTab('payments')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer text-left ${activeTab === 'payments'
+                  ? 'bg-[#0099e6] text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/[0.04] hover:text-slate-900 dark:hover:text-white'
+                }`}
+            >
+              <CreditCard className="w-4 h-4 shrink-0" />
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span>Payments & Dues</span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${activeTab === 'payments'
+                        ? 'bg-white text-[#0099e6]'
+                        : pendingPaymentsCount > 0
+                          ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40'
+                          : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40'
+                      }`}
+                  >
+                    {allPaymentsList.length}
+                  </span>
+                </div>
+                <div className={`text-[10px] font-normal ${activeTab === 'payments' ? 'text-white/80' : 'text-slate-400'}`}>
+                  Receipts, UTR & billing
                 </div>
               </div>
             </button>
@@ -1225,10 +1358,33 @@ export default function DashboardPage() {
                         className="p-5 rounded-3xl bg-white dark:bg-[#07090e] border border-slate-200 dark:border-white/[0.08] hover:border-[#0099e6]/40 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4"
                       >
                         <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
-                              ✓ {reg.status || 'CONFIRMED'}
-                            </span>
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
+                                ✓ {reg.status || 'CONFIRMED'}
+                              </span>
+
+                              {/* Payment status badge */}
+                              {reg.paymentStatus === 'PAID' ? (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 flex items-center gap-1">
+                                  <CheckCircle className="w-2.5 h-2.5" />
+                                  <span>Paid {reg.entryFee ? `(₹${reg.entryFee})` : ''}</span>
+                                </span>
+                              ) : reg.paymentStatus === 'UNPAID' && (reg.entryFee || 0) > 0 ? (
+                                <Link
+                                  href={`/hackathons/${matchedEvent?.slug || reg.eventId}/register?step=4`}
+                                  className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/40 flex items-center gap-1 transition-colors"
+                                >
+                                  <Clock className="w-2.5 h-2.5" />
+                                  <span>Pay ₹{reg.entryFee} Now →</span>
+                                </Link>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-white/[0.06] text-slate-500 dark:text-slate-400">
+                                  Free Entry
+                                </span>
+                              )}
+                            </div>
+
                             <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
                               Registered: {formatDate(reg.registeredAt)}
                             </span>
@@ -1362,7 +1518,7 @@ export default function DashboardPage() {
                           })()}
                         </div>
 
-                        <div className="pt-3 border-t border-slate-100 dark:border-white/[0.08] flex items-center justify-between">
+                        <div className="pt-3 border-t border-slate-100 dark:border-white/[0.08] flex items-center justify-between gap-2 flex-wrap">
                           <Link
                             href={matchedEvent ? `/hackathons/${matchedEvent.slug}` : '/hackathons'}
                             className="text-xs font-black text-[#0099e6] flex items-center gap-1 hover:translate-x-0.5 transition-transform"
@@ -1370,6 +1526,45 @@ export default function DashboardPage() {
                             <span>Enter Hackathon Arena</span>
                             <ArrowRight className="w-3.5 h-3.5" />
                           </Link>
+
+                          {/* Quick Payment / Receipt Action */}
+                          {reg.paymentStatus === 'PAID' ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const matchedPayment = payments.find(
+                                  (p) => (p.event_id === reg.eventId || p.eventId === reg.eventId) && p.status === 'PAID'
+                                );
+                                setSelectedReceiptPayment(matchedPayment || {
+                                  receipt_number: `HU-REC-${reg.eventId.slice(0, 6)}`,
+                                  event_name: reg.eventName || matchedEvent?.title || 'Hackathon Arena',
+                                  team_name: reg.teamName || 'Solo Builder',
+                                  team_leader_name: user?.name || 'Hacker',
+                                  team_leader_email: user?.email || '',
+                                  amount: reg.entryFee || 59,
+                                  currency: reg.currency || 'INR',
+                                  status: 'PAID',
+                                  transaction_date: reg.registeredAt,
+                                  payment_method: 'UPI',
+                                  razorpay_payment_id: reg.paymentId || 'pay_verified',
+                                  utr_number: 'Verified on Supabase',
+                                });
+                                setReceiptModalOpen(true);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                            >
+                              <Receipt className="w-3.5 h-3.5 text-[#0099e6]" />
+                              <span>Receipt</span>
+                            </button>
+                          ) : reg.paymentStatus === 'UNPAID' && (reg.entryFee || 0) > 0 ? (
+                            <Link
+                              href={`/hackathons/${matchedEvent?.slug || reg.eventId}/register?step=4`}
+                              className="px-3 py-1.5 rounded-xl bg-[#ea580c] hover:bg-[#c2410c] text-white text-xs font-extrabold flex items-center gap-1.5 shadow-xs transition-all"
+                            >
+                              <CreditCard className="w-3.5 h-3.5" />
+                              <span>Pay Fee (₹{reg.entryFee})</span>
+                            </Link>
+                          ) : null}
                         </div>
                       </div>
                     );
@@ -1733,6 +1928,319 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {/* ─────────────────────────────────────────────────────────────
+              5. SECTION: PAYMENTS, RECEIPTS & INVOICES
+             ───────────────────────────────────────────────────────────── */}
+          {activeTab === 'payments' && (
+            <div className="p-7 rounded-3xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] shadow-sm space-y-6 animate-in fade-in duration-150">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-white/[0.08] pb-4">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                    <CreditCard className="w-5 h-5 text-[#0099e6]" />
+                    <span>Payments, Receipts & Invoices</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Track hackathon entry fee payments, view bank UTR references, and download official receipts.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Link
+                    href="/hackathons"
+                    className="px-4 py-2 rounded-2xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 text-[#0099e6] border border-sky-200 dark:border-sky-800/40 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs shrink-0"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    <span>Explore Arenas</span>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Financial KPI Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-4 rounded-2xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/40 flex flex-col items-center justify-center text-center">
+                  <div className="text-2xl font-black font-mono text-[#0099e6]">
+                    ₹{totalAmountPaid.toLocaleString('en-IN')}
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
+                    Total Paid
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 flex flex-col items-center justify-center text-center">
+                  <div className="text-2xl font-black font-mono text-emerald-600 dark:text-emerald-400">
+                    {paidPaymentsCount}
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
+                    Verified / Paid
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 flex flex-col items-center justify-center text-center">
+                  <div className="text-2xl font-black font-mono text-amber-600 dark:text-amber-400">
+                    {pendingPaymentsCount}
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
+                    Pending Dues
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/[0.08] flex flex-col items-center justify-center text-center">
+                  <div className="text-2xl font-black font-mono text-slate-700 dark:text-slate-300">
+                    {allPaymentsList.length}
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
+                    Total Transactions
+                  </div>
+                </div>
+              </div>
+
+              {/* Filters & Search */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(['ALL', 'PAID', 'PENDING', 'FAILED'] as const).map((filter) => (
+                    <button
+                      key={filter}
+                      onClick={() => setPaymentFilter(filter)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                        paymentFilter === filter
+                          ? 'bg-[#0099e6] text-white shadow-2xs'
+                          : 'bg-slate-100 dark:bg-white/[0.04] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.08]'
+                      }`}
+                    >
+                      {filter === 'ALL' && `All (${allPaymentsList.length})`}
+                      {filter === 'PAID' && `Paid (${paidPaymentsCount})`}
+                      {filter === 'PENDING' && `Pending (${pendingPaymentsCount})`}
+                      {filter === 'FAILED' && `Failed (${failedPaymentsCount})`}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={paymentSearch}
+                    onChange={(e) => setPaymentSearch(e.target.value)}
+                    placeholder="Search event, squad, UTR..."
+                    className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/[0.08] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-hidden focus:border-[#0099e6]"
+                  />
+                  {paymentSearch && (
+                    <button
+                      onClick={() => setPaymentSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                    >
+                      <XIcon className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Transactions List */}
+              {filteredPayments.length === 0 ? (
+                <div className="p-12 rounded-3xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/[0.06] text-center space-y-3">
+                  <div className="w-14 h-14 rounded-2xl bg-sky-50 dark:bg-sky-950/40 text-[#0099e6] border border-sky-200 dark:border-sky-800/40 flex items-center justify-center mx-auto">
+                    <Receipt className="w-7 h-7" />
+                  </div>
+                  <h4 className="text-base font-black text-slate-900 dark:text-white">No Payment Records Found</h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                    {paymentSearch
+                      ? `No payments matching "${paymentSearch}". Try another search keyword.`
+                      : 'You do not have any transaction records under this filter yet. When you register for paid hackathons, receipts and bank UTR references will appear here.'}
+                  </p>
+                  <Link
+                    href="/hackathons"
+                    className="inline-flex px-5 py-2.5 rounded-2xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-extrabold text-xs shadow-md shadow-sky-500/20 transition-all"
+                  >
+                    Browse Live Hackathons
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredPayments.map((p) => {
+                    const isPaid = p.status === 'PAID';
+                    const isPending = p.status === 'PENDING';
+                    const isFailed = p.status === 'FAILED';
+                    const eventSlug = p.slug || p.events?.slug || p.event_id;
+
+                    return (
+                      <div
+                        key={p.id}
+                        className="p-5 rounded-3xl bg-white dark:bg-[#07090e] border border-slate-200 dark:border-white/[0.08] hover:border-[#0099e6]/40 shadow-xs hover:shadow-md transition-all space-y-4"
+                      >
+                        {/* Top Row: Status badge, date, amount */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-white/[0.06] pb-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {isPaid && (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 flex items-center gap-1">
+                                <CheckCircle className="w-3 h-3 text-emerald-500" />
+                                <span>VERIFIED & PAID</span>
+                              </span>
+                            )}
+                            {isPending && (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40 flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-amber-500" />
+                                <span>PAYMENT PENDING</span>
+                              </span>
+                            )}
+                            {isFailed && (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40 flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3 text-rose-500" />
+                                <span>FAILED / RETRY NEEDED</span>
+                              </span>
+                            )}
+
+                            <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
+                              {formatDate(p.transaction_date || p.created_at || new Date().toISOString())}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-start sm:self-auto">
+                            <span className="text-xs text-slate-400 font-medium">Amount:</span>
+                            <span className="font-mono font-black text-lg text-slate-900 dark:text-white">
+                              ₹{Number(p.amount).toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Mid Row: Event title & team info */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-base font-black text-slate-900 dark:text-white">
+                                {p.event_name || p.eventName || 'Hackathon Arena'}
+                              </h4>
+                              {eventSlug && (
+                                <Link
+                                  href={`/hackathons/${eventSlug}`}
+                                  className="text-slate-400 hover:text-[#0099e6] transition-colors"
+                                  title="Open hackathon page"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </Link>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+                              <span className="flex items-center gap-1">
+                                <Users className="w-3.5 h-3.5 text-[#0099e6]" />
+                                <span>Squad: <strong className="text-slate-800 dark:text-slate-200">{p.team_name || p.teamName || 'Solo Builder'}</strong></span>
+                              </span>
+                              <span>•</span>
+                              <span>Leader: {p.team_leader_name || user?.name || 'Hacker'}</span>
+                            </div>
+                          </div>
+
+                          {/* Gateway Transaction Details Grid */}
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs bg-slate-50 dark:bg-white/[0.02] p-3 rounded-2xl border border-slate-100 dark:border-white/[0.06] shrink-0">
+                            <div>
+                              <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Receipt No</div>
+                              <div className="font-mono font-bold text-slate-800 dark:text-slate-200 truncate max-w-[120px]">
+                                {p.receipt_number || 'N/A'}
+                              </div>
+                            </div>
+
+                            <div>
+                              <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Payment ID</div>
+                              <div className="flex items-center gap-1">
+                                <span className="font-mono text-slate-800 dark:text-slate-200 truncate max-w-[110px]">
+                                  {p.razorpay_payment_id || (isPending ? 'Pending' : 'N/A')}
+                                </span>
+                                {p.razorpay_payment_id && (
+                                  <button
+                                    onClick={() => copyPaymentValue(p.razorpay_payment_id, `pay_${p.id}`)}
+                                    className="text-slate-400 hover:text-[#0099e6] transition-colors cursor-pointer"
+                                    title="Copy Payment ID"
+                                  >
+                                    {copiedPaymentKey === `pay_${p.id}` ? (
+                                      <CopyCheck className="w-3 h-3 text-emerald-500" />
+                                    ) : (
+                                      <Copy className="w-3 h-3" />
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="col-span-2 sm:col-span-1">
+                              <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Bank UTR / Ref</div>
+                              <div className="flex items-center gap-1">
+                                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 truncate max-w-[110px]">
+                                  {p.utr_number || (isPending ? 'Awaiting payment' : 'N/A')}
+                                </span>
+                                {p.utr_number && (
+                                  <button
+                                    onClick={() => copyPaymentValue(p.utr_number, `utr_${p.id}`)}
+                                    className="text-slate-400 hover:text-[#0099e6] transition-colors cursor-pointer"
+                                    title="Copy UTR"
+                                  >
+                                    {copiedPaymentKey === `utr_${p.id}` ? (
+                                      <CopyCheck className="w-3 h-3 text-emerald-500" />
+                                    ) : (
+                                      <Copy className="w-3 h-3" />
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bottom Row: Actions */}
+                        <div className="pt-3 border-t border-slate-100 dark:border-white/[0.06] flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            {p.payment_method && (
+                              <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-300">
+                                Method: {p.payment_method}
+                              </span>
+                            )}
+                            <span className="text-[11px] text-slate-400 font-medium">
+                              {isPaid ? '100% Secure via Razorpay Gateway' : 'Spot reserved on arena waitlist'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {isPaid && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedReceiptPayment(p);
+                                  setReceiptModalOpen(true);
+                                }}
+                                className="px-4 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 text-[#0099e6] border border-sky-200 dark:border-sky-800/40 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                              >
+                                <Receipt className="w-3.5 h-3.5" />
+                                <span>Official Receipt</span>
+                              </button>
+                            )}
+
+                            {isPending && eventSlug && (
+                              <Link
+                                href={`/hackathons/${eventSlug}/register?step=4`}
+                                className="px-4 py-2 rounded-xl bg-[#ea580c] hover:bg-[#c2410c] text-white text-xs font-extrabold flex items-center gap-1.5 shadow-md shadow-orange-500/20 transition-all"
+                              >
+                                <CreditCard className="w-3.5 h-3.5" />
+                                <span>Pay Now (₹{Number(p.amount)}) →</span>
+                              </Link>
+                            )}
+
+                            {eventSlug && (
+                              <Link
+                                href={`/hackathons/${eventSlug}`}
+                                className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1 transition-colors"
+                              >
+                                <span>View Arena</span>
+                                <ArrowUpRight className="w-3.5 h-3.5" />
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
 
         </main>
       </div>
@@ -1984,6 +2492,137 @@ export default function DashboardPage() {
             loadDashboardData();
           }}
         />
+      )}
+
+      {/* ─── MODAL: Digital Payment Receipt ─── */}
+      {receiptModalOpen && selectedReceiptPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 dark:bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-lg bg-white dark:bg-[#0c1017] rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200 dark:border-white/[0.08] space-y-6 text-left">
+            {/* Receipt Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/[0.08] pb-4">
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#0099e6]">
+                  HACKER&apos;S UNITY
+                </span>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white">Official Payment Receipt</h3>
+              </div>
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                <CheckCircle className="w-6 h-6" />
+              </div>
+            </div>
+
+            {/* Receipt Metadata Grid */}
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Receipt No</span>
+                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                  {selectedReceiptPayment?.receipt_number || selectedReceiptPayment?.receiptNumber || 'HU-REC-XXXX'}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Date</span>
+                <span className="font-medium text-slate-800 dark:text-slate-200">
+                  {formatDate(selectedReceiptPayment?.transaction_date || selectedReceiptPayment?.created_at || new Date().toISOString())}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Event</span>
+                <span className="font-bold text-slate-900 dark:text-white">
+                  {selectedReceiptPayment?.event_name || selectedReceiptPayment?.eventName || 'Hackathon Arena'}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Squad Name</span>
+                <span className="font-bold text-slate-900 dark:text-white">
+                  {selectedReceiptPayment?.team_name || selectedReceiptPayment?.teamName || 'Solo Builder'}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Team Leader</span>
+                <span className="font-medium text-slate-800 dark:text-slate-200">
+                  {selectedReceiptPayment?.team_leader_name || selectedReceiptPayment?.teamLeaderName || user?.name || 'Hacker'}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Email</span>
+                <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
+                  {selectedReceiptPayment?.team_leader_email || selectedReceiptPayment?.teamLeaderEmail || user?.email || 'N/A'}
+                </span>
+              </div>
+            </div>
+
+            {/* Transaction Verification Details */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/[0.08] space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Payment ID:</span>
+                <span className="font-mono text-slate-800 dark:text-slate-200">
+                  {selectedReceiptPayment?.razorpay_payment_id || 'N/A'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Bank UTR / Ref:</span>
+                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                  {selectedReceiptPayment?.utr_number || 'N/A'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 dark:text-slate-400">Payment Method:</span>
+                <span className="font-bold uppercase text-slate-800 dark:text-slate-200">
+                  {selectedReceiptPayment?.payment_method || selectedReceiptPayment?.paymentMethod || 'UPI'}
+                </span>
+              </div>
+              <div className="flex justify-between border-t border-slate-200/60 dark:border-white/[0.08] pt-2 text-sm font-black text-slate-900 dark:text-white">
+                <span>Amount Paid</span>
+                <span className="text-[#ea580c] font-mono text-base">
+                  ₹{Number(selectedReceiptPayment?.amount || 0).toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+
+            {/* Receipt Modal Footer */}
+            <div className="pt-2 flex items-center justify-between border-t border-slate-100 dark:border-white/[0.08]">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print Receipt</span>
+                </button>
+                {selectedReceiptPayment?.razorpay_payment_id && (
+                  <button
+                    type="button"
+                    onClick={() => copyPaymentValue(selectedReceiptPayment.razorpay_payment_id, 'modal_copy')}
+                    className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    {copiedPaymentKey === 'modal_copy' ? (
+                      <span className="text-emerald-500 flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5" />
+                        Copied
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1">
+                        <Copy className="w-3.5 h-3.5" />
+                        Copy ID
+                      </span>
+                    )}
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setReceiptModalOpen(false);
+                  setSelectedReceiptPayment(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-bold text-xs cursor-pointer transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
