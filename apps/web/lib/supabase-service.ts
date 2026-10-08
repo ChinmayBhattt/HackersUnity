@@ -3576,7 +3576,8 @@ export async function checkPaymentStatusSupabase(
       .from('payments')
       .select('*')
       .eq('event_id', eventId)
-      .eq('status', 'PAID');
+      .eq('status', 'PAID')
+      .order('created_at', { ascending: false });
 
     if (teamId) {
       query = query.eq('team_id', teamId);
@@ -3586,16 +3587,54 @@ export async function checkPaymentStatusSupabase(
       return { isPaid: false };
     }
 
-    const { data, error } = await query.maybeSingle();
+    const { data: rows, error } = await query.limit(1);
 
     if (error) {
       console.warn('[Supabase] checkPaymentStatusSupabase error:', error.message);
-      return { isPaid: false };
+    }
+
+    let paidPayment = rows && rows.length > 0 ? rows[0] : null;
+
+    // Fallback: If searched by teamId but nothing found, also check by userId
+    if (!paidPayment && userId) {
+      const { data: userRows } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('event_id', eventId)
+        .eq('user_id', userId)
+        .eq('status', 'PAID')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (userRows && userRows.length > 0) {
+        paidPayment = userRows[0];
+      }
+    }
+
+    // Fallback: Check if the team or registration record is marked PAID
+    if (!paidPayment && teamId) {
+      const { data: teamData } = await supabase
+        .from('teams')
+        .select('payment_status, payment_id')
+        .eq('id', teamId)
+        .maybeSingle();
+
+      if (teamData && teamData.payment_status === 'PAID') {
+        return {
+          isPaid: true,
+          payment: {
+            status: 'PAID',
+            team_id: teamId,
+            event_id: eventId,
+            id: teamData.payment_id,
+          },
+        };
+      }
     }
 
     return {
-      isPaid: Boolean(data && data.status === 'PAID'),
-      payment: data || null,
+      isPaid: Boolean(paidPayment && paidPayment.status === 'PAID'),
+      payment: paidPayment || null,
     };
   } catch (err) {
     console.warn('[Supabase] checkPaymentStatusSupabase exception:', err);

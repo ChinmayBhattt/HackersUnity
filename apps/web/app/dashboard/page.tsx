@@ -1541,7 +1541,7 @@ export default function DashboardPage() {
                                   team_name: reg.teamName || 'Solo Builder',
                                   team_leader_name: user?.name || 'Hacker',
                                   team_leader_email: user?.email || '',
-                                  amount: reg.entryFee || 59,
+                                  amount: reg.entryFee === 59 ? 1 : (reg.entryFee || 1),
                                   currency: reg.currency || 'INR',
                                   status: 'PAID',
                                   transaction_date: reg.registeredAt,

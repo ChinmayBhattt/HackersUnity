@@ -113,8 +113,8 @@ export async function POST(req: Request) {
           team_name: 'Squad',
           team_leader_name: auth.user.user_metadata?.name || 'Hacker',
           team_leader_email: auth.email || '',
-          amount: (paymentDetails?.amount ? paymentDetails.amount / 100 : 59),
-          amount_in_paise: paymentDetails?.amount || 5900,
+          amount: (paymentDetails?.amount ? paymentDetails.amount / 100 : 1),
+          amount_in_paise: paymentDetails?.amount || 100,
           currency: paymentDetails?.currency || 'INR',
           razorpay_order_id: razorpayOrderId,
           razorpay_payment_id: razorpayPaymentId,
@@ -171,7 +171,7 @@ export async function POST(req: Request) {
       await sendNotificationToUser(
         auth.userId,
         '💳 Payment Confirmed!',
-        `Your payment of ₹${updatedPayment?.amount || 59} for ${updatedPayment?.event_name || 'the hackathon'} was successful! (Ref: ${utrNumber})`,
+        `Your payment of ₹${updatedPayment?.amount || 1} for ${updatedPayment?.event_name || 'the hackathon'} was successful! (Ref: ${utrNumber})`,
         NotificationDbType.REGISTRATION,
         {
           icon: '💳',

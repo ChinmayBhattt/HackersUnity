@@ -155,8 +155,9 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
 
   const [isAlreadyRegistered, setIsAlreadyRegistered] = useState(false);
 
-  // Payment states
-  const feeAmount = Number(event?.entryFee || (event?.registrationType === 'PAID' ? 59 : 0));
+  // Payment states (₹59 mapped to ₹1 as requested)
+  const rawFee = Number(event?.entryFee || (event?.registrationType === 'PAID' ? 1 : 0));
+  const feeAmount = rawFee === 59 ? 1 : rawFee;
   const isPaidEvent = Boolean(event && (event.registrationType === 'PAID' || Number(event.entryFee) > 0) && feeAmount > 0);
   const [paymentStatus, setPaymentStatus] = useState<'UNPAID' | 'PAID' | 'LOADING'>('LOADING');
   const [paymentData, setPaymentData] = useState<any | null>(null);
@@ -269,6 +270,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
               setPaymentStatus('PAID');
               setPaymentData(statusData.payment);
               setIsProcessingPayment(false);
+              setShowReceiptModal(true);
             }
           } catch {
             // Silently continue polling
@@ -343,6 +345,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
             if (verifyRes.ok && verifyData.success) {
               setPaymentStatus('PAID');
               setPaymentData(verifyData.payment);
+              setShowReceiptModal(true);
             } else {
               setPaymentError(
                 verifyData.error ||
@@ -364,6 +367,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                   if (st.isPaid && st.payment) {
                     setPaymentStatus('PAID');
                     setPaymentData(st.payment);
+                    setShowReceiptModal(true);
                   }
                 })
                 .catch(() => {})

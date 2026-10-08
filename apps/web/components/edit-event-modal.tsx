@@ -79,7 +79,7 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
       ctaText: ctaText.trim() || 'Learn More',
       featured: featured,
       registrationType: registrationType,
-      entryFee: registrationType === 'PAID' ? (Number(entryFee) || 59) : 0,
+      entryFee: registrationType === 'PAID' ? (Number(entryFee) || 1) : 0,
       currency: event.currency || 'INR',
     };
 
@@ -235,7 +235,7 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
                   type="button"
                   onClick={() => {
                     setRegistrationType('PAID');
-                    if (!entryFee || Number(entryFee) === 0) setEntryFee(59);
+                    if (!entryFee || Number(entryFee) === 0) setEntryFee(1);
                   }}
                   className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
                     registrationType === 'PAID'
@@ -261,7 +261,7 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
                     value={entryFee}
                     onChange={(e) => setEntryFee(e.target.value)}
                     className="w-full px-3 py-1.5 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/[0.04] text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
-                    placeholder="59"
+                    placeholder="1"
                   />
                 </div>
               </div>

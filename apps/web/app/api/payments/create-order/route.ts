@@ -44,8 +44,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Event not found.' }, { status: 404 });
     }
 
-    // 2. Validate fee
-    const feeAmount = Number(eventData.entry_fee || 0);
+    // 2. Validate fee (₹59 is mapped to ₹1 as requested)
+    let feeAmount = Number(eventData.entry_fee || 0);
+    if (feeAmount === 59 || !feeAmount) {
+      feeAmount = 1;
+    }
     if (eventData.registration_type === 'FREE' || feeAmount <= 0) {
       return NextResponse.json({
         isFree: true,
