@@ -45,17 +45,15 @@ export function mapDbEventToExtended(item: any): ExtendedEvent {
   const teamSizeDisplay = minTeam === maxTeam ? `${minTeam}` : `${minTeam}-${maxTeam}`;
 
   const prizeVal = Number(item.total_prize_value || 0);
-  const isManipal =
-    item.slug === 'code-e-manipal-2-0' ||
-    item.slug === 'code-e-manipal' ||
-    item.slug === 'evt_ai_1789569251573' ||
-    item.id === '5d8e3b96-a647-4ecb-a24c-904729d9f7f6';
-  const currency = isManipal ? 'INR' : (item.currency || 'INR');
-  const formattedPrize = isManipal
-    ? '₹1,00,000'
-    : prizeVal > 0
-    ? (item.prize && !item.prize.includes('$') ? item.prize : (currency === 'INR' ? `₹${prizeVal.toLocaleString('en-IN')}` : `$${prizeVal.toLocaleString('en-US')}`))
-    : 'Perks & Swag';
+  const currency = item.currency || 'INR';
+  const formattedPrize =
+    prizeVal > 0
+      ? item.prize && !item.prize.includes('$')
+        ? item.prize
+        : currency === 'INR'
+        ? `₹${prizeVal.toLocaleString('en-IN')}`
+        : `$${prizeVal.toLocaleString('en-US')}`
+      : 'Perks & Swag';
 
   return {
     id: item.id,
@@ -137,7 +135,7 @@ export function mapDbEventToExtended(item: any): ExtendedEvent {
     customQuestions: item.custom_questions || [],
     registrationFields: item.registration_fields || ['name', 'email', 'phone', 'college', 'city', 'github', 'linkedin', 'skills'],
     previewToken: item.preview_token || item.previewToken || (item.slug ? getEventPreviewToken(item) : undefined),
-    ctaText: isManipal ? 'Explore Details' : (item.cta_text || item.ctaText || undefined),
+    ctaText: item.cta_text || item.ctaText || undefined,
   };
 }
 
@@ -332,7 +330,24 @@ export async function fetchPublishedEvents(): Promise<ExtendedEvent[]> {
       });
     };
 
-    return sortEventsList(Array.from(map.values()));
+    const isManipal = (e: ExtendedEvent) => {
+      const s = (e.slug || '').toLowerCase();
+      const t = (e.title || '').toLowerCase();
+      const n = (e.name || '').toLowerCase();
+      const id = (e.id || '').toLowerCase();
+      return (
+        s === 'code-e-manipal-2-0' ||
+        s === 'code-e-manipal' ||
+        s === 'evt_ai_1789569251573' ||
+        id === '5d8e3b96-a647-4ecb-a24c-904729d9f7f6' ||
+        t.includes('code-ए-manipal') ||
+        t.includes('code-e-manipal') ||
+        n.includes('code-ए-manipal') ||
+        n.includes('code-e-manipal')
+      );
+    };
+
+    return sortEventsList(Array.from(map.values()).filter((e) => !isManipal(e)));
   } catch (err) {
     console.warn('Supabase fetchPublishedEvents exception:', err);
     const deletedIds: string[] =
@@ -365,24 +380,55 @@ export async function fetchPublishedEvents(): Promise<ExtendedEvent[]> {
       } catch {}
     }
 
-    return Array.from(map.values()).sort((a, b) => {
-      let orderA = typeof a.displayOrder === 'number' ? a.displayOrder : 999999;
-      let orderB = typeof b.displayOrder === 'number' ? b.displayOrder : 999999;
-      if (clientOrder.length > 0) {
-        const idxA = clientOrder.findIndex((id) => id === a.id || id === a.slug);
-        const idxB = clientOrder.findIndex((id) => id === b.id || id === b.slug);
-        if (idxA !== -1) orderA = idxA;
-        if (idxB !== -1) orderB = idxB;
-      }
-      if (orderA !== orderB) return orderA - orderB;
-      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-    });
+    const isManipal = (e: ExtendedEvent) => {
+      const s = (e.slug || '').toLowerCase();
+      const t = (e.title || '').toLowerCase();
+      const n = (e.name || '').toLowerCase();
+      const id = (e.id || '').toLowerCase();
+      return (
+        s === 'code-e-manipal-2-0' ||
+        s === 'code-e-manipal' ||
+        s === 'evt_ai_1789569251573' ||
+        id === '5d8e3b96-a647-4ecb-a24c-904729d9f7f6' ||
+        t.includes('code-ए-manipal') ||
+        t.includes('code-e-manipal') ||
+        n.includes('code-ए-manipal') ||
+        n.includes('code-e-manipal')
+      );
+    };
+
+    return Array.from(map.values())
+      .filter((e) => !isManipal(e))
+      .sort((a, b) => {
+        let orderA = typeof a.displayOrder === 'number' ? a.displayOrder : 999999;
+        let orderB = typeof b.displayOrder === 'number' ? b.displayOrder : 999999;
+        if (clientOrder.length > 0) {
+          const idxA = clientOrder.findIndex((id) => id === a.id || id === a.slug);
+          const idxB = clientOrder.findIndex((id) => id === b.id || id === b.slug);
+          if (idxA !== -1) orderA = idxA;
+          if (idxB !== -1) orderB = idxB;
+        }
+        if (orderA !== orderB) return orderA - orderB;
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      });
   }
 }
 
 export async function fetchEventBySlug(slugOrId: string): Promise<ExtendedEvent | null> {
   if (!slugOrId) return null;
   const decoded = decodeURIComponent(slugOrId).trim();
+
+  // If user navigated to Code-e-Manipal, return null
+  const lowerDecoded = decoded.toLowerCase();
+  if (
+    lowerDecoded === 'code-e-manipal-2-0' ||
+    lowerDecoded === 'code-e-manipal' ||
+    lowerDecoded === '5d8e3b96-a647-4ecb-a24c-904729d9f7f6' ||
+    lowerDecoded === 'evt_ai_1789569251573' ||
+    lowerDecoded.includes('code-e-manipal')
+  ) {
+    return null;
+  }
 
   try {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(decoded);

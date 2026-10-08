@@ -137,17 +137,8 @@ function HackathonDetailContent({ params }: PageProps) {
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const isManipalEvent =
-    event?.slug === 'code-e-manipal-2-0' ||
-    event?.slug === 'code-e-manipal' ||
-    event?.slug === 'evt_ai_1789569251573' ||
-    event?.id === '5d8e3b96-a647-4ecb-a24c-904729d9f7f6' ||
-    resolvedParams.slug === 'code-e-manipal-2-0' ||
-    resolvedParams.slug === 'code-e-manipal' ||
-    resolvedParams.slug === 'evt_ai_1789569251573';
-
-  const MANIPAL_REDIRECT_URL =
-    'https://unstop.com/hackathons/code-e-manipal-20-manipal-university-mu-jaipur-1762000';
+  const isManipalEvent = false;
+  const MANIPAL_REDIRECT_URL = '';
 
   useEffect(() => {
     if (!event) return;

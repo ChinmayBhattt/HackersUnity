@@ -325,17 +325,8 @@ export default function HackathonsDirectoryPage() {
                     </Link>
                     <button
                       onClick={() => {
-                        if (
-                          event.slug === 'code-e-manipal-2-0' ||
-                          event.slug === 'code-e-manipal' ||
-                          event.id === '5d8e3b96-a647-4ecb-a24c-904729d9f7f6' ||
-                          (event.registrationLink && event.registrationLink.startsWith('http'))
-                        ) {
-                          const url =
-                            event.registrationLink && event.registrationLink.startsWith('http')
-                              ? event.registrationLink
-                              : 'https://unstop.com/hackathons/code-e-manipal-20-manipal-university-mu-jaipur-1762000';
-                          window.open(url, '_blank', 'noopener,noreferrer');
+                        if (event.registrationLink && event.registrationLink.startsWith('http')) {
+                          window.open(event.registrationLink, '_blank', 'noopener,noreferrer');
                         } else {
                           setActiveRegEvent(event);
                         }
