@@ -38,6 +38,8 @@ import {
   ShieldAlert,
   Printer,
   Download,
+  QrCode,
+  Smartphone,
 } from 'lucide-react';
 import { useEvent } from '@/lib/hooks/use-events';
 import { useAuth } from '@/lib/auth-context';
@@ -207,6 +209,14 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
     setIsProcessingPayment(true);
     setPaymentError(null);
 
+    let pollInterval: NodeJS.Timeout | null = null;
+    const stopPolling = () => {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
+    };
+
     try {
       const loaded = await loadRazorpayScript();
       if (!loaded) {
@@ -244,6 +254,32 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
         return;
       }
 
+      // Background real-time poller: checks if user scans & pays via mobile UPI QR code
+      const startPolling = (orderId: string) => {
+        pollInterval = setInterval(async () => {
+          try {
+            const statusRes = await fetch(
+              `/api/payments/status?orderId=${encodeURIComponent(orderId)}&eventId=${encodeURIComponent(event.id)}${
+                targetTeamId ? `&teamId=${encodeURIComponent(targetTeamId)}` : ''
+              }`
+            );
+            const statusData = await statusRes.json();
+            if (statusData.isPaid && statusData.payment) {
+              stopPolling();
+              setPaymentStatus('PAID');
+              setPaymentData(statusData.payment);
+              setIsProcessingPayment(false);
+            }
+          } catch {
+            // Silently continue polling
+          }
+        }, 2500);
+      };
+
+      if (data.orderId) {
+        startPolling(data.orderId);
+      }
+
       const options = {
         key: data.keyId,
         amount: data.amount,
@@ -261,7 +297,35 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
         theme: {
           color: '#0099e6',
         },
+        config: {
+          display: {
+            blocks: {
+              upi: {
+                name: 'Pay using UPI / QR Code',
+                instruments: [
+                  {
+                    method: 'upi',
+                    flows: ['qr', 'intent'],
+                  },
+                ],
+              },
+              other: {
+                name: 'Cards & Other Payment Modes',
+                instruments: [
+                  { method: 'card' },
+                  { method: 'netbanking' },
+                  { method: 'wallet' },
+                ],
+              },
+            },
+            sequence: ['block.upi', 'block.other'],
+            preferences: {
+              show_default_blocks: true,
+            },
+          },
+        },
         handler: async function (paymentResponse: any) {
+          stopPolling();
           try {
             const verifyRes = await fetch('/api/payments/verify', {
               method: 'POST',
@@ -293,18 +357,37 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
         },
         modal: {
           ondismiss: function () {
-            setIsProcessingPayment(false);
+            if (data.orderId) {
+              fetch(`/api/payments/status?orderId=${encodeURIComponent(data.orderId)}`)
+                .then((r) => r.json())
+                .then((st) => {
+                  if (st.isPaid && st.payment) {
+                    setPaymentStatus('PAID');
+                    setPaymentData(st.payment);
+                  }
+                })
+                .catch(() => {})
+                .finally(() => {
+                  stopPolling();
+                  setIsProcessingPayment(false);
+                });
+            } else {
+              stopPolling();
+              setIsProcessingPayment(false);
+            }
           },
         },
       };
 
       const rzp = new (window as any).Razorpay(options);
       rzp.on('payment.failed', function (failResp: any) {
+        stopPolling();
         setPaymentError(failResp.error?.description || 'Payment was cancelled or failed. You can retry anytime.');
         setIsProcessingPayment(false);
       });
       rzp.open();
     } catch (err: any) {
+      stopPolling();
       setPaymentError(err.message || 'An unexpected error occurred during payment.');
       setIsProcessingPayment(false);
     }
@@ -2041,10 +2124,41 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                   </div>
                 ) : (
                   <div className="pt-2 space-y-4 border-t border-slate-100 dark:border-white/[0.08]">
+                    {/* UPI QR Code Highlight Banner */}
+                    <div className="p-4 rounded-2xl bg-gradient-to-br from-sky-50 to-indigo-50/40 dark:from-sky-950/30 dark:to-[#0f172a] border border-sky-200/80 dark:border-sky-800/40 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-xl bg-[#0099e6]/10 dark:bg-[#38bdf8]/10 text-[#0099e6] dark:text-[#38bdf8] flex items-center justify-center shrink-0">
+                            <QrCode className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h5 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                              <span>Instant UPI QR Code</span>
+                              <span className="text-[9px] bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                                Direct
+                              </span>
+                            </h5>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                              GPay • PhonePe • Paytm • BHIM • Cred
+                            </span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-black font-mono text-emerald-600 dark:text-emerald-400">
+                            ₹{feeAmount}
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed bg-white/60 dark:bg-black/30 p-2.5 rounded-xl border border-sky-100 dark:border-white/[0.04]">
+                        Click <strong>Pay Now</strong> below to open the Razorpay payment modal with your <strong>dynamic UPI QR Code</strong>. Scan with your phone and the screen will confirm automatically.
+                      </p>
+                    </div>
+
                     {/* Supported payment badges */}
                     <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 px-1">
-                      <span>Supported Payment Methods:</span>
-                      <span className="font-bold text-slate-700 dark:text-slate-300">UPI, QR, Cards, NetBanking</span>
+                      <span>Supported Methods:</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-300">UPI QR, NetBanking, Cards</span>
                     </div>
 
                     {/* Pay Now Button */}
@@ -2052,17 +2166,17 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                       type="button"
                       onClick={handlePayNow}
                       disabled={isProcessingPayment}
-                      className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#0099e6] to-sky-600 hover:from-[#0284c7] hover:to-sky-700 text-white font-extrabold text-sm shadow-md shadow-sky-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#0099e6] via-sky-600 to-[#0284c7] hover:from-[#0284c7] hover:to-sky-700 text-white font-extrabold text-sm shadow-md shadow-sky-500/25 flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed group"
                     >
                       {isProcessingPayment ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
-                          <span>Connecting to Razorpay...</span>
+                          <span>Waiting for UPI QR Scan & Payment...</span>
                         </>
                       ) : (
                         <>
-                          <Lock className="w-4 h-4" />
-                          <span>Pay Now • ₹{feeAmount}</span>
+                          <QrCode className="w-4 h-4 transition-transform group-hover:scale-110" />
+                          <span>Pay Now with UPI / QR • ₹{feeAmount}</span>
                         </>
                       )}
                     </button>
