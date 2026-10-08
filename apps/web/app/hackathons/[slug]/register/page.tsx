@@ -349,6 +349,8 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
           }
         },
         modal: {
+          backdropclose: true,
+          escape: true,
           ondismiss: function () {
             if (data.orderId) {
               fetch(`/api/payments/status?orderId=${encodeURIComponent(data.orderId)}`)
