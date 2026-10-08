@@ -9,7 +9,7 @@ import {
   NotificationDbType,
   NotificationTargetType,
 } from '@hackers-unity/shared-types';
-import { createNotification, sendNotificationToUser } from './notification-service';
+import { createNotification, sendNotificationToUser, sendOrganizerAlertNotification } from './notification-service';
 import {
   getCustomEvents,
   getAllEvents,
@@ -1003,21 +1003,6 @@ export async function registerForEventSupabase(
               console.warn('Broadcast registration error:', e);
             }
 
-            // Notification
-            if (input.userId) {
-              sendNotificationToUser(
-                input.userId,
-                '🎉 Registration Confirmed!',
-                `You have successfully registered for the hackathon. Check your team status and event schedule on your dashboard!`,
-                NotificationDbType.REGISTRATION,
-                {
-                  icon: '🎉',
-                  eventId: input.eventId,
-                  actionUrl: `/dashboard`,
-                }
-              ).catch((e) => console.warn('Registration notification error:', e));
-            }
-
             return { success: true };
           } else if (resData.error) {
             return { success: false, error: resData.error };
@@ -1078,20 +1063,21 @@ export async function registerForEventSupabase(
       console.warn('Broadcast registration error:', e);
     }
 
-    // Automatically send confirmation notification to registered user
-    if (input.userId) {
-      sendNotificationToUser(
-        input.userId,
-        '🎉 Registration Confirmed!',
-        `You have successfully registered for the hackathon. Check your team status and event schedule on your dashboard!`,
-        NotificationDbType.REGISTRATION,
-        {
-          icon: '🎉',
-          eventId: input.eventId,
-          actionUrl: `/dashboard`,
-        }
-      ).catch((e) => console.warn('Auto notification error on register:', e));
-    }
+    // Notify the event host/organizer ONLY about the new registration
+    sendOrganizerAlertNotification({
+      eventId: input.eventId,
+      title: 'New Registration',
+      message: `${input.userName || 'A builder'} (${input.userEmail}) has registered for the event.`,
+      type: NotificationDbType.REGISTRATION,
+      icon: 'sparkles',
+      senderId: input.userId,
+      metadata: {
+        registrantName: input.userName,
+        registrantEmail: input.userEmail,
+        isTeam: Boolean(input.isTeam),
+        teamName: input.teamName,
+      },
+    }).catch((e) => console.warn('Host registration alert notice:', e));
 
     return { success: true };
   } catch (err: any) {
@@ -2867,9 +2853,8 @@ export async function saveSubmissionSupabase(
       console.warn('Realtime submission broadcast notice:', broadcastErr);
     }
 
-    // 4. Real-time platform notifications
+    // 4. Real-time platform notifications (Notify event host ONLY)
     try {
-      // Send review notification ONLY to the event host/organizer
       if (eventOrganizerId) {
         createNotification(
           {
@@ -2881,23 +2866,13 @@ export async function saveSubmissionSupabase(
             targetType: NotificationTargetType.SPECIFIC_USER,
             targetUserIds: [eventOrganizerId],
             actionUrl: `/dashboard/events/${resolvedEventId}/submissions`,
-          },
-          resolvedSubmitterId
-        ).catch(() => {});
-      }
-
-      // Send confirmation to the submitter pointing to the public hackathon page (never the organizer dashboard)
-      if (resolvedSubmitterId && resolvedSubmitterId !== eventOrganizerId) {
-        createNotification(
-          {
-            title: `Submission Received: ${submission.projectTitle}`,
-            message: `Your project "${submission.projectTitle}" has been submitted successfully for review!`,
-            type: NotificationDbType.EVENT,
-            icon: 'rocket',
-            eventId: resolvedEventId,
-            targetType: NotificationTargetType.SPECIFIC_USER,
-            targetUserIds: [resolvedSubmitterId],
-            actionUrl: `/hackathons/${eventSlug}`,
+            metadata: {
+              eventId: resolvedEventId,
+              projectTitle: submission.projectTitle,
+              submitterName: submission.submittedByName,
+              role: 'organizer_alert',
+              isSubmission: true,
+            },
           },
           resolvedSubmitterId
         ).catch(() => {});

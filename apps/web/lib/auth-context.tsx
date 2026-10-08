@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       organization: meta.organization || meta.company || saved?.organization || '',
       graduationYear: meta.graduation_year || saved?.graduationYear || 2026,
       bio: meta.bio || saved?.bio || '',
-      avatarUrl: meta.avatar_url || saved?.avatarUrl || '⚡',
+      avatarUrl: meta.avatar_url || meta.picture || saved?.avatarUrl || '⚡',
       bannerUrl: meta.banner_url || saved?.bannerUrl || null,
       skills: (meta.skills && meta.skills.length > 0)
         ? meta.skills
@@ -172,7 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 id: sbUser.id,
                 name: fallbackName,
                 email: fallbackEmail,
-                avatar_url: meta.avatar_url || saved?.avatarUrl || null,
+                avatar_url: meta.avatar_url || meta.picture || saved?.avatarUrl || null,
                 role: (meta.role as UserRole) || saved?.role || UserRole.PARTICIPANT,
                 updated_at: new Date().toISOString(),
               },
@@ -193,7 +193,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         organization: profile?.organization || meta.organization || meta.company || saved?.organization || '',
         graduationYear: meta.graduation_year || saved?.graduationYear || 2026,
         bio: profile?.bio || meta.bio || saved?.bio || '',
-        avatarUrl: profile?.avatar_url || meta.avatar_url || saved?.avatarUrl || '⚡',
+        avatarUrl: profile?.avatar_url || meta.avatar_url || meta.picture || saved?.avatarUrl || '⚡',
         bannerUrl: meta.banner_url || saved?.bannerUrl || null,
         skills: (profile?.skills && profile.skills.length > 0)
           ? profile.skills

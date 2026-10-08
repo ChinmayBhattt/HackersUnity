@@ -29,7 +29,7 @@ interface NotificationPanelProps {
   onClose: () => void;
 }
 
-type TabType = 'all' | 'invites' | 'events' | 'announcements';
+type TabType = 'all' | 'invites' | 'events' | 'announcements' | 'host';
 
 function stripEmojis(str: string): string {
   if (!str) return '';
@@ -37,6 +37,25 @@ function stripEmojis(str: string): string {
     .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}]/gu, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function isHostAlert(n: UserNotification): boolean {
+  if (n.notification.type === NotificationDbType.REGISTRATION) return true;
+  if (n.notification.metadata?.role === 'organizer_alert') return true;
+  if (n.notification.metadata?.isSubmission) return true;
+  const title = (n.notification.title || '').toLowerCase();
+  if (title.includes('new registration') || title.includes('new project submitted')) return true;
+  const url = n.notification.actionUrl || '';
+  if (url.includes('/submissions') || url.includes('/registrations')) return true;
+  return false;
+}
+
+function isEventItem(n: UserNotification): boolean {
+  if (isHostAlert(n)) return false;
+  return (
+    n.notification.type === NotificationDbType.EVENT ||
+    n.id.startsWith('event-notif-')
+  );
 }
 
 function getNotificationIcon(type: NotificationDbType) {
@@ -145,14 +164,13 @@ export function NotificationPanel({ isOpen, onClose }: NotificationPanelProps) {
     [notifications]
   );
 
+  const hostCount = useMemo(
+    () => notifications.filter(isHostAlert).length,
+    [notifications]
+  );
+
   const eventsCount = useMemo(
-    () =>
-      notifications.filter(
-        (n) =>
-          n.notification.type === NotificationDbType.EVENT ||
-          n.notification.eventId ||
-          n.id.startsWith('event-notif-')
-      ).length,
+    () => notifications.filter(isEventItem).length,
     [notifications]
   );
 
@@ -160,10 +178,11 @@ export function NotificationPanel({ isOpen, onClose }: NotificationPanelProps) {
     () =>
       notifications.filter(
         (n) =>
-          n.notification.type === NotificationDbType.ANNOUNCEMENT ||
-          n.notification.type === NotificationDbType.NEWS ||
-          n.notification.type === NotificationDbType.SYSTEM ||
-          n.id.startsWith('announcement-')
+          (n.notification.type === NotificationDbType.ANNOUNCEMENT ||
+            n.notification.type === NotificationDbType.NEWS ||
+            n.notification.type === NotificationDbType.SYSTEM ||
+            n.id.startsWith('announcement-')) &&
+          !isHostAlert(n)
       ).length,
     [notifications]
   );
@@ -178,21 +197,20 @@ export function NotificationPanel({ isOpen, onClose }: NotificationPanelProps) {
       );
     }
     if (activeTab === 'events') {
-      return notifications.filter(
-        (n) =>
-          n.notification.type === NotificationDbType.EVENT ||
-          n.notification.eventId ||
-          n.id.startsWith('event-notif-')
-      );
+      return notifications.filter(isEventItem);
     }
     if (activeTab === 'announcements') {
       return notifications.filter(
         (n) =>
-          n.notification.type === NotificationDbType.ANNOUNCEMENT ||
-          n.notification.type === NotificationDbType.NEWS ||
-          n.notification.type === NotificationDbType.SYSTEM ||
-          n.id.startsWith('announcement-')
+          (n.notification.type === NotificationDbType.ANNOUNCEMENT ||
+            n.notification.type === NotificationDbType.NEWS ||
+            n.notification.type === NotificationDbType.SYSTEM ||
+            n.id.startsWith('announcement-')) &&
+          !isHostAlert(n)
       );
+    }
+    if (activeTab === 'host') {
+      return notifications.filter(isHostAlert);
     }
     return notifications;
   }, [notifications, activeTab]);
@@ -353,6 +371,17 @@ export function NotificationPanel({ isOpen, onClose }: NotificationPanelProps) {
         >
           Updates ({announcementsCount})
         </button>
+        {hostCount > 0 && (
+          <button
+            onClick={() => setActiveTab('host')}
+            className={`py-1.5 px-2.5 rounded-lg text-xs font-bold transition-colors text-center shrink-0 ${activeTab === 'host'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+              }`}
+          >
+            Host Alerts ({hostCount})
+          </button>
+        )}
       </div>
 
       {/* Notification List */}
@@ -367,13 +396,15 @@ export function NotificationPanel({ isOpen, onClose }: NotificationPanelProps) {
             <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
               <Bell className="w-6 h-6 text-slate-300" />
             </div>
-            <span className="text-xs font-bold text-slate-600">No {activeTab === 'all' ? '' : activeTab} notifications yet</span>
+            <span className="text-xs font-bold text-slate-600">No {activeTab === 'all' ? '' : activeTab === 'host' ? 'host' : activeTab} notifications yet</span>
             <span className="text-[11px] text-slate-400 mt-1 max-w-[240px]">
               {activeTab === 'invites'
                 ? 'Squad invites sent to your email will appear here with instant Accept / Reject options.'
                 : activeTab === 'events'
                   ? 'Upcoming hackathons & challenges will appear here in real time.'
-                  : 'Live announcements and community updates appear here.'}
+                  : activeTab === 'host'
+                    ? 'New registrations and submissions for events you host will appear here in real time.'
+                    : 'Live announcements and community updates appear here.'}
             </span>
           </div>
         ) : (
@@ -414,6 +445,21 @@ export function NotificationPanel({ isOpen, onClose }: NotificationPanelProps) {
                           {isTeamInvite && (
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-violet-100 dark:bg-violet-950/50 text-violet-700 dark:text-violet-300 tracking-wide uppercase">
                               Squad Invite
+                            </span>
+                          )}
+                          {notif.notification.type === NotificationDbType.REGISTRATION && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 tracking-wide uppercase">
+                              New Registration
+                            </span>
+                          )}
+                          {(Boolean(notif.notification.metadata?.isSubmission) || notif.notification.title.toLowerCase().includes('submitted')) && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 tracking-wide uppercase">
+                              New Submission
+                            </span>
+                          )}
+                          {notif.notification.type === NotificationDbType.EVENT && !isHostAlert(notif) && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-sky-100 dark:bg-sky-950/50 text-[#0099e6] dark:text-sky-300 tracking-wide uppercase">
+                              Hackathon
                             </span>
                           )}
                           <span

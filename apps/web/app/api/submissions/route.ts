@@ -308,6 +308,74 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
 
+      // Notify Event Host / Organizer ONLY about the new project submission
+      try {
+        const { data: ev } = await serverSupabase
+          .from('events')
+          .select('id, title, slug, organizer_id')
+          .eq('id', targetEventId)
+          .maybeSingle();
+
+        if (ev?.organizer_id) {
+          const hostUserIds = new Set<string>([ev.organizer_id]);
+          try {
+            const { data: coHosts } = await serverSupabase
+              .from('event_admins')
+              .select('user_id')
+              .eq('event_id', targetEventId);
+            if (coHosts) {
+              coHosts.forEach((ch: any) => {
+                if (ch.user_id) hostUserIds.add(ch.user_id);
+              });
+            }
+          } catch {}
+
+          const submitterName = auth.user.user_metadata?.name || submission.submittedByName || 'A builder';
+          const projectTitle = submission.projectTitle || submissionPayload.project_name || 'Project';
+          const notifTitle = `New Project Submitted: ${projectTitle}`;
+          const notifMsg = `${submitterName} just submitted "${projectTitle}" for "${ev.title}".`;
+          const actionUrl = `/dashboard/events/${ev.slug || targetEventId}/submissions`;
+
+          const { data: notifData } = await serverSupabase
+            .from('notifications')
+            .insert({
+              title: notifTitle,
+              message: notifMsg,
+              type: 'event',
+              icon: 'rocket',
+              event_id: targetEventId,
+              sender_id: targetSubmitterId || null,
+              target_type: 'specific_user',
+              action_url: actionUrl,
+              metadata: {
+                eventId: targetEventId,
+                eventTitle: ev.title,
+                eventSlug: ev.slug,
+                projectTitle,
+                submitterName,
+                role: 'organizer_alert',
+                isSubmission: true,
+              },
+            })
+            .select('id')
+            .single();
+
+          if (notifData?.id) {
+            const hostRows = Array.from(hostUserIds).map((hostId) => ({
+              user_id: hostId,
+              notification_id: notifData.id,
+              is_read: false,
+            }));
+
+            await serverSupabase
+              .from('user_notifications')
+              .upsert(hostRows, { onConflict: 'user_id,notification_id' });
+          }
+        }
+      } catch (subNotifErr) {
+        console.warn('Failed to send submission notification to host:', subNotifErr);
+      }
+
       // Realtime Broadcast across event channel
       try {
         const channel = serverSupabase.channel(`submissions_stream_${targetEventId}`);

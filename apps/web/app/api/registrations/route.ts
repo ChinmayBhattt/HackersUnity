@@ -198,6 +198,72 @@ export async function POST(req: Request) {
       console.warn('Failed to update event registration count:', countErr);
     }
 
+    // Notify Event Host / Organizer ONLY about the new registration
+    try {
+      const { data: eventData } = await serverSupabase
+        .from('events')
+        .select('id, title, slug, organizer_id')
+        .eq('id', targetEventId)
+        .maybeSingle();
+
+      if (eventData?.organizer_id) {
+        const hostUserIds = new Set<string>([eventData.organizer_id]);
+        try {
+          const { data: coHosts } = await serverSupabase
+            .from('event_admins')
+            .select('user_id')
+            .eq('event_id', targetEventId);
+          if (coHosts) {
+            coHosts.forEach((ch: any) => {
+              if (ch.user_id) hostUserIds.add(ch.user_id);
+            });
+          }
+        } catch {}
+
+        const registrantName = payload.user_name || 'A builder';
+        const notifTitle = `New Registration: ${eventData.title}`;
+        const notifMsg = `${registrantName} (${payload.user_email}) has registered for "${eventData.title}".`;
+        const actionUrl = `/dashboard/events/${eventData.slug || targetEventId}/registrations`;
+
+        const { data: notifRecord } = await serverSupabase
+          .from('notifications')
+          .insert({
+            title: notifTitle,
+            message: notifMsg,
+            type: 'registration',
+            icon: 'sparkles',
+            event_id: targetEventId,
+            sender_id: validUserId || null,
+            target_type: 'specific_user',
+            action_url: actionUrl,
+            metadata: {
+              eventId: targetEventId,
+              eventTitle: eventData.title,
+              eventSlug: eventData.slug,
+              registrantName,
+              registrantEmail: payload.user_email,
+              role: 'organizer_alert',
+            },
+          })
+          .select('id')
+          .single();
+
+        if (notifRecord?.id) {
+          const hostRows = Array.from(hostUserIds).map((hId) => ({
+            user_id: hId,
+            notification_id: notifRecord.id,
+            is_read: false,
+          }));
+
+          await serverSupabase
+            .from('user_notifications')
+            .upsert(hostRows, { onConflict: 'user_id,notification_id' });
+        }
+      }
+    } catch (hostNotifErr) {
+      console.warn('Failed to send registration notification to host:', hostNotifErr);
+    }
+
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('API /api/registrations error:', err);

@@ -76,16 +76,31 @@ export async function fetchPublicAnnouncementsAndEvents(): Promise<UserNotificat
   const readIds = getLocalReadNotificationIds();
   const list: UserNotification[] = [];
 
-  // 1. Fetch broadcast announcements from 'notifications' table
+  // 1. Fetch broadcast announcements from 'notifications' table (strictly target_type === 'all' and public types)
   try {
     const { data: dbNotifs } = await supabase
       .from('notifications')
       .select('*')
+      .eq('target_type', 'all')
+      .in('type', ['event', 'announcement', 'news', 'system', 'reminder'])
       .order('created_at', { ascending: false })
       .limit(15);
 
     if (dbNotifs && dbNotifs.length > 0) {
       for (const n of dbNotifs) {
+        // Enforce safety: Registrations and submissions are strictly never public
+        if (n.target_type !== 'all') continue;
+        if (n.type === 'registration') continue;
+        const titleLower = (n.title || '').toLowerCase();
+        if (
+          titleLower.includes('registration') ||
+          titleLower.includes('payment confirmed') ||
+          titleLower.includes('submitted') ||
+          titleLower.includes('submission')
+        ) {
+          continue;
+        }
+
         list.push({
           id: n.id,
           userId: 'public',
@@ -323,6 +338,35 @@ export async function fetchUserNotifications(
 
     let personalNotifs: UserNotification[] = [];
     if (userId) {
+      // 1. Identify all events hosted or co-hosted by this user
+      const hostedEventIds = new Set<string>();
+      let isPlatformAdmin = false;
+
+      try {
+        const [hostedRes, adminEventsRes, profileRes] = await Promise.all([
+          supabase.from('events').select('id, slug').eq('organizer_id', userId),
+          supabase.from('event_admins').select('event_id').eq('user_id', userId),
+          supabase.from('profiles').select('role').eq('id', userId).maybeSingle(),
+        ]);
+
+        if (hostedRes.data) {
+          hostedRes.data.forEach((ev: any) => {
+            if (ev.id) hostedEventIds.add(ev.id);
+            if (ev.slug) hostedEventIds.add(ev.slug);
+          });
+        }
+        if (adminEventsRes.data) {
+          adminEventsRes.data.forEach((ch: any) => {
+            if (ch.event_id) hostedEventIds.add(ch.event_id);
+          });
+        }
+        if (profileRes.data?.role === 'ADMIN' || profileRes.data?.role === 'SUPER_ADMIN') {
+          isPlatformAdmin = true;
+        }
+      } catch (hostLookupErr) {
+        console.warn('Notice host lookup error:', hostLookupErr);
+      }
+
       const { data: userRows, error } = await supabase
         .from('user_notifications')
         .select(`
@@ -350,7 +394,33 @@ export async function fetchUserNotifications(
         .range(offset, offset + limit - 1);
 
       if (!error && userRows) {
-        personalNotifs = userRows.map(mapDbToUserNotification);
+        const rawPersonal = userRows.map(mapDbToUserNotification);
+
+        // Filter: registrations and submissions must ONLY go to the host who organized the event
+        personalNotifs = rawPersonal.filter((notif) => {
+          const type = notif.notification.type;
+          const titleLower = (notif.notification.title || '').toLowerCase();
+          const actionUrl = notif.notification.actionUrl || '';
+          const isReg =
+            type === NotificationDbType.REGISTRATION ||
+            titleLower.includes('registration');
+          const isSub =
+            Boolean(notif.notification.metadata?.isSubmission) ||
+            titleLower.includes('project submitted') ||
+            titleLower.includes('submission received') ||
+            actionUrl.includes('/submissions') ||
+            actionUrl.includes('/registrations');
+
+          if (isReg || isSub) {
+            const evId = notif.notification.eventId;
+            const isHost = isPlatformAdmin || (evId ? hostedEventIds.has(evId) : false);
+            // Only event hosts/organizers should receive registration and submission alerts
+            return isHost;
+          }
+
+          // Other notifications (team invites, reminders, system updates) are allowed for the user
+          return true;
+        });
       }
     }
 
@@ -584,6 +654,19 @@ export function subscribeToRealtimeNotifications(
       (payload: any) => {
         const n = payload.new;
         if (!n) return;
+        // Strictly only deliver global announcements meant for ALL users
+        if (n.target_type !== 'all') return;
+        if (n.type === 'registration') return;
+        const titleLower = (n.title || '').toLowerCase();
+        if (
+          titleLower.includes('registration') ||
+          titleLower.includes('payment confirmed') ||
+          titleLower.includes('submitted') ||
+          titleLower.includes('submission')
+        ) {
+          return;
+        }
+
         const notif: UserNotification = {
           id: n.id,
           userId: userId || 'public',
@@ -866,6 +949,110 @@ export async function sendNotificationToUser(
     return {};
   } catch (err: any) {
     return { error: err.message || 'Failed to send notification' };
+  }
+}
+
+// ─── SEND NOTIFICATION TO EVENT HOST / ORGANIZER ONLY ───
+export async function sendOrganizerAlertNotification(params: {
+  eventId: string;
+  title: string;
+  message: string;
+  type?: NotificationDbType;
+  icon?: string;
+  actionUrl?: string;
+  senderId?: string | null;
+  metadata?: Record<string, any>;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { eventId, title, message, type = NotificationDbType.REGISTRATION, icon, actionUrl, senderId, metadata } = params;
+    if (!eventId) return { success: false, error: 'Missing eventId' };
+
+    // Find the event organizer
+    let resolvedEventId = eventId;
+    let organizerId: string | null = null;
+    let eventSlug = eventId;
+    let eventTitle = '';
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(eventId);
+    let query = supabase.from('events').select('id, title, slug, organizer_id');
+    query = isUuid ? query.eq('id', eventId) : query.eq('slug', eventId);
+    const { data: eventData } = await query.maybeSingle();
+
+    if (eventData) {
+      resolvedEventId = eventData.id;
+      organizerId = eventData.organizer_id;
+      eventSlug = eventData.slug || resolvedEventId;
+      eventTitle = eventData.title || '';
+    }
+
+    if (!organizerId) {
+      return { success: false, error: 'Event organizer not found' };
+    }
+
+    // Collect all organizer/admin IDs (organizer + co-hosts in event_admins)
+    const hostUserIds = new Set<string>([organizerId]);
+    try {
+      const { data: coHosts } = await supabase
+        .from('event_admins')
+        .select('user_id')
+        .eq('event_id', resolvedEventId);
+      if (coHosts) {
+        coHosts.forEach((ch: any) => {
+          if (ch.user_id) hostUserIds.add(ch.user_id);
+        });
+      }
+    } catch {}
+
+    const isSenderUuid = senderId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(senderId);
+    const resolvedActionUrl = actionUrl || (type === NotificationDbType.REGISTRATION
+      ? `/dashboard/events/${eventSlug}/registrations`
+      : `/dashboard/events/${eventSlug}/submissions`);
+
+    // Insert master notification with target_type = specific_user
+    const { data: notif, error: notifError } = await supabase
+      .from('notifications')
+      .insert({
+        title,
+        message,
+        type,
+        icon: icon || getDefaultIcon(type),
+        event_id: resolvedEventId,
+        sender_id: isSenderUuid ? senderId : null,
+        target_type: NotificationTargetType.SPECIFIC_USER,
+        action_url: resolvedActionUrl,
+        metadata: {
+          eventId: resolvedEventId,
+          eventSlug,
+          eventTitle,
+          role: 'organizer_alert',
+          ...(metadata || {}),
+        },
+      })
+      .select('id')
+      .single();
+
+    if (notifError || !notif) {
+      return { success: false, error: notifError?.message || 'Failed to create notification' };
+    }
+
+    // Deliver strictly to host(s) in user_notifications
+    const rows = Array.from(hostUserIds).map((uid) => ({
+      user_id: uid,
+      notification_id: notif.id,
+      is_read: false,
+    }));
+
+    const { error: linkErr } = await supabase
+      .from('user_notifications')
+      .upsert(rows, { onConflict: 'user_id,notification_id' });
+
+    if (linkErr) {
+      return { success: false, error: linkErr.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
   }
 }
 

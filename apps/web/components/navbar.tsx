@@ -35,7 +35,7 @@ import { UserRole } from '@hackers-unity/shared-types';
 
 export function Navbar() {
   const pathname = usePathname();
-  const { user: currentUser, signOut } = useAuth();
+  const { user: currentUser, supabaseUser, signOut } = useAuth();
   const { unreadCount } = useNotifications();
   const { theme, resolvedTheme, setTheme, toggleTheme } = useTheme();
   const [authOpen, setAuthOpen] = useState(false);
@@ -47,10 +47,35 @@ export function Navbar() {
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [opportunitiesOpen, setOpportunitiesOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Close profile dropdown when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!userDropdownOpen) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(e.target as Node)) {
+        setUserDropdownOpen(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setUserDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [userDropdownOpen]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -290,109 +315,159 @@ export function Navbar() {
 
             {/* User Profile / Supabase Login */}
             {mounted && currentUser ? (
-              <div className="relative">
-                <button
-                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className="flex items-center gap-2 p-1.5 pl-2.5 pr-3 rounded-xl bg-sky-50 dark:bg-[#0099e6]/10 border border-[#0099e6]/30 hover:border-[#0099e6] transition-colors cursor-pointer"
-                >
-                  <div className="w-6 h-6 rounded-lg bg-[#0099e6] text-white font-bold text-xs flex items-center justify-center shadow-xs">
-                    {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
-                  </div>
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[90px] truncate hidden sm:inline">
-                    {currentUser.name ? currentUser.name.split(' ')[0] : 'User'}
-                  </span>
-                </button>
+              (() => {
+                const rawAvatar =
+                currentUser.avatarUrl ||
+                (supabaseUser?.user_metadata?.avatar_url as string | undefined) ||
+                (supabaseUser?.user_metadata?.picture as string | undefined);
+              const isImage = Boolean(
+                rawAvatar &&
+                (rawAvatar.startsWith('http://') ||
+                  rawAvatar.startsWith('https://') ||
+                  rawAvatar.startsWith('/') ||
+                  rawAvatar.startsWith('data:image/'))
+              );
 
-                {userDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-56 p-2 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] shadow-xl dark:shadow-2xl dark:shadow-black/90 z-50 animate-in fade-in zoom-in-95">
-                    <div className="p-2.5 border-b border-slate-100 dark:border-white/[0.08]">
-                      <div className="text-xs font-bold text-slate-900 dark:text-white truncate">{currentUser.name}</div>
-                      <div className="text-[10px] text-slate-400 dark:text-slate-400 truncate">{currentUser.email}</div>
-                    </div>
-                    <div className="py-1 space-y-1 text-xs font-medium">
-                      <Link
-                        href="/settings"
-                        prefetch={false}
-                        onClick={() => setUserDropdownOpen(false)}
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] hover:text-slate-950 dark:hover:text-white transition-colors"
-                      >
-                        <User className="w-3.5 h-3.5 text-[#0099e6]" />
-                        <span>Account & Settings</span>
-                      </Link>
-                      <Link
-                        href="/dashboard"
-                        prefetch={false}
-                        onClick={() => setUserDropdownOpen(false)}
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] hover:text-slate-950 dark:hover:text-white transition-colors"
-                      >
-                        <Compass className="w-3.5 h-3.5 text-[#0099e6]" />
-                        <span>My Dashboard & Analytics</span>
-                      </Link>
+              return (
+                <div ref={userDropdownRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                    aria-expanded={userDropdownOpen}
+                    aria-haspopup="true"
+                    className="flex items-center gap-2 p-1.5 pl-1.5 sm:pl-2 pr-3 rounded-xl bg-sky-50 dark:bg-[#0099e6]/10 border border-[#0099e6]/30 hover:border-[#0099e6] transition-colors cursor-pointer group"
+                  >
+                    {isImage ? (
+                      <img
+                        src={rawAvatar}
+                        alt={currentUser.name || 'User Profile'}
+                        className="w-6 h-6 rounded-lg object-cover ring-1 ring-[#0099e6]/40 shrink-0 shadow-2xs group-hover:scale-105 transition-transform"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : rawAvatar && rawAvatar !== '⚡' ? (
+                      <div className="w-6 h-6 rounded-lg bg-sky-100 dark:bg-sky-500/20 text-xs flex items-center justify-center shrink-0">
+                        {rawAvatar}
+                      </div>
+                    ) : (
+                      <div className="w-6 h-6 rounded-lg bg-[#0099e6] text-white font-bold text-xs flex items-center justify-center shadow-xs shrink-0 group-hover:scale-105 transition-transform">
+                        {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                      </div>
+                    )}
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[90px] truncate hidden sm:inline">
+                      {currentUser.name ? currentUser.name.split(' ')[0] : 'User'}
+                    </span>
+                  </button>
 
-                      {/* Admin Announcement Studio Link */}
-                      {(currentUser.role === UserRole.ADMIN ||
-                        currentUser.role === UserRole.SUPER_ADMIN ||
-                        currentUser.role === UserRole.ORGANIZER) && (
-                          <Link
-                            href="/admin/notifications"
-                            onClick={() => setUserDropdownOpen(false)}
-                            className="flex items-center gap-2 px-3 py-2 rounded-xl text-[#0099e6] bg-sky-50/70 dark:bg-sky-500/10 hover:bg-sky-100/80 dark:hover:bg-sky-500/20 font-bold transition-colors"
-                          >
-                            <Megaphone className="w-3.5 h-3.5 text-[#0099e6]" />
-                            <span>Announcements Studio</span>
-                          </Link>
+                  {userDropdownOpen && (
+                    <div className="absolute right-0 mt-2 w-60 p-2 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] shadow-xl dark:shadow-2xl dark:shadow-black/90 z-50 animate-in fade-in zoom-in-95">
+                      <div className="p-2.5 border-b border-slate-100 dark:border-white/[0.08] flex items-center gap-2.5">
+                        {isImage ? (
+                          <img
+                            src={rawAvatar}
+                            alt={currentUser.name || 'User Profile'}
+                            className="w-9 h-9 rounded-xl object-cover ring-1 ring-slate-200 dark:ring-white/[0.1] shrink-0"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : rawAvatar && rawAvatar !== '⚡' ? (
+                          <div className="w-9 h-9 rounded-xl bg-sky-100 dark:bg-sky-500/20 text-base flex items-center justify-center shrink-0">
+                            {rawAvatar}
+                          </div>
+                        ) : (
+                          <div className="w-9 h-9 rounded-xl bg-[#0099e6] text-white font-bold text-sm flex items-center justify-center shrink-0">
+                            {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                          </div>
                         )}
-                    </div>
-
-                    {/* Theme Switcher in Profile Menu */}
-                    <div className="py-2 px-1 border-t border-slate-100 dark:border-white/[0.08]">
-                      <div className="px-2 pb-1.5 flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                        <span>Theme</span>
-                        <span className="text-[10px] uppercase font-bold tracking-wider text-[#0099e6]">
-                          {theme}
-                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-bold text-slate-900 dark:text-white truncate">{currentUser.name}</div>
+                          <div className="text-[10px] text-slate-400 dark:text-slate-400 truncate">{currentUser.email}</div>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-1 p-0.5 rounded-xl bg-slate-100 dark:bg-white/[0.06] border border-slate-200/60 dark:border-white/[0.08]">
-                        <button
-                          type="button"
-                          onClick={() => setTheme('light')}
-                          className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${theme === 'light'
-                              ? 'bg-white text-slate-900 shadow-xs'
-                              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-                            }`}
+                      <div className="py-1 space-y-1 text-xs font-medium">
+                        <Link
+                          href="/settings"
+                          prefetch={false}
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center gap-2 px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] hover:text-slate-950 dark:hover:text-white transition-colors"
                         >
-                          <Sun className="w-3.5 h-3.5 text-amber-500" />
-                          <span>Light</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setTheme('dark')}
-                          className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${theme === 'dark'
-                              ? 'bg-[#0099e6] text-white shadow-xs'
-                              : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-                            }`}
+                          <User className="w-3.5 h-3.5 text-[#0099e6]" />
+                          <span>Account & Settings</span>
+                        </Link>
+                        <Link
+                          href="/dashboard"
+                          prefetch={false}
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center gap-2 px-3 py-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] hover:text-slate-950 dark:hover:text-white transition-colors"
                         >
-                          <Moon className="w-3.5 h-3.5 text-sky-200" />
-                          <span>Dark</span>
+                          <Compass className="w-3.5 h-3.5 text-[#0099e6]" />
+                          <span>My Dashboard & Analytics</span>
+                        </Link>
+
+                        {/* Admin Announcement Studio Link */}
+                        {(currentUser.role === UserRole.ADMIN ||
+                          currentUser.role === UserRole.SUPER_ADMIN ||
+                          currentUser.role === UserRole.ORGANIZER) && (
+                            <Link
+                              href="/admin/notifications"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className="flex items-center gap-2 px-3 py-2 rounded-xl text-[#0099e6] bg-sky-50/70 dark:bg-sky-500/10 hover:bg-sky-100/80 dark:hover:bg-sky-500/20 font-bold transition-colors"
+                            >
+                              <Megaphone className="w-3.5 h-3.5 text-[#0099e6]" />
+                              <span>Announcements Studio</span>
+                            </Link>
+                          )}
+                      </div>
+
+                      {/* Theme Switcher in Profile Menu */}
+                      <div className="py-2 px-1 border-t border-slate-100 dark:border-white/[0.08]">
+                        <div className="px-2 pb-1.5 flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                          <span>Theme</span>
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-[#0099e6]">
+                            {theme}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1 p-0.5 rounded-xl bg-slate-100 dark:bg-white/[0.06] border border-slate-200/60 dark:border-white/[0.08]">
+                          <button
+                            type="button"
+                            onClick={() => setTheme('light')}
+                            className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${theme === 'light'
+                                ? 'bg-white text-slate-900 shadow-xs'
+                                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                              }`}
+                          >
+                            <Sun className="w-3.5 h-3.5 text-amber-500" />
+                            <span>Light</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setTheme('dark')}
+                            className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${theme === 'dark'
+                                ? 'bg-[#0099e6] text-white shadow-xs'
+                                : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                              }`}
+                          >
+                            <Moon className="w-3.5 h-3.5 text-sky-200" />
+                            <span>Dark</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="pt-1 border-t border-slate-100 dark:border-white/[0.08]">
+                        <button
+                          onClick={() => {
+                            signOut();
+                            setUserDropdownOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          <LogOut className="w-3.5 h-3.5" />
+                          <span>Sign Out</span>
                         </button>
                       </div>
                     </div>
-
-                    <div className="pt-1 border-t border-slate-100 dark:border-white/[0.08]">
-                      <button
-                        onClick={() => {
-                          signOut();
-                          setUserDropdownOpen(false);
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-xs font-bold transition-colors cursor-pointer"
-                      >
-                        <LogOut className="w-3.5 h-3.5" />
-                        <span>Sign Out</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              );
+            })()
             ) : (
               <Link
                 href="/signup"

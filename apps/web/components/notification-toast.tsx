@@ -102,6 +102,23 @@ export function NotificationToast() {
                   Squad Invite
                 </span>
               )}
+              {latestToast.notification.type === NotificationDbType.REGISTRATION && (
+                <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-700 tracking-wide uppercase">
+                  New Registration
+                </span>
+              )}
+              {(Boolean(latestToast.notification.metadata?.isSubmission) || latestToast.notification.title.toLowerCase().includes('submitted')) && (
+                <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-sky-100 text-[#0099e6] tracking-wide uppercase">
+                  New Submission
+                </span>
+              )}
+              {latestToast.notification.type === NotificationDbType.EVENT &&
+                !latestToast.notification.metadata?.isSubmission &&
+                !latestToast.notification.title.toLowerCase().includes('submitted') && (
+                  <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-sky-100 text-[#0099e6] tracking-wide uppercase">
+                    Hackathon
+                  </span>
+                )}
               <span className="text-xs font-extrabold text-slate-900 line-clamp-1">
                 {stripEmojis(latestToast.notification.title)}
               </span>
