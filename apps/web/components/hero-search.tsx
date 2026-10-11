@@ -17,7 +17,7 @@ import {
   Tag,
 } from 'lucide-react';
 import { usePublishedEvents } from '@/lib/hooks/use-events';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, filterDisplayTags } from '@/lib/utils';
 import { ExtendedEvent } from '@/lib/mock-data';
 
 export function HeroSearch() {
@@ -248,14 +248,18 @@ export function HeroSearch() {
                             <span className="text-[#ea580c] font-bold">{prizeText}</span>
                             <span>•</span>
                             <span>{evt.organizerName || "Hacker's Unity"}</span>
-                            {evt.tags && evt.tags.length > 0 && (
-                              <>
-                                <span>•</span>
-                                <span className="text-slate-400 font-normal truncate">
-                                  {evt.tags.slice(0, 2).join(', ')}
-                                </span>
-                              </>
-                            )}
+                            {(() => {
+                              const cleanTags = filterDisplayTags(evt.tags);
+                              if (cleanTags.length === 0) return null;
+                              return (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-slate-400 font-normal truncate">
+                                    {cleanTags.slice(0, 2).join(', ')}
+                                  </span>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>

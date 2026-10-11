@@ -73,7 +73,7 @@ import {
   removeEventAdmin,
   EventTeamData,
 } from '@/lib/supabase-service';
-import { getEventPreviewToken, getEventPrivateLink, calculateEventDuration, toUTCISO, fromUTCISO } from '@/lib/utils';
+import { getEventPreviewToken, getEventPrivateLink, calculateEventDuration, toUTCISO, fromUTCISO, filterDisplayTags } from '@/lib/utils';
 import { HackathonCard } from '@/components/hackathon-card';
 import { getEventImageSrc } from '@/lib/event-images';
 import { RichTextEditor } from '@/components/rich-text-editor';
@@ -553,7 +553,7 @@ function HostHackathonContent() {
             setDifficulty(found.difficulty);
           }
           if (found.tags && found.tags.length > 0) {
-            setTagsInput(found.tags.join(', '));
+            setTagsInput(filterDisplayTags(found.tags).join(', '));
           }
           if (found.rulesText) {
             setRulesText(found.rulesText);

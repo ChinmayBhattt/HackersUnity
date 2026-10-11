@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePublishedEvents } from '@/lib/hooks/use-events';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, filterDisplayTags } from '@/lib/utils';
 import {
   searchProfilesRealtime,
   subscribeToProfilesRealtime,
@@ -490,12 +490,16 @@ export function SearchDialog({ isOpen, onClose }: SearchDialogProps) {
                           <span>{event.organizerName}</span>
                           <span>•</span>
                           <span>{event.eventType}</span>
-                          {event.tags && event.tags.length > 0 && (
-                            <>
-                              <span>•</span>
-                              <span className="text-[#0099e6] font-semibold">{event.tags.slice(0, 3).join(', ')}</span>
-                            </>
-                          )}
+                          {(() => {
+                            const cleanTags = filterDisplayTags(event.tags);
+                            if (cleanTags.length === 0) return null;
+                            return (
+                              <>
+                                <span>•</span>
+                                <span className="text-[#0099e6] font-semibold">{cleanTags.slice(0, 3).join(', ')}</span>
+                              </>
+                            );
+                          })()}
                         </div>
                       </Link>
                     ))}

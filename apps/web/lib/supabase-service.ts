@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { ExtendedEvent, MOCK_EVENTS } from './mock-data';
-import { getEventPreviewToken, isEventRegistrationClosed } from './utils';
+import { getEventPreviewToken, isEventRegistrationClosed, filterDisplayTags } from './utils';
 import {
   UserPublic,
   EventStatus,
@@ -115,15 +115,10 @@ export function mapDbEventToExtended(item: any): ExtendedEvent {
       typeof item.participants_count === 'number' ? item.participants_count : 0
     )}`,
     featured: Boolean(item.featured),
-    tags: (item.tags || ['Hackathon', 'Innovation']).filter(
-      (t: string) =>
-        typeof t === 'string' &&
-        !t.startsWith('hu_order:') &&
-        !t.startsWith('hu_reg_fields:') &&
-        !t.startsWith('hu_custom_q:') &&
-        t !== 'allow_external_redirect' &&
-        t !== 'PENDING_APPROVAL'
-    ),
+    tags: (() => {
+      const clean = filterDisplayTags(item.tags);
+      return clean.length > 0 ? clean : ['Hackathon', 'Innovation'];
+    })(),
     displayOrder: (() => {
       if (typeof item.display_order === 'number' && !isNaN(item.display_order)) {
         return item.display_order;

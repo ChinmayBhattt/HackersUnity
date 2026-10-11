@@ -6,6 +6,7 @@ import { ExtendedEvent } from '@/lib/mock-data';
 import { EventStatus, EventType } from '@hackers-unity/shared-types';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { VenuePicker } from '@/components/venue-picker';
+import { filterDisplayTags } from '@/lib/utils';
 
 interface EditEventModalProps {
   isOpen: boolean;
@@ -42,7 +43,7 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
       setLocation(event.location || '');
       setStatus(event.status || EventStatus.PUBLISHED);
       setRegistrationLink(event.registrationLink || '');
-      setTagsInput(event.tags ? event.tags.join(', ') : '');
+      setTagsInput(event.tags ? filterDisplayTags(event.tags).join(', ') : '');
       setParticipantsDisplay(event.participantsDisplay || `${event.participantsCount || 500}+`);
       setCtaText(event.ctaText || 'Learn More');
       setFeatured(!!event.featured);
@@ -58,10 +59,26 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const parsedTags = tagsInput
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
+    const parsedTags = filterDisplayTags(
+      tagsInput
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean)
+    );
+
+    const internalTags = Array.isArray(event.tags)
+      ? event.tags.filter(
+          (t) =>
+            typeof t === 'string' &&
+            (t.startsWith('hu_') ||
+              t === 'allow_external_redirect' ||
+              t === 'PENDING_APPROVAL' ||
+              t.startsWith('{') ||
+              t.startsWith('['))
+        )
+      : [];
+
+    const mergedTags = parsedTags.length > 0 ? [...parsedTags, ...internalTags] : event.tags;
 
     const updated: ExtendedEvent = {
       ...event,
@@ -76,7 +93,7 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
       location: location.trim(),
       status: status,
       registrationLink: registrationLink.trim() || event.registrationLink,
-      tags: parsedTags.length > 0 ? parsedTags : event.tags,
+      tags: mergedTags,
       participantsDisplay: participantsDisplay.trim() || event.participantsDisplay,
       ctaText: ctaText.trim() || 'Learn More',
       featured: featured,

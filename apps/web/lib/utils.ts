@@ -539,3 +539,29 @@ export function downloadReceiptPdf(data: ReceiptDownloadData): void {
     window.print();
   }
 }
+
+/**
+ * Filter out system internal metadata tags (e.g. hu_*, allow_external_redirect, PENDING_APPROVAL, raw JSON)
+ * so only human-readable user tags are displayed.
+ */
+export function filterDisplayTags(tags: unknown[] | null | undefined): string[] {
+  if (!Array.isArray(tags)) return [];
+  return tags.filter((t): t is string => {
+    if (typeof t !== 'string') return false;
+    const clean = t.trim();
+    if (!clean) return false;
+    if (clean.startsWith('hu_') || clean.startsWith('#hu_')) return false;
+    if (clean === 'allow_external_redirect' || clean === 'PENDING_APPROVAL') return false;
+    if (
+      clean.startsWith('{') ||
+      clean.startsWith('[') ||
+      clean.startsWith('"{') ||
+      clean.startsWith('"[') ||
+      clean.startsWith('#{') ||
+      clean.startsWith('#[')
+    ) {
+      return false;
+    }
+    return true;
+  });
+}

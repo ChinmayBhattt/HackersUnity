@@ -198,7 +198,16 @@ export async function GET(req: NextRequest) {
       );
 
       const cleanTags = Array.isArray(evt.tags)
-        ? evt.tags.filter((t: string) => typeof t === 'string' && !t.startsWith('hu_order:') && t !== 'allow_external_redirect')
+        ? evt.tags.filter(
+            (t: string) =>
+              typeof t === 'string' &&
+              !t.startsWith('hu_') &&
+              !t.startsWith('#hu_') &&
+              t !== 'allow_external_redirect' &&
+              t !== 'PENDING_APPROVAL' &&
+              !t.startsWith('{') &&
+              !t.startsWith('[')
+          )
         : [];
 
       return {

@@ -54,6 +54,7 @@ import {
   getEventPrivateLink,
   formatBuildersCount,
   getEffectiveEventStatus,
+  filterDisplayTags,
 } from '@/lib/utils';
 import { RegistrationModal } from '@/components/registration-modal';
 import { TeamRegistrationModal } from '@/components/team-registration-modal';
@@ -580,16 +581,18 @@ function HackathonDetailContent({ params }: PageProps) {
                 <div className="bg-white dark:bg-[#0c1017] p-6 rounded-2xl border border-slate-200 dark:border-white/[0.08] shadow-sm space-y-4">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">About the Hackathon</h3>
                   <RichDescription content={event.description} />
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    {event.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="px-3 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-800/40 text-xs font-mono font-semibold text-[#0099e6] dark:text-[#38bdf8]"
-                      >
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
+                  {filterDisplayTags(event.tags).length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-2">
+                      {filterDisplayTags(event.tags).map((tag) => (
+                        <span
+                          key={tag}
+                          className="px-3 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-800/40 text-xs font-mono font-semibold text-[#0099e6] dark:text-[#38bdf8]"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Tracks */}

@@ -28,6 +28,7 @@ import {
   Globe,
   Lock,
 } from 'lucide-react';
+import { filterDisplayTags } from '@/lib/utils';
 
 export interface AdminEvent {
   id: string;
@@ -171,7 +172,7 @@ export function AdminEditEventModal({
       setMaxTeamSize(event.max_team_size ?? 4);
       setIsTeamEvent(event.is_team_event ?? true);
       setFeatured(Boolean(event.featured));
-      setTagsInput(Array.isArray(event.tags) ? event.tags.join(', ') : '');
+      setTagsInput(Array.isArray(event.tags) ? filterDisplayTags(event.tags).join(', ') : '');
       setBannerUrl(event.banner_url || '');
       setLogoUrl(event.logo_url || '');
       setAdminFeedback(event.admin_feedback || '');
@@ -188,10 +189,26 @@ export function AdminEditEventModal({
     setErrorMessage('');
     setSaving(true);
 
-    const parsedTags = tagsInput
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
+    const parsedTags = filterDisplayTags(
+      tagsInput
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean)
+    );
+
+    const internalTags = Array.isArray(event.tags)
+      ? event.tags.filter(
+          (t) =>
+            typeof t === 'string' &&
+            (t.startsWith('hu_') ||
+              t === 'allow_external_redirect' ||
+              t === 'PENDING_APPROVAL' ||
+              t.startsWith('{') ||
+              t.startsWith('['))
+        )
+      : [];
+
+    const mergedTags = [...parsedTags, ...internalTags];
 
     const updatedEvent: AdminEvent = {
       ...event,
@@ -221,7 +238,7 @@ export function AdminEditEventModal({
       max_team_size: Number(maxTeamSize) || 4,
       is_team_event: isTeamEvent,
       featured,
-      tags: parsedTags,
+      tags: mergedTags,
       banner_url: bannerUrl.trim() || undefined,
       logo_url: logoUrl.trim() || undefined,
       admin_feedback: adminFeedback.trim() || undefined,
