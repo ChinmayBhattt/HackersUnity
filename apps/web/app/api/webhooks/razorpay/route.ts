@@ -58,6 +58,11 @@ export async function POST(req: NextRequest) {
 
       const nowIso = new Date().toISOString();
 
+      if (existingPayment && existingPayment.status === 'REFUNDED') {
+        console.warn(`[Razorpay Webhook] Order ${orderId} was already refunded/reset. Skipping.`);
+        return NextResponse.json({ received: true });
+      }
+
       let updatedPayment = existingPayment;
 
       if (existingPayment) {

@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 3. Check Supabase for existing payment by orderId or teamId
-    let query = serverSupabase.from('payments').select('*');
+    let query = serverSupabase.from('payments').select('*').order('created_at', { ascending: false });
     if (orderId) {
       query = query.eq('razorpay_order_id', orderId);
     } else if (teamId && eventId) {
@@ -151,14 +151,20 @@ export async function GET(req: NextRequest) {
     }
 
     const { data: payments } = await query;
-    const payment = payments && payments.length > 0 ? payments[0] : null;
+    const payment = payments && payments.length > 0
+      ? (payments.find((p: any) => p.status === 'PAID') || payments.find((p: any) => p.status !== 'REFUNDED') || payments[0])
+      : null;
 
     if (payment && payment.status === 'PAID') {
       return NextResponse.json({ isPaid: true, payment });
     }
 
+    if (payment && (payment.status === 'REFUNDED' || payment.status === 'FAILED') && !orderId) {
+      return NextResponse.json({ isPaid: false, payment });
+    }
+
     // 2. If not marked PAID yet, but we have orderId, check Razorpay directly
-    const targetOrderId = orderId || payment?.razorpay_order_id;
+    const targetOrderId = orderId || (payment && payment.status !== 'REFUNDED' && payment.status !== 'FAILED' ? payment.razorpay_order_id : null);
     if (targetOrderId) {
       try {
         const razorpay = getRazorpayClient();
