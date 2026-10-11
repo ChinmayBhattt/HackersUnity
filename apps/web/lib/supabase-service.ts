@@ -2046,8 +2046,8 @@ export async function declineTeamJoinRequestSupabase(
 }
 
 export async function cancelTeamJoinRequestSupabase(
-  teamId: string,
-  eventId: string
+  teamId?: string | null,
+  eventId?: string
 ): Promise<{ success: boolean; message?: string; error?: string }> {
   try {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -2063,14 +2063,15 @@ export async function cancelTeamJoinRequestSupabase(
       credentials: 'include',
       body: JSON.stringify({
         action: 'cancel_join_request',
-        teamId,
+        teamId: teamId || null,
         eventId,
       }),
     });
 
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.success) {
-      if (typeof window !== 'undefined') {
+      if (eventId && typeof window !== 'undefined') {
+        removeRegistrationForEvent(eventId);
         window.dispatchEvent(new Event('hackers_unity_storage_change'));
       }
       return { success: true, message: data.message };
@@ -2087,37 +2088,61 @@ export async function fetchUserPendingTeamRequest(
   userId: string
 ): Promise<{ hasPendingRequest: boolean; requestData?: any }> {
   try {
-    // 1. Check registrations table for pending squad role
-    const { data: reg } = await supabase
-      .from('registrations')
-      .select('*')
-      .eq('event_id', eventId)
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (
-      reg &&
-      (reg.status === 'PENDING' ||
-        (reg.role && reg.role.toLowerCase().includes('pending')) ||
-        (reg.status && reg.status.toLowerCase().includes('pending')))
-    ) {
-      return { hasPendingRequest: true, requestData: reg };
-    }
-
-    // 2. Check team_join_requests if available
+    // 1. Check explicit team_join_requests table first
     try {
+      let resolvedEventId = eventId;
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
+      if (!isUuid) {
+        const { data: ev } = await supabase.from('events').select('id').eq('slug', eventId).maybeSingle();
+        if (ev?.id) resolvedEventId = ev.id;
+      }
+
       const { data: req } = await supabase
         .from('team_join_requests')
         .select('*, teams(id, name, leader_id, profiles:leader_id(name, email))')
-        .eq('event_id', eventId)
+        .or(`event_id.eq.${resolvedEventId},event_id.eq.${eventId}`)
         .eq('user_id', userId)
         .eq('status', 'PENDING')
         .maybeSingle();
 
       if (req) {
-        return { hasPendingRequest: true, requestData: req };
+        return {
+          hasPendingRequest: true,
+          requestData: {
+            ...req,
+            teamId: req.team_id,
+            teamName: req.teams?.name || 'Squad',
+            leaderName: req.teams?.profiles?.name || 'Squad Leader',
+          },
+        };
       }
     } catch {}
+
+    // 2. Check registrations table ONLY if it's explicitly marked as a team and NOT solo
+    let query = supabase
+      .from('registrations')
+      .select('*')
+      .eq('user_id', userId);
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
+    if (isUuid) {
+      query = query.eq('event_id', eventId);
+    } else {
+      query = query.or(`event_id.eq.${eventId}`);
+    }
+
+    const { data: reg } = await query.maybeSingle();
+
+    // MUST be a team registration, with a squad name/id, and role containing pending
+    if (
+      reg &&
+      reg.is_team === true &&
+      (reg.team_name || reg.team_id) &&
+      reg.role &&
+      reg.role.toLowerCase().includes('pending')
+    ) {
+      return { hasPendingRequest: true, requestData: reg };
+    }
 
     return { hasPendingRequest: false };
   } catch {

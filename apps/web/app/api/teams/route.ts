@@ -864,40 +864,79 @@ export async function POST(req: Request) {
       } catch (e) {}
 
       return NextResponse.json({ success: true, message: `Request declined.` });
-    } else if (action === 'cancel_join_request') {
+    } else if (action === 'cancel_join_request' || action === 'cancel_registration') {
       const { teamId, eventId } = body;
-      if (!teamId) {
-        return NextResponse.json({ error: 'Team ID is required' }, { status: 400 });
+      const targetEventId = eventId || null;
+
+      let resolvedEventId = targetEventId;
+      if (targetEventId) {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetEventId);
+        if (!isUuid) {
+          const { data: ev } = await serverSupabase.from('events').select('id').eq('slug', targetEventId).maybeSingle();
+          if (ev?.id) resolvedEventId = ev.id;
+        }
       }
 
-      // Update/delete request in team_join_requests
+      // 1. Clean up team_join_requests if teamId or resolvedEventId provided
       try {
-        await serverSupabase
-          .from('team_join_requests')
-          .update({ status: 'CANCELLED' })
-          .eq('team_id', teamId)
-          .eq('user_id', validUserId);
+        if (teamId) {
+          await serverSupabase
+            .from('team_join_requests')
+            .delete()
+            .eq('team_id', teamId)
+            .eq('user_id', validUserId);
+        }
+        if (resolvedEventId) {
+          await serverSupabase
+            .from('team_join_requests')
+            .delete()
+            .or(`event_id.eq.${resolvedEventId},event_id.eq.${targetEventId}`)
+            .eq('user_id', validUserId);
+        }
       } catch (e) {}
 
-      try {
-        await serverSupabase
-          .from('team_invitations')
-          .delete()
-          .eq('team_id', teamId)
-          .eq('invited_email', `req:${userEmail}`);
-      } catch (e) {}
-
-      // Delete pending registration
-      if (eventId) {
-        await serverSupabase
-          .from('registrations')
-          .delete()
-          .eq('event_id', eventId)
-          .eq('user_id', validUserId)
-          .eq('status', 'PENDING');
+      // 2. Clean up team_invitations if teamId provided
+      if (teamId) {
+        try {
+          await serverSupabase
+            .from('team_invitations')
+            .delete()
+            .eq('team_id', teamId)
+            .eq('invited_email', `req:${userEmail}`);
+        } catch (e) {}
       }
 
-      return NextResponse.json({ success: true, message: 'Request cancelled.' });
+      // 3. Delete registration from registrations table for this user & event
+      if (resolvedEventId || targetEventId) {
+        try {
+          const filter = resolvedEventId && targetEventId && resolvedEventId !== targetEventId
+            ? `event_id.eq.${resolvedEventId},event_id.eq.${targetEventId}`
+            : `event_id.eq.${resolvedEventId || targetEventId}`;
+
+          await serverSupabase
+            .from('registrations')
+            .delete()
+            .or(filter)
+            .or(`user_id.eq.${validUserId},user_email.eq.${userEmail}`);
+        } catch (e) {
+          console.warn('Failed to delete registration:', e);
+        }
+
+        // Sync event registration count
+        try {
+          const { count } = await serverSupabase
+            .from('registrations')
+            .select('id', { count: 'exact', head: true })
+            .eq('event_id', resolvedEventId);
+
+          await serverSupabase
+            .from('events')
+            .update({ registration_count: count ?? 0, updated_at: new Date().toISOString() })
+            .eq('id', resolvedEventId);
+        } catch {}
+      }
+
+      return NextResponse.json({ success: true, message: 'Request / registration cancelled.' });
     }
 
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });

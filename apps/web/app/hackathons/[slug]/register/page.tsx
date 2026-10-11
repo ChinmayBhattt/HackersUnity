@@ -497,10 +497,12 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
         // 3. Check registration record
         const reg = await checkUserRegistration(currentEvent.id, userId, userEmail);
         if (reg.isRegistered && reg.registration) {
-          // If pending approval squad member
+          // If pending approval squad member (MUST be a team registration, never solo!)
           if (
-            reg.registration.status === 'PENDING' ||
-            (reg.registration.role && reg.registration.role.toLowerCase().includes('pending'))
+            reg.registration.is_team &&
+            reg.registration.team_name &&
+            (reg.registration.status === 'PENDING_APPROVAL' ||
+              (reg.registration.role && reg.registration.role.toLowerCase().includes('pending')))
           ) {
             setIsAlreadyRegistered(true);
             setApplicantPendingRequest(reg.registration);
@@ -526,10 +528,16 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
             return;
           }
 
+          // Solo Registration:
           setIsAlreadyRegistered(true);
+          setApplicantPendingRequest(null);
+          setCreatedTeamId(null);
+          setCreatedTeamData(null);
+          setTeamName('');
+          setMode('SOLO');
           if (reg.registration.user_name) setFullName(reg.registration.user_name);
           setRegisteredRole(
-            reg.registration.role || 'Individual Hacker'
+            reg.registration.role || 'Solo Builder'
           );
           setCurrentStep(3);
           return;
@@ -638,22 +646,28 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
   };
 
   const handleCancelJoinRequest = async () => {
-    const targetId = applicantPendingRequest?.teamId || applicantPendingRequest?.team_id || selectedTeamId;
-    if (!targetId || !event?.id) return;
+    if (!event) return;
+    const targetTeamId = applicantPendingRequest?.teamId || applicantPendingRequest?.team_id || selectedTeamId || null;
+    const targetEventId = event.id || resolvedParams.slug;
     setCancellingRequest(true);
     try {
-      const res = await cancelTeamJoinRequestSupabase(targetId, event.id);
+      const res = await cancelTeamJoinRequestSupabase(targetTeamId, targetEventId);
       if (res.success) {
+        removeRegistrationForEvent(event.id);
+        removeRegistrationForEvent(event.slug);
         setApplicantPendingRequest(null);
         setSelectedTeamId(null);
+        setCreatedTeamId(null);
+        setCreatedTeamData(null);
+        setTeamName('');
         setIsAlreadyRegistered(false);
         setRegisteredRole('');
         setCurrentStep(1);
       } else {
-        setErrorMsg(res.error || 'Failed to cancel join request');
+        setErrorMsg(res.error || 'Failed to cancel registration');
       }
     } catch (e: any) {
-      setErrorMsg(e.message || 'Failed to cancel join request');
+      setErrorMsg(e.message || 'Failed to cancel registration');
     } finally {
       setCancellingRequest(false);
     }
@@ -2130,7 +2144,9 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                       {isPaymentPending
                         ? 'Registration Pending Payment'
                         : isAlreadyRegistered
-                        ? 'Your Registration & Squad'
+                        ? mode === 'SOLO'
+                          ? 'Your Solo Registration'
+                          : 'Your Registration & Squad'
                         : 'You Are Officially In!'}
                     </h2>
                     <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-md mx-auto">
@@ -2139,7 +2155,9 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                           ? `Your squad registration for ${event.title} is recorded. Waiting for your Squad Leader (${squadLeaderName}) to complete the entry fee to confirm your squad's slot.`
                           : `Your registration details for ${event.title} are recorded. Please complete the entry fee below to confirm your slot.`
                         : isAlreadyRegistered
-                        ? `You are currently registered for ${event.title}. Manage your squad and teammates below.`
+                        ? mode === 'SOLO'
+                          ? `You are registered for ${event.title} as a Solo Builder. Your participation details are recorded below.`
+                          : `You are currently registered for ${event.title}. Manage your squad and teammates below.`
                         : `You are registered for ${event.title} as `}
                       {!isAlreadyRegistered && !isPaymentPending && (
                         <strong className="text-slate-900 dark:text-white">{registeredRole || 'Participant'}</strong>
@@ -2147,6 +2165,57 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                     </p>
                   </div>
                 </>
+              )}
+
+              {/* Solo Participant Details Card (when not part of a squad) */}
+              {!applicantPendingRequest && !createdTeamData && !teamName && (
+                <div className="max-w-md mx-auto p-5 rounded-2xl bg-white dark:bg-[#0c1017] border-2 border-sky-200 dark:border-sky-800/50 shadow-sm text-left space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-white/[0.08] pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0099e6] to-sky-600 flex items-center justify-center text-white text-base font-black shadow-md shadow-sky-500/25">
+                        <User className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h4 className="text-sm font-black text-slate-900 dark:text-white">{fullName || user?.name || 'Solo Participant'}</h4>
+                          <span className="px-1.5 py-0.5 rounded-md bg-sky-100 dark:bg-sky-950/60 text-[#0099e6] dark:text-[#38bdf8] text-[9px] font-extrabold uppercase">
+                            Solo Builder
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                          Role: {registeredRole || 'Solo Builder'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+                      <span>Participant Name:</span>
+                      <strong className="text-slate-900 dark:text-white">{fullName || user?.name}</strong>
+                    </div>
+                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+                      <span>Registration Mode:</span>
+                      <span className="font-bold text-[#0099e6] dark:text-[#38bdf8]">Solo Participation</span>
+                    </div>
+                    {event && (
+                      <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+                        <span>Hackathon Dates:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">{formatDate(event.startDate, event.timezone)} - {formatDate(event.endDate, event.timezone)}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
+                      <span>Status:</span>
+                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase ${
+                        isPaymentPending
+                          ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
+                          : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                      }`}>
+                        {isPaymentPending ? 'Payment Pending' : 'Confirmed'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               )}
 
               {/* Squad Details Card (if part of a squad) */}
@@ -2547,6 +2616,17 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                 >
                   Go to My Dashboard
                 </Link>
+
+                <button
+                  type="button"
+                  onClick={handleCancelJoinRequest}
+                  disabled={cancellingRequest}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/60 text-red-600 dark:text-red-400 font-bold text-xs transition-colors text-center flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  title="Cancel this registration"
+                >
+                  {cancellingRequest ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserMinus className="w-3.5 h-3.5" />}
+                  <span>Cancel Registration</span>
+                </button>
               </div>
             </div>
           )}
