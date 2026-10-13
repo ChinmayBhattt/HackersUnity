@@ -51,6 +51,7 @@ import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/utils';
 import { Logo } from '@/components/logo';
 import { AdminBlogsModeration } from '@/components/admin-blogs-moderation';
+import { AdminMentorsModeration } from '@/components/admin-mentors-moderation';
 import { RichDescription } from '@/components/rich-description';
 import { AdminEditEventModal } from '@/components/admin-edit-event-modal';
 import { AdminShowcaseReorder } from '@/components/admin-showcase-reorder';
@@ -107,8 +108,9 @@ interface AdminEvent {
 }
 
 export default function AdminCsapPortal() {
-  // Navigation Section (Hackathons vs Blogs)
-  const [activeSection, setActiveSection] = useState<'hackathons' | 'blogs'>('hackathons');
+  // Navigation Section (Hackathons vs Blogs vs Mentors)
+  const [activeSection, setActiveSection] = useState<'hackathons' | 'blogs' | 'mentors'>('hackathons');
+  const [pendingMentorsCount, setPendingMentorsCount] = useState<number>(0);
 
   // Authentication states
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -131,6 +133,19 @@ export default function AdminCsapPortal() {
   const [rejectModalEvent, setRejectModalEvent] = useState<AdminEvent | null>(null);
   const [rejectFeedback, setRejectFeedback] = useState('');
 
+  // ─── Fetch Mentor Applications Count ─────────────────────────────────────────
+  const fetchMentorCount = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin-csap?resource=mentors');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.authenticated && data.stats) {
+          setPendingMentorsCount(data.stats.pending || 0);
+        }
+      }
+    } catch {}
+  }, []);
+
   // ─── 1. Check existing session on load ──────────────────────────────────────
   const checkSession = useCallback(async () => {
     try {
@@ -140,6 +155,7 @@ export default function AdminCsapPortal() {
         if (data.authenticated) {
           setIsAuthenticated(true);
           setEvents(data.events || []);
+          fetchMentorCount();
           return;
         }
       }
@@ -150,7 +166,7 @@ export default function AdminCsapPortal() {
       setAuthLoading(false);
       setLoadingEvents(false);
     }
-  }, []);
+  }, [fetchMentorCount]);
 
   useEffect(() => {
     checkSession();
@@ -165,6 +181,7 @@ export default function AdminCsapPortal() {
         const data = await res.json();
         if (data.authenticated) {
           setEvents(data.events || []);
+          fetchMentorCount();
         }
       }
     } catch (err) {
@@ -172,7 +189,7 @@ export default function AdminCsapPortal() {
     } finally {
       setLoadingEvents(false);
     }
-  }, []);
+  }, [fetchMentorCount]);
 
   // ─── 3. Realtime Supabase Subscription ──────────────────────────────────────
   useEffect(() => {
@@ -661,12 +678,16 @@ export default function AdminCsapPortal() {
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
             {activeSection === 'hackathons'
               ? 'Hackathon Moderation & Approval Engine'
-              : 'Community Blogs & Playbooks Moderation'}
+              : activeSection === 'blogs'
+              ? 'Community Blogs & Playbooks Moderation'
+              : 'Mentor Network & Applications Engine'}
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium max-w-2xl">
             {activeSection === 'hackathons'
               ? 'Review host requests submitted by colleges and organizations in real-time. Approved hackathons instantly become public across the main website.'
-              : 'Review tech blogs, tutorials, and ecosystem playbooks submitted by community builders. Approved posts are published live immediately on /blogs.'}
+              : activeSection === 'blogs'
+              ? 'Review tech blogs, tutorials, and ecosystem playbooks submitted by community builders. Approved posts are published live immediately on /blogs.'
+              : 'Review mentor and jury applications submitted by industry leaders and domain experts in real-time.'}
           </p>
         </div>
 
@@ -721,7 +742,7 @@ export default function AdminCsapPortal() {
         </div>
       )}
 
-      {/* ─── Section Switcher: Hackathons vs Blogs ────────────────────────── */}
+      {/* ─── Section Switcher: Hackathons vs Blogs vs Mentors ─────────────── */}
       <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 dark:bg-white/[0.04] backdrop-blur-md rounded-2xl border border-slate-200/90 dark:border-white/[0.08] w-fit shadow-xs">
         <button
           type="button"
@@ -753,10 +774,33 @@ export default function AdminCsapPortal() {
           <PenTool className="w-4 h-4 text-[#0099e6]" />
           <span>Blogs Moderation</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSection('mentors')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer ${
+            activeSection === 'mentors'
+              ? 'bg-white dark:bg-white/[0.1] text-slate-900 dark:text-white shadow-xs border border-slate-200/90 dark:border-white/[0.1]'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/[0.04]'
+          }`}
+        >
+          <Award className="w-4 h-4 text-[#0099e6]" />
+          <span>Mentor Applications</span>
+          {pendingMentorsCount > 0 && (
+            <span className="ml-1 px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-extrabold shadow-xs">
+              {pendingMentorsCount}
+            </span>
+          )}
+        </button>
       </div>
 
       {activeSection === 'blogs' ? (
         <AdminBlogsModeration onNotification={setNotificationMsg} />
+      ) : activeSection === 'mentors' ? (
+        <AdminMentorsModeration
+          onNotification={setNotificationMsg}
+          onPendingCountChange={setPendingMentorsCount}
+        />
       ) : (
         <>
           {/* ─── Metric Cards (Hacker's Unity Theme) ──────────────────────────── */}

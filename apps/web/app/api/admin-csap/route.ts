@@ -123,6 +123,58 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // ── Mentor Applications Moderation Query ──
+    if (resource === 'mentors') {
+      try {
+        const { data: mentors, error } = await supabase
+          .from('mentor_applications')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          const isTableMissing =
+            error.code === '42P01' ||
+            error.message?.toLowerCase().includes('relation "mentor_applications" does not exist') ||
+            error.message?.toLowerCase().includes('does not exist');
+
+          return NextResponse.json({
+            authenticated: true,
+            mentors: [],
+            stats: { total: 0, pending: 0, in_review: 0, approved: 0, rejected: 0 },
+            tableReady: !isTableMissing,
+            error: error.message,
+            message: isTableMissing
+              ? 'Mentor applications table not found. Run apps/web/supabase/mentor-applications-migration.sql in Supabase SQL editor.'
+              : error.message,
+          });
+        }
+
+        const allMentors = mentors || [];
+        const stats = {
+          total: allMentors.length,
+          pending: allMentors.filter((m) => m.status === 'PENDING').length,
+          in_review: allMentors.filter((m) => m.status === 'IN_REVIEW').length,
+          approved: allMentors.filter((m) => m.status === 'APPROVED').length,
+          rejected: allMentors.filter((m) => m.status === 'REJECTED').length,
+        };
+
+        return NextResponse.json({
+          authenticated: true,
+          mentors: allMentors,
+          stats,
+          tableReady: true,
+        });
+      } catch (mentorErr: any) {
+        return NextResponse.json({
+          authenticated: true,
+          mentors: [],
+          stats: { total: 0, pending: 0, in_review: 0, approved: 0, rejected: 0 },
+          tableReady: true,
+          error: mentorErr.message,
+        });
+      }
+    }
+
     // ── Events / Hackathons Query (Default) ──
     const { data: events, error } = await supabase
       .from('events')
@@ -432,6 +484,138 @@ export async function PATCH(req: NextRequest) {
         success: true,
         message: `Blog "${data.title}" moved back to Pending Review.`,
         blog: data,
+      });
+    }
+
+    // ── Mentor Applications Actions ──
+    if (action === 'approve_mentor') {
+      const targetId = body.mentorId || body.id || eventId;
+      if (!targetId) return NextResponse.json({ error: 'Missing mentorId' }, { status: 400 });
+
+      const { data, error } = await supabase
+        .from('mentor_applications')
+        .update({
+          status: 'APPROVED',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', targetId)
+        .select('*')
+        .single();
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Mentor application for "${data.name}" approved!`,
+        mentor: data,
+      });
+    }
+
+    if (action === 'in_review_mentor') {
+      const targetId = body.mentorId || body.id || eventId;
+      if (!targetId) return NextResponse.json({ error: 'Missing mentorId' }, { status: 400 });
+
+      const { data, error } = await supabase
+        .from('mentor_applications')
+        .update({
+          status: 'IN_REVIEW',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', targetId)
+        .select('*')
+        .single();
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Mentor application for "${data.name}" marked as In-Review.`,
+        mentor: data,
+      });
+    }
+
+    if (action === 'reject_mentor') {
+      const targetId = body.mentorId || body.id || eventId;
+      if (!targetId) return NextResponse.json({ error: 'Missing mentorId' }, { status: 400 });
+
+      const updatePayload: any = {
+        status: 'REJECTED',
+        updated_at: new Date().toISOString(),
+      };
+      if (feedback || body.notes) {
+        updatePayload.notes = feedback || body.notes;
+      }
+
+      const { data, error } = await supabase
+        .from('mentor_applications')
+        .update(updatePayload)
+        .eq('id', targetId)
+        .select('*')
+        .single();
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Mentor application for "${data.name}" rejected.`,
+        mentor: data,
+      });
+    }
+
+    if (action === 'pending_mentor' || action === 'reset_mentor') {
+      const targetId = body.mentorId || body.id || eventId;
+      if (!targetId) return NextResponse.json({ error: 'Missing mentorId' }, { status: 400 });
+
+      const { data, error } = await supabase
+        .from('mentor_applications')
+        .update({
+          status: 'PENDING',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', targetId)
+        .select('*')
+        .single();
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Mentor application for "${data.name}" moved back to Pending.`,
+        mentor: data,
+      });
+    }
+
+    if (action === 'update_mentor') {
+      const targetId = body.mentorId || body.id || eventId;
+      if (!targetId) return NextResponse.json({ error: 'Missing mentorId' }, { status: 400 });
+
+      const updates: any = { updated_at: new Date().toISOString() };
+      if (body.status) updates.status = body.status;
+      if (body.notes !== undefined) updates.notes = body.notes;
+
+      const { data, error } = await supabase
+        .from('mentor_applications')
+        .update(updates)
+        .eq('id', targetId)
+        .select('*')
+        .single();
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Mentor application updated successfully.`,
+        mentor: data,
       });
     }
 
@@ -808,13 +992,21 @@ export async function DELETE(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const resource = searchParams.get('resource');
-    const eventId = searchParams.get('eventId') || searchParams.get('blogId');
+    const eventId = searchParams.get('eventId') || searchParams.get('blogId') || searchParams.get('mentorId');
 
     if (!eventId) {
       return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
     }
 
     const supabase = createAdminClient();
+
+    if (resource === 'mentors') {
+      const { error } = await supabase.from('mentor_applications').delete().eq('id', eventId);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      return NextResponse.json({ success: true, message: 'Mentor application deleted successfully' });
+    }
 
     if (resource === 'blogs') {
       const { error } = await supabase.from('blogs').delete().eq('id', eventId);
