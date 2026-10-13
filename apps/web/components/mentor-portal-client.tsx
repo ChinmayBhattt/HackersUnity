@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -22,8 +22,11 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { findMentorByCredential, VerifiedMentor } from '@/lib/mentors-data';
+import { useAuth } from '@/lib/auth-context';
 
 export function MentorPortalClient() {
+  const { user } = useAuth();
+
   // Verification lookup state
   const [query, setQuery] = useState('');
   const [searched, setSearched] = useState(false);
@@ -40,6 +43,21 @@ export function MentorPortalClient() {
     resume_url: '',
     notes: '',
   });
+
+  // Automatically prefill applicant details if logged in
+  useEffect(() => {
+    if (user) {
+      setFormData((prev) => ({
+        ...prev,
+        name: prev.name || user.name || '',
+        email: prev.email || user.email || '',
+        phone: prev.phone || user.phone || '',
+        linkedin_url: prev.linkedin_url || user.socialLinks?.linkedin || '',
+        company: prev.company || user.company || user.organization || '',
+        designation: prev.designation || user.jobTitle || '',
+      }));
+    }
+  }, [user]);
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);

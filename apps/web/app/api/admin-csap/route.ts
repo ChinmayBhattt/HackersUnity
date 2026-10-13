@@ -150,17 +150,55 @@ export async function GET(req: NextRequest) {
         }
 
         const allMentors = mentors || [];
+
+        // Match applicants with registered profiles in the platform by email
+        const emails = Array.from(
+          new Set(
+            allMentors
+              .map((m) => m.email?.trim().toLowerCase())
+              .filter(Boolean)
+          )
+        );
+
+        let profilesMap: Record<string, any> = {};
+        if (emails.length > 0) {
+          try {
+            const { data: profilesList } = await supabase
+              .from('profiles')
+              .select('id, username, name, email, avatar_url, role, bio, college, organization, company, job_title, skills, github_url, linkedin_url, portfolio_url, elo_score, created_at')
+              .in('email', emails);
+
+            if (profilesList) {
+              for (const p of profilesList) {
+                if (p.email) {
+                  profilesMap[p.email.trim().toLowerCase()] = p;
+                }
+              }
+            }
+          } catch (profErr) {
+            console.warn('[Admin CSAP Mentors] Profiles join warning:', profErr);
+          }
+        }
+
+        const enrichedMentors = allMentors.map((m) => {
+          const emailKey = m.email?.trim().toLowerCase() || '';
+          return {
+            ...m,
+            user_profile: profilesMap[emailKey] || null,
+          };
+        });
+
         const stats = {
-          total: allMentors.length,
-          pending: allMentors.filter((m) => m.status === 'PENDING').length,
-          in_review: allMentors.filter((m) => m.status === 'IN_REVIEW').length,
-          approved: allMentors.filter((m) => m.status === 'APPROVED').length,
-          rejected: allMentors.filter((m) => m.status === 'REJECTED').length,
+          total: enrichedMentors.length,
+          pending: enrichedMentors.filter((m) => m.status === 'PENDING').length,
+          in_review: enrichedMentors.filter((m) => m.status === 'IN_REVIEW').length,
+          approved: enrichedMentors.filter((m) => m.status === 'APPROVED').length,
+          rejected: enrichedMentors.filter((m) => m.status === 'REJECTED').length,
         };
 
         return NextResponse.json({
           authenticated: true,
-          mentors: allMentors,
+          mentors: enrichedMentors,
           stats,
           tableReady: true,
         });

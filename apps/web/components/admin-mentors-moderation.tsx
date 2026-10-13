@@ -28,8 +28,31 @@ import {
   Send,
   UserCheck,
   RotateCcw,
+  Github,
+  User,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { ProfilePreviewModal } from './profile-preview-modal';
+
+export interface AdminMentorUserProfile {
+  id: string;
+  username: string;
+  name: string;
+  email: string;
+  avatar_url?: string | null;
+  role?: string;
+  bio?: string | null;
+  college?: string | null;
+  organization?: string | null;
+  company?: string | null;
+  job_title?: string | null;
+  skills?: string[];
+  elo_score?: number;
+  github_url?: string | null;
+  linkedin_url?: string | null;
+  portfolio_url?: string | null;
+  created_at?: string;
+}
 
 export interface AdminMentor {
   id: string;
@@ -44,6 +67,7 @@ export interface AdminMentor {
   notes?: string | null;
   created_at: string;
   updated_at?: string;
+  user_profile?: AdminMentorUserProfile | null;
 }
 
 interface AdminMentorsModerationProps {
@@ -68,6 +92,8 @@ export function AdminMentorsModeration({
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [adminNotesInput, setAdminNotesInput] = useState('');
   const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [previewProfileUsername, setPreviewProfileUsername] = useState<string | null>(null);
+  const [fetchingProfileFor, setFetchingProfileFor] = useState<string | null>(null);
 
   // Fetch mentors from API
   const fetchMentors = useCallback(async () => {
@@ -94,6 +120,37 @@ export function AdminMentorsModeration({
   useEffect(() => {
     fetchMentors();
   }, [fetchMentors]);
+
+  // Auto-resolve user profile if missing when a mentor is selected in modal
+  useEffect(() => {
+    if (selectedMentor && !selectedMentor.user_profile && selectedMentor.email) {
+      let isMounted = true;
+      const targetId = selectedMentor.id;
+      const email = selectedMentor.email;
+      setFetchingProfileFor(targetId);
+
+      fetch(`/api/users/${encodeURIComponent(email)}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((userData) => {
+          if (isMounted && userData?.user) {
+            setSelectedMentor((prev) =>
+              prev && prev.id === targetId ? { ...prev, user_profile: userData.user } : prev
+            );
+            setMentors((prev) =>
+              prev.map((m) => (m.id === targetId ? { ...m, user_profile: userData.user } : m))
+            );
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (isMounted) setFetchingProfileFor(null);
+        });
+
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [selectedMentor?.id, selectedMentor?.email, selectedMentor?.user_profile]);
 
   // Realtime updates
   useEffect(() => {
@@ -376,6 +433,8 @@ export function AdminMentorsModeration({
         const matchesEmail = (m.email || '').toLowerCase().includes(q);
         const matchesPhone = (m.phone || '').toLowerCase().includes(q);
         const matchesNotes = (m.notes || '').toLowerCase().includes(q);
+        const matchesUsername = (m.user_profile?.username || '').toLowerCase().includes(q);
+        const matchesProfileName = (m.user_profile?.name || '').toLowerCase().includes(q);
 
         if (
           !matchesName &&
@@ -383,7 +442,9 @@ export function AdminMentorsModeration({
           !matchesDesignation &&
           !matchesEmail &&
           !matchesPhone &&
-          !matchesNotes
+          !matchesNotes &&
+          !matchesUsername &&
+          !matchesProfileName
         ) {
           return false;
         }
@@ -684,25 +745,40 @@ export function AdminMentorsModeration({
         <div className="p-16 text-center bg-white dark:bg-[#0c1017] rounded-3xl border border-slate-200/80 dark:border-white/[0.08]">
           <Award className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
           <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1">
-            No mentor applications found
+            {statusFilter === 'PENDING' && stats.pending === 0
+              ? 'All caught up! No pending applications'
+              : 'No mentor applications found'}
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-4">
             {searchQuery
               ? `No mentor profiles match your search "${searchQuery}".`
+              : statusFilter === 'PENDING' && stats.pending === 0
+              ? `There are currently 0 applications pending review. All received applications have already been processed.`
               : `There are currently no applications matching the "${statusFilter}" filter.`}
           </p>
-          {(searchQuery || statusFilter !== 'ALL') && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery('');
-                setStatusFilter('ALL');
-              }}
-              className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-white/[0.05] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-xs font-bold transition cursor-pointer"
-            >
-              Clear Filters
-            </button>
-          )}
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            {stats.approved > 0 && statusFilter !== 'APPROVED' && (
+              <button
+                type="button"
+                onClick={() => setStatusFilter('APPROVED')}
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition cursor-pointer shadow-md shadow-emerald-500/20"
+              >
+                View Verified Mentors ({stats.approved})
+              </button>
+            )}
+            {stats.total > 0 && statusFilter !== 'ALL' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setStatusFilter('ALL');
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-white/[0.05] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 text-xs font-bold transition cursor-pointer"
+              >
+                View All Applications ({stats.total})
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -761,18 +837,41 @@ export function AdminMentorsModeration({
 
                   {/* Applicant Header */}
                   <div className="flex items-start gap-3 mb-3.5">
-                    <div
-                      className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${getGradientByName(
-                        mentor.name
-                      )} text-white font-black text-base flex items-center justify-center shrink-0 shadow-md`}
-                    >
-                      {getInitials(mentor.name)}
-                    </div>
+                    {mentor.user_profile?.avatar_url ? (
+                      <img
+                        src={mentor.user_profile.avatar_url}
+                        alt={mentor.name}
+                        className="w-12 h-12 rounded-2xl object-cover shrink-0 shadow-md ring-2 ring-sky-500/20"
+                      />
+                    ) : (
+                      <div
+                        className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${getGradientByName(
+                          mentor.name
+                        )} text-white font-black text-base flex items-center justify-center shrink-0 shadow-md`}
+                      >
+                        {getInitials(mentor.name)}
+                      </div>
+                    )}
 
                     <div className="min-w-0 flex-1">
-                      <h4 className="font-extrabold text-base text-slate-900 dark:text-white truncate">
-                        {mentor.name}
-                      </h4>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="font-extrabold text-base text-slate-900 dark:text-white truncate">
+                          {mentor.name}
+                        </h4>
+                        {mentor.user_profile?.username && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPreviewProfileUsername(mentor.user_profile!.username);
+                            }}
+                            className="text-[10px] font-extrabold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-500/10 hover:bg-sky-100 dark:hover:bg-sky-500/20 px-1.5 py-0.5 rounded-md transition cursor-pointer"
+                            title="Quick View Platform Profile"
+                          >
+                            @{mentor.user_profile.username}
+                          </button>
+                        )}
+                      </div>
                       <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 truncate flex items-center gap-1 mt-0.5">
                         <Briefcase className="w-3 h-3 text-[#0099e6] shrink-0" />
                         <span>{mentor.designation || 'Applicant'}</span>
@@ -872,14 +971,27 @@ export function AdminMentorsModeration({
 
                 {/* Card Actions Bar */}
                 <div className="pt-3 border-t border-slate-100 dark:border-white/[0.06] flex items-center justify-between gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMentor(mentor)}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition cursor-pointer"
-                  >
-                    <Eye className="w-3.5 h-3.5 text-[#0099e6]" />
-                    <span>Review</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMentor(mentor)}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition cursor-pointer"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-[#0099e6]" />
+                      <span>Review</span>
+                    </button>
+                    {mentor.user_profile?.username && (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewProfileUsername(mentor.user_profile!.username)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-500/10 hover:bg-sky-100 dark:hover:bg-sky-500/20 transition cursor-pointer"
+                        title="View HackersUnity Profile"
+                      >
+                        <UserCheck className="w-3.5 h-3.5" />
+                        <span>Profile</span>
+                      </button>
+                    )}
+                  </div>
 
                   <div className="flex items-center gap-1">
                     {/* Approve button */}
@@ -891,7 +1003,7 @@ export function AdminMentorsModeration({
                         className="p-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 transition cursor-pointer"
                         title="Approve as Verified Mentor"
                       >
-                        <Check className="w-4 h-4" />
+                        {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                       </button>
                     )}
 
@@ -904,7 +1016,20 @@ export function AdminMentorsModeration({
                         className="p-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-500/10 dark:hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 transition cursor-pointer"
                         title="Mark In Review"
                       >
-                        <UserCheck className="w-4 h-4" />
+                        {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    )}
+
+                    {/* Pending button (if not already pending) */}
+                    {mentor.status !== 'PENDING' && (
+                      <button
+                        type="button"
+                        onClick={() => handleResetToPending(mentor)}
+                        disabled={isActionLoading}
+                        className="p-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 transition cursor-pointer"
+                        title="Reset to Pending Review"
+                      >
+                        {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
                       </button>
                     )}
 
@@ -945,104 +1070,327 @@ export function AdminMentorsModeration({
           <div className="w-full max-w-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.1] rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             {/* Modal Header */}
             <div className="p-6 border-b border-slate-100 dark:border-white/[0.08] flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div
-                  className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${getGradientByName(
-                    selectedMentor.name
-                  )} text-white font-black text-lg flex items-center justify-center shrink-0 shadow-md`}
-                >
-                  {getInitials(selectedMentor.name)}
-                </div>
-                <div>
-                  <h3 className="text-xl font-black text-slate-900 dark:text-white">
-                    {selectedMentor.name}
-                  </h3>
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              <div className="flex items-center gap-3 min-w-0">
+                {selectedMentor.user_profile?.avatar_url ? (
+                  <img
+                    src={selectedMentor.user_profile.avatar_url}
+                    alt={selectedMentor.name}
+                    className="w-12 h-12 rounded-2xl object-cover shrink-0 shadow-md ring-2 ring-[#0099e6]/30"
+                  />
+                ) : (
+                  <div
+                    className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${getGradientByName(
+                      selectedMentor.name
+                    )} text-white font-black text-lg flex items-center justify-center shrink-0 shadow-md`}
+                  >
+                    {getInitials(selectedMentor.name)}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-xl font-black text-slate-900 dark:text-white truncate">
+                      {selectedMentor.name}
+                    </h3>
+                    {selectedMentor.user_profile?.username && (
+                      <span className="px-2 py-0.5 rounded-lg bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 text-xs font-bold border border-sky-200 dark:border-sky-500/20">
+                        @{selectedMentor.user_profile.username}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
                     {selectedMentor.designation} at {selectedMentor.company}
                   </p>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setSelectedMentor(null)}
-                className="p-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-white/[0.06] text-slate-400 hover:text-slate-700 dark:hover:text-white transition cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {selectedMentor.user_profile?.username && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewProfileUsername(selectedMentor.user_profile!.username)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-500/10 hover:bg-sky-100 dark:hover:bg-sky-500/20 text-[#0099e6] text-xs font-bold transition cursor-pointer"
+                    title="View HackersUnity platform profile preview"
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Platform Profile</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedMentor(null)}
+                  className="p-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-white/[0.06] text-slate-400 hover:text-slate-700 dark:hover:text-white transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Modal Content */}
             <div className="p-6 space-y-5 overflow-y-auto">
-              {/* Status Header Bar */}
-              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/[0.06]">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-500">Current Status:</span>
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-extrabold ${
-                      selectedMentor.status === 'APPROVED'
-                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                        : selectedMentor.status === 'IN_REVIEW'
-                        ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400'
-                        : selectedMentor.status === 'REJECTED'
-                        ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                        : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+              {/* Status Header Bar & Workflow Control */}
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/[0.06] space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-500">Current Status:</span>
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
+                        selectedMentor.status === 'APPROVED'
+                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                          : selectedMentor.status === 'IN_REVIEW'
+                          ? 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30'
+                          : selectedMentor.status === 'REJECTED'
+                          ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+                          : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full animate-pulse bg-current" />
+                      {selectedMentor.status}
+                    </span>
+                  </div>
+
+                  <div className="text-[11px] font-semibold text-slate-400">
+                    {actionLoadingId === selectedMentor.id ? (
+                      <span className="flex items-center gap-1.5 text-[#0099e6]">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Updating status...</span>
+                      </span>
+                    ) : (
+                      <span>Click to update status:</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Fixed-position 4-status action switcher */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-0.5">
+                  {/* PENDING Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleResetToPending(selectedMentor)}
+                    disabled={actionLoadingId === selectedMentor.id || selectedMentor.status === 'PENDING'}
+                    className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
+                      selectedMentor.status === 'PENDING'
+                        ? 'bg-amber-500 text-white shadow-md shadow-amber-500/25 ring-2 ring-amber-400/50 cursor-default'
+                        : 'bg-white dark:bg-white/[0.04] text-slate-600 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:text-amber-600 border border-slate-200 dark:border-white/[0.08] cursor-pointer'
                     }`}
+                    title={selectedMentor.status === 'PENDING' ? 'Currently in Pending' : 'Change status to Pending'}
                   >
-                    {selectedMentor.status}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  {selectedMentor.status !== 'APPROVED' && (
-                    <button
-                      type="button"
-                      onClick={() => handleApprove(selectedMentor)}
-                      disabled={actionLoadingId === selectedMentor.id}
-                      className="px-3 py-1.5 rounded-xl bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 transition flex items-center gap-1 cursor-pointer"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Approve</span>
-                    </button>
-                  )}
-
-                  {selectedMentor.status !== 'IN_REVIEW' && (
-                    <button
-                      type="button"
-                      onClick={() => handleMarkInReview(selectedMentor)}
-                      disabled={actionLoadingId === selectedMentor.id}
-                      className="px-3 py-1.5 rounded-xl bg-sky-500 text-white text-xs font-bold hover:bg-sky-600 transition flex items-center gap-1 cursor-pointer"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>In Review</span>
-                    </button>
-                  )}
-
-                  {selectedMentor.status !== 'PENDING' && (
-                    <button
-                      type="button"
-                      onClick={() => handleResetToPending(selectedMentor)}
-                      disabled={actionLoadingId === selectedMentor.id}
-                      className="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-white/[0.1] text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-300 transition flex items-center gap-1 cursor-pointer"
-                      title="Reset to Pending"
-                    >
+                    {actionLoadingId === selectedMentor.id && selectedMentor.status !== 'PENDING' ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
                       <RotateCcw className="w-3.5 h-3.5" />
-                      <span>Pending</span>
-                    </button>
-                  )}
+                    )}
+                    <span>{selectedMentor.status === 'PENDING' ? '✓ Pending' : 'Pending'}</span>
+                  </button>
 
-                  {selectedMentor.status !== 'REJECTED' && (
-                    <button
-                      type="button"
-                      onClick={() => setRejectModalMentor(selectedMentor)}
-                      disabled={actionLoadingId === selectedMentor.id}
-                      className="px-3 py-1.5 rounded-xl bg-rose-500 text-white text-xs font-bold hover:bg-rose-600 transition flex items-center gap-1 cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      <span>Reject</span>
-                    </button>
+                  {/* IN_REVIEW Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleMarkInReview(selectedMentor)}
+                    disabled={actionLoadingId === selectedMentor.id || selectedMentor.status === 'IN_REVIEW'}
+                    className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
+                      selectedMentor.status === 'IN_REVIEW'
+                        ? 'bg-sky-500 text-white shadow-md shadow-sky-500/25 ring-2 ring-sky-400/50 cursor-default'
+                        : 'bg-white dark:bg-white/[0.04] text-slate-600 dark:text-slate-300 hover:bg-sky-50 dark:hover:bg-sky-500/10 hover:text-sky-600 border border-slate-200 dark:border-white/[0.08] cursor-pointer'
+                    }`}
+                    title={selectedMentor.status === 'IN_REVIEW' ? 'Currently In Review' : 'Change status to In Review'}
+                  >
+                    {actionLoadingId === selectedMentor.id && selectedMentor.status !== 'IN_REVIEW' ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Eye className="w-3.5 h-3.5" />
+                    )}
+                    <span>{selectedMentor.status === 'IN_REVIEW' ? '✓ In Review' : 'In Review'}</span>
+                  </button>
+
+                  {/* APPROVE Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleApprove(selectedMentor)}
+                    disabled={actionLoadingId === selectedMentor.id || selectedMentor.status === 'APPROVED'}
+                    className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
+                      selectedMentor.status === 'APPROVED'
+                        ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-400/50 cursor-default'
+                        : 'bg-white dark:bg-white/[0.04] text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:text-emerald-600 border border-slate-200 dark:border-white/[0.08] cursor-pointer'
+                    }`}
+                    title={selectedMentor.status === 'APPROVED' ? 'Currently Approved' : 'Approve application'}
+                  >
+                    {actionLoadingId === selectedMentor.id && selectedMentor.status !== 'APPROVED' ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5" />
+                    )}
+                    <span>{selectedMentor.status === 'APPROVED' ? '✓ Approved' : 'Approve'}</span>
+                  </button>
+
+                  {/* REJECT Button */}
+                  <button
+                    type="button"
+                    onClick={() => setRejectModalMentor(selectedMentor)}
+                    disabled={actionLoadingId === selectedMentor.id || selectedMentor.status === 'REJECTED'}
+                    className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
+                      selectedMentor.status === 'REJECTED'
+                        ? 'bg-rose-500 text-white shadow-md shadow-rose-500/25 ring-2 ring-rose-400/50 cursor-default'
+                        : 'bg-white dark:bg-white/[0.04] text-slate-600 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-600 border border-slate-200 dark:border-white/[0.08] cursor-pointer'
+                    }`}
+                    title={selectedMentor.status === 'REJECTED' ? 'Currently Rejected' : 'Reject application'}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>{selectedMentor.status === 'REJECTED' ? '✓ Rejected' : 'Reject'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* ─── Applicant Platform Profile Section ─── */}
+              <div className="p-4 rounded-3xl bg-gradient-to-br from-sky-500/5 via-slate-50 to-indigo-500/5 dark:from-sky-500/10 dark:via-white/[0.02] dark:to-indigo-500/10 border border-sky-100 dark:border-sky-500/20 shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
+                    <UserCheck className="w-3.5 h-3.5" />
+                    Applicant Platform Profile (HackersUnity)
+                  </span>
+                  {selectedMentor.user_profile?.username && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewProfileUsername(selectedMentor.user_profile!.username)}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-[#0099e6] hover:bg-[#0088cc] text-white text-[11px] font-bold transition shadow-xs cursor-pointer"
+                        title="Quick preview profile"
+                      >
+                        <Eye className="w-3 h-3" />
+                        <span>Quick Preview</span>
+                      </button>
+                      <Link
+                        href={`/profile/${selectedMentor.user_profile.username}`}
+                        target="_blank"
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-200 dark:bg-white/[0.1] hover:bg-slate-300 dark:hover:bg-white/[0.15] text-slate-800 dark:text-slate-200 text-[11px] font-bold transition cursor-pointer"
+                        title="Open full public profile in new tab"
+                      >
+                        <span>Full Profile</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </Link>
+                    </div>
                   )}
                 </div>
+
+                {selectedMentor.user_profile ? (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-white dark:bg-black/40 border border-slate-200/80 dark:border-white/[0.08]">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {selectedMentor.user_profile.avatar_url ? (
+                        <img
+                          src={selectedMentor.user_profile.avatar_url}
+                          alt={selectedMentor.user_profile.name}
+                          className="w-12 h-12 rounded-2xl object-cover shrink-0 ring-2 ring-[#0099e6]/30 shadow-md"
+                        />
+                      ) : (
+                        <div
+                          className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${getGradientByName(
+                            selectedMentor.user_profile.name || selectedMentor.name
+                          )} text-white font-black text-base flex items-center justify-center shrink-0 shadow-md`}
+                        >
+                          {getInitials(selectedMentor.user_profile.name || selectedMentor.name)}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-extrabold text-sm text-slate-900 dark:text-white truncate">
+                            {selectedMentor.user_profile.name || selectedMentor.name}
+                          </span>
+                          <span className="text-xs font-bold text-[#0099e6]">
+                            @{selectedMentor.user_profile.username}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#0099e6]/10 text-[#0099e6] border border-[#0099e6]/20">
+                            {selectedMentor.user_profile.role || 'MEMBER'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex-wrap">
+                          {selectedMentor.user_profile.elo_score !== undefined && (
+                            <span className="font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                              <span>⚡</span> {selectedMentor.user_profile.elo_score} Elo Rating
+                            </span>
+                          )}
+                          {(selectedMentor.user_profile.college || selectedMentor.user_profile.organization) && (
+                            <span className="truncate">
+                              🏫 {selectedMentor.user_profile.college || selectedMentor.user_profile.organization}
+                            </span>
+                          )}
+                          {selectedMentor.user_profile.created_at && (
+                            <span>
+                              Member since {new Date(selectedMentor.user_profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                            </span>
+                          )}
+                        </div>
+
+                        {selectedMentor.user_profile.skills && selectedMentor.user_profile.skills.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                            {selectedMentor.user_profile.skills.slice(0, 5).map((sk) => (
+                              <span
+                                key={sk}
+                                className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/[0.05] text-[10px] font-semibold text-slate-600 dark:text-slate-300"
+                              >
+                                {sk}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                      {selectedMentor.user_profile.github_url && (
+                        <a
+                          href={selectedMentor.user_profile.github_url.startsWith('http') ? selectedMentor.user_profile.github_url : `https://${selectedMentor.user_profile.github_url}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-2 rounded-xl bg-slate-100 dark:bg-white/[0.05] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 transition"
+                          title="GitHub Profile"
+                        >
+                          <Github className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                      {selectedMentor.user_profile.linkedin_url && (
+                        <a
+                          href={selectedMentor.user_profile.linkedin_url.startsWith('http') ? selectedMentor.user_profile.linkedin_url : `https://${selectedMentor.user_profile.linkedin_url}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-2 rounded-xl bg-sky-50 dark:bg-sky-500/10 hover:bg-sky-100 dark:hover:bg-sky-500/20 text-[#0099e6] transition"
+                          title="LinkedIn Profile"
+                        >
+                          <Linkedin className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                      {selectedMentor.user_profile.portfolio_url && (
+                        <a
+                          href={selectedMentor.user_profile.portfolio_url.startsWith('http') ? selectedMentor.user_profile.portfolio_url : `https://${selectedMentor.user_profile.portfolio_url}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-2 rounded-xl bg-purple-50 dark:bg-purple-500/10 hover:bg-purple-100 dark:hover:bg-purple-500/20 text-purple-600 dark:text-purple-400 transition"
+                          title="Portfolio / Website"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ) : fetchingProfileFor === selectedMentor.id ? (
+                  <div className="flex items-center gap-2 p-3 rounded-2xl bg-slate-100/60 dark:bg-white/[0.02] text-xs text-slate-500">
+                    <Loader2 className="w-4 h-4 animate-spin text-[#0099e6]" />
+                    <span>Checking linked HackersUnity account...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-100/60 dark:bg-white/[0.02] border border-slate-200/60 dark:border-white/[0.04] text-xs text-slate-500 dark:text-slate-400">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-amber-500" />
+                      <span>No platform account linked with {selectedMentor.email} (External applicant)</span>
+                    </div>
+                    <Link
+                      href={`/profile/${encodeURIComponent(selectedMentor.name.toLowerCase().replace(/[^a-z0-9_]/g, ''))}`}
+                      target="_blank"
+                      className="text-[11px] font-bold text-[#0099e6] hover:underline shrink-0"
+                    >
+                      Search by name
+                    </Link>
+                  </div>
+                )}
               </div>
 
               {/* Contact Information Grid */}
@@ -1283,6 +1631,15 @@ export function AdminMentorsModeration({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ─── Profile Preview Modal ───────────────────────────────── */}
+      {previewProfileUsername && (
+        <ProfilePreviewModal
+          isOpen={Boolean(previewProfileUsername)}
+          onClose={() => setPreviewProfileUsername(null)}
+          username={previewProfileUsername}
+        />
       )}
     </div>
   );

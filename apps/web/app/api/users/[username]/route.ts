@@ -17,6 +17,7 @@ export async function GET(req: Request, context: RouteContext) {
     }
 
     const cleanUsername = decodeURIComponent(rawUsername).trim().toLowerCase().replace(/^@/, '');
+    const isEmail = cleanUsername.includes('@');
     const supabaseAdmin = createAdminClient();
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanUsername);
 
@@ -24,13 +25,15 @@ export async function GET(req: Request, context: RouteContext) {
     let profile: any = null;
 
     try {
-      // Try querying by username or UUID id
+      // Try querying by username, email, or UUID id
       let query = supabaseAdmin
         .from('profiles')
         .select('*');
 
       if (isUuid) {
         query = query.or(`id.eq.${cleanUsername},username.ilike.${cleanUsername}`);
+      } else if (isEmail) {
+        query = query.ilike('email', cleanUsername);
       } else {
         query = query.ilike('username', cleanUsername);
       }
