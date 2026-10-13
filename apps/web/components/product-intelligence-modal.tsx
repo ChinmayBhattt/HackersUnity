@@ -22,8 +22,10 @@ import {
   Code2,
   ChevronRight,
   Award,
+  Download,
 } from 'lucide-react';
 import { ProductEvaluationReport, ProjectSubmission } from '@/lib/storage';
+import { downloadSingleEvaluationPdf } from '@/lib/evaluation-pdf';
 
 interface ProductIntelligenceModalProps {
   submission: ProjectSubmission | null;
@@ -33,6 +35,7 @@ interface ProductIntelligenceModalProps {
   onReevaluate?: (sub: ProjectSubmission) => void;
   isEvaluating?: boolean;
   onApplyStatusAndScore?: (subId: string, status: 'SUBMITTED' | 'UNDER_REVIEW' | 'ACCEPTED' | 'WINNER' | 'REJECTED', score: number) => void;
+  eventTitle?: string;
 }
 
 export function ProductIntelligenceModal({
@@ -43,6 +46,7 @@ export function ProductIntelligenceModal({
   onReevaluate,
   isEvaluating = false,
   onApplyStatusAndScore,
+  eventTitle,
 }: ProductIntelligenceModalProps) {
   const [copied, setCopied] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<'SUBMITTED' | 'UNDER_REVIEW' | 'ACCEPTED' | 'WINNER' | 'REJECTED'>(
@@ -222,7 +226,16 @@ Generated via Groq AI on Hacker's Unity`;
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-center">
+          <div className="flex items-center gap-2 self-end sm:self-center flex-wrap">
+            <button
+              onClick={() => downloadSingleEvaluationPdf({ submission, evaluation, eventTitle })}
+              className="px-3.5 py-2 rounded-xl bg-[#0099e6]/10 hover:bg-[#0099e6]/20 border border-[#0099e6]/30 text-[#0099e6] dark:text-cyan-300 text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+              title="Download official evaluation report as PDF"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Download PDF</span>
+            </button>
+
             {onReevaluate && (
               <button
                 onClick={() => onReevaluate(submission)}
@@ -682,8 +695,17 @@ Generated via Groq AI on Hacker's Unity`;
           <div className="flex items-center gap-2 self-end sm:self-auto">
             <button
               type="button"
+              onClick={() => downloadSingleEvaluationPdf({ submission, evaluation, eventTitle })}
+              className="px-3.5 py-2 rounded-xl bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/50 text-[#0099e6] dark:text-cyan-300 border border-sky-200 dark:border-sky-800/50 font-bold transition-all text-xs flex items-center gap-1.5 cursor-pointer"
+              title="Download official evaluation report as PDF"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Download PDF</span>
+            </button>
+            <button
+              type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-800 dark:text-white font-bold transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-800 dark:text-white font-bold transition-colors cursor-pointer text-xs"
             >
               Close
             </button>

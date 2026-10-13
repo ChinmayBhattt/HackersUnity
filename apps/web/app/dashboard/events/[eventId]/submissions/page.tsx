@@ -36,6 +36,7 @@ import {
   ShieldAlert,
   Cpu,
   Bot,
+  FileDown,
 } from 'lucide-react';
 import {
   getAllEvents,
@@ -60,6 +61,7 @@ import { formatDate } from '@/lib/utils';
 import { ProductIntelligenceModal } from '@/components/product-intelligence-modal';
 import { useAuth } from '@/lib/auth-context';
 import { UserRole } from '@hackers-unity/shared-types';
+import { downloadSingleEvaluationPdf, downloadAllEvaluationsPdf } from '@/lib/evaluation-pdf';
 
 interface PageProps {
   params: Promise<{ eventId: string }>;
@@ -617,6 +619,28 @@ export default function EventSubmissionsManagerPage({ params }: PageProps) {
     URL.revokeObjectURL(url);
   };
 
+  // Download All Project Reports in One Consolidated PDF (Project-Wise)
+  const handleDownloadAllReportsPdf = () => {
+    if (submissions.length === 0) {
+      alert('No submissions available to export yet.');
+      return;
+    }
+    downloadAllEvaluationsPdf({
+      submissions,
+      eventTitle: event?.title || 'Hackathon Event',
+    });
+  };
+
+  // Download Single Project Evaluation Report as PDF
+  const handleDownloadSingleReportPdf = (sub: ProjectSubmission) => {
+    const evalData = sub.aiEvaluation || getSubmissionAiEvaluation(sub.id);
+    downloadSingleEvaluationPdf({
+      submission: sub,
+      evaluation: evalData,
+      eventTitle: event?.title || 'Hackathon Event',
+    });
+  };
+
   // Live Google Sheets IMPORTDATA Formula
   const appOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://hackersunity.dev';
   const importFormula = `=IMPORTDATA("${appOrigin}/api/submissions/csv?eventId=${encodeURIComponent(event?.slug || resolvedParams.eventId)}")`;
@@ -789,6 +813,17 @@ export default function EventSubmissionsManagerPage({ params }: PageProps) {
           >
             <Trophy className="w-4 h-4 text-amber-500" />
             <span>Top Winners & Rankings</span>
+          </button>
+
+          {/* Download Consolidated PDF Reports (Project-Wise) */}
+          <button
+            type="button"
+            onClick={handleDownloadAllReportsPdf}
+            className="px-4 py-2.5 rounded-xl bg-purple-600/15 hover:bg-purple-600/25 border border-purple-500/30 text-purple-800 dark:text-purple-300 text-xs font-black flex items-center gap-2 transition-all cursor-pointer shadow-2xs"
+            title="Download consolidated PDF evaluation report containing all participants' projects"
+          >
+            <FileDown className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            <span>Download All Reports (PDF)</span>
           </button>
 
           <button
@@ -1146,6 +1181,14 @@ export default function EventSubmissionsManagerPage({ params }: PageProps) {
                         </button>
                         <button
                           type="button"
+                          onClick={() => handleDownloadSingleReportPdf(sub)}
+                          className="p-1.5 rounded-xl text-slate-500 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 border border-slate-200 dark:border-white/[0.08] hover:border-purple-300 transition-colors cursor-pointer"
+                          title="Download Participant Evaluation PDF Report"
+                        >
+                          <FileDown className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleDeleteSubmission(sub.id)}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                           title="Delete submission"
@@ -1357,6 +1400,17 @@ export default function EventSubmissionsManagerPage({ params }: PageProps) {
               </button>
 
               <div className="flex items-center gap-2">
+                {selectedSubmission && (
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadSingleReportPdf(selectedSubmission)}
+                    className="px-3.5 py-2 rounded-xl bg-purple-600/10 hover:bg-purple-600/20 border border-purple-500/20 text-purple-700 dark:text-purple-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                    title="Download this project's evaluation dossier as PDF"
+                  >
+                    <FileDown className="w-3.5 h-3.5" />
+                    <span>Download PDF</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setSelectedSubmission(null)}
@@ -1661,6 +1715,7 @@ export default function EventSubmissionsManagerPage({ params }: PageProps) {
         }}
         onReevaluate={(sub) => runGroqEvaluation(sub)}
         onApplyStatusAndScore={handleApplyStatusAndScore}
+        eventTitle={event?.title}
       />
 
       {/* ─── Modal 5: Top Winners & Ranking Leaderboard Modal ───────────── */}
@@ -1704,6 +1759,16 @@ export default function EventSubmissionsManagerPage({ params }: PageProps) {
                     ))}
                   </select>
                 )}
+
+                <button
+                  type="button"
+                  onClick={handleDownloadAllReportsPdf}
+                  className="px-3.5 py-1.5 rounded-xl bg-purple-600/15 hover:bg-purple-600/25 border border-purple-500/30 text-purple-700 dark:text-purple-300 text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                  title="Download consolidated PDF dossier containing all participant project evaluations"
+                >
+                  <FileDown className="w-3.5 h-3.5" />
+                  <span>Download Dossier (PDF)</span>
+                </button>
 
                 <button
                   type="button"
