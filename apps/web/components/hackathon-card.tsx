@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import {
   Trophy,
   Users,
@@ -17,7 +18,6 @@ import { EVENT_IMAGE_MAP, getEventImageSrc } from '@/lib/event-images';
 import { formatCurrency, getDaysLeft, getStatusBadge, getCategoryBadge, formatRegistrationCount, getEffectiveEventStatus, formatDate, filterDisplayTags } from '@/lib/utils';
 import { toggleBookmarkEvent, getBookmarkedEventIds } from '@/lib/storage';
 import { useAuth } from '@/lib/auth-context';
-import { useEffect } from 'react';
 import { RegistrationModal } from './registration-modal';
 import { stripHtmlAndMarkdown } from '@/lib/format-description';
 
@@ -28,6 +28,7 @@ interface HackathonCardProps {
 }
 
 export function HackathonCard({ event, isBookmarked, onBookmarkChange }: HackathonCardProps) {
+  const router = useRouter();
   const { user, supabaseUser } = useAuth();
   const [bookmarked, setBookmarked] = useState<boolean>(() => isBookmarked ?? false);
   const [showRegModal, setShowRegModal] = useState(false);
@@ -74,9 +75,24 @@ export function HackathonCard({ event, isBookmarked, onBookmarkChange }: Hackath
     onBookmarkChange?.();
   };
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('button, a')) {
+      return;
+    }
+    if (e.metaKey || e.ctrlKey) {
+      window.open(`/hackathons/${event.slug}`, '_blank');
+    } else {
+      router.push(`/hackathons/${event.slug}`);
+    }
+  };
+
   return (
     <>
-      <div className="group relative flex flex-col justify-between overflow-hidden rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200/90 dark:border-white/[0.08] shadow-sm dark:shadow-black/60 hover:shadow-xl dark:hover:border-[#0099e6]/50 dark:hover:shadow-[#0099e6]/10 hover:border-[#0099e6]/40 transition-all duration-300">
+      <div
+        onClick={handleCardClick}
+        className="group relative flex flex-col justify-between overflow-hidden rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200/90 dark:border-white/[0.08] shadow-sm dark:shadow-black/60 hover:shadow-xl dark:hover:border-[#0099e6]/50 dark:hover:shadow-[#0099e6]/10 hover:border-[#0099e6]/40 transition-all duration-300 cursor-pointer"
+      >
         {/* Top Image / Banner Header */}
         <div className="h-44 w-full relative overflow-hidden bg-slate-900 border-b border-slate-100 dark:border-white/[0.08]">
           {bannerImageSrc && !imgError ? (
@@ -256,14 +272,16 @@ export function HackathonCard({ event, isBookmarked, onBookmarkChange }: Hackath
                 href={normalizedExternalLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="py-2 px-4 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-bold text-xs shadow-xs shadow-sky-500/30 transition-all text-center inline-block"
+                onClick={(e) => e.stopPropagation()}
+                className="py-2 px-4 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-bold text-xs shadow-xs shadow-sky-500/30 transition-all text-center inline-block cursor-pointer"
               >
                 Register ↗
               </a>
             ) : (
               <Link
                 href={`/hackathons/${event.slug}/register`}
-                className="py-2 px-4 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-bold text-xs shadow-xs shadow-sky-500/30 transition-all text-center inline-block"
+                onClick={(e) => e.stopPropagation()}
+                className="py-2 px-4 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-bold text-xs shadow-xs shadow-sky-500/30 transition-all text-center inline-block cursor-pointer"
               >
                 Register
               </Link>

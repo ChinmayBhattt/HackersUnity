@@ -13,6 +13,7 @@ import {
   Radio,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { EventCategory, EventStatus, EventType } from '@hackers-unity/shared-types';
 import { HackathonCard } from '@/components/hackathon-card';
 import { usePublishedEvents } from '@/lib/hooks/use-events';
@@ -22,6 +23,7 @@ import { RegistrationModal } from '@/components/registration-modal';
 import { stripHtmlAndMarkdown } from '@/lib/format-description';
 
 export default function HackathonsDirectoryPage() {
+  const router = useRouter();
   const { events, loading, error } = usePublishedEvents();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
@@ -274,7 +276,16 @@ export default function HackathonsDirectoryPage() {
             return (
               <div
                 key={event.id}
-                className="p-5 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200/90 dark:border-white/[0.08] shadow-sm hover:shadow-md hover:border-[#0099e6]/40 dark:hover:border-[#0099e6]/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 transition-all"
+                onClick={(e) => {
+                  const target = e.target as HTMLElement | null;
+                  if (target?.closest('button, a')) return;
+                  if (e.metaKey || e.ctrlKey) {
+                    window.open(`/hackathons/${event.slug}`, '_blank');
+                  } else {
+                    router.push(`/hackathons/${event.slug}`);
+                  }
+                }}
+                className="p-5 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200/90 dark:border-white/[0.08] shadow-sm hover:shadow-md hover:border-[#0099e6]/40 dark:hover:border-[#0099e6]/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 transition-all cursor-pointer group"
               >
                 <div className="flex-1 space-y-2">
                   <div className="flex items-center gap-2 flex-wrap text-xs">
@@ -335,7 +346,8 @@ export default function HackathonsDirectoryPage() {
                       </Link>
                     ) : (
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (event.allowExternalRedirect && event.registrationLink && event.registrationLink.startsWith('http')) {
                             window.open(event.registrationLink, '_blank', 'noopener,noreferrer');
                           } else {
