@@ -403,6 +403,9 @@ export interface EventRegistration {
   role?: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CONFIRMED';
   registeredAt: string;
+  rsvpStatus?: 'ATTENDING' | 'NOT_ATTENDING' | 'PENDING';
+  rsvpAt?: string;
+  rsvpResponses?: Record<string, any>;
 }
 
 const EVENT_REGS_PREFIX = 'hackers_unity_event_regs_';
@@ -489,6 +492,102 @@ export function updateRegistrationStatus(
     window.dispatchEvent(new Event('hackers_unity_storage_change'));
   } catch (e) {
     console.error(e);
+  }
+}
+
+export function updateRegistrationRsvp(
+  eventId: string,
+  emailOrId: string,
+  rsvpData: {
+    attending: boolean;
+    teamName?: string;
+    personName?: string;
+    email?: string;
+    attendanceCount?: number;
+    dietaryPreference?: string;
+    tshirtSize?: string;
+    hardwareRequirement?: string;
+    phone?: string;
+    remarks?: string;
+    declineReason?: string;
+  }
+): boolean {
+  if (typeof window === 'undefined') return false;
+  const current = getEventRegistrations(eventId);
+  let updatedAny = false;
+  const targetKey = emailOrId.toLowerCase().trim();
+
+  const updated = current.map((r) => {
+    if (r.id === emailOrId || r.userEmail.toLowerCase().trim() === targetKey) {
+      updatedAny = true;
+      const status = rsvpData.attending ? 'CONFIRMED' : 'REJECTED';
+      const rsvpStatus = rsvpData.attending ? ('ATTENDING' as const) : ('NOT_ATTENDING' as const);
+      return {
+        ...r,
+        userName: rsvpData.personName || r.userName,
+        teamName: rsvpData.teamName || r.teamName,
+        phone: rsvpData.phone || r.phone,
+        tshirtSize: rsvpData.tshirtSize || r.tshirtSize,
+        dietaryPreference: rsvpData.dietaryPreference || r.dietaryPreference,
+        status,
+        rsvpStatus,
+        rsvpAt: new Date().toISOString(),
+        rsvpResponses: {
+          ...(r.rsvpResponses || {}),
+          ...rsvpData,
+        },
+        customAnswers: {
+          ...(r.customAnswers || {}),
+          rsvpStatus,
+          rsvpAt: new Date().toISOString(),
+          ...(rsvpData.attendanceCount ? { attendanceCount: String(rsvpData.attendanceCount) } : {}),
+          ...(rsvpData.dietaryPreference ? { dietaryPreference: rsvpData.dietaryPreference } : {}),
+          ...(rsvpData.tshirtSize ? { tshirtSize: rsvpData.tshirtSize } : {}),
+          ...(rsvpData.hardwareRequirement ? { hardwareRequirement: rsvpData.hardwareRequirement } : {}),
+          ...(rsvpData.remarks ? { remarks: rsvpData.remarks } : {}),
+          ...(rsvpData.declineReason ? { declineReason: rsvpData.declineReason } : {}),
+        },
+      };
+    }
+    return r;
+  });
+
+  if (!updatedAny && rsvpData.email) {
+    const newReg: EventRegistration = {
+      id: `reg_rsvp_${Date.now()}`,
+      eventId,
+      userName: rsvpData.personName || 'Participant',
+      userEmail: rsvpData.email,
+      teamName: rsvpData.teamName,
+      phone: rsvpData.phone,
+      tshirtSize: rsvpData.tshirtSize,
+      dietaryPreference: rsvpData.dietaryPreference,
+      status: rsvpData.attending ? 'CONFIRMED' : 'REJECTED',
+      rsvpStatus: rsvpData.attending ? 'ATTENDING' : 'NOT_ATTENDING',
+      rsvpAt: new Date().toISOString(),
+      rsvpResponses: rsvpData,
+      registeredAt: new Date().toISOString(),
+      customAnswers: {
+        rsvpStatus: rsvpData.attending ? 'ATTENDING' : 'NOT_ATTENDING',
+        rsvpAt: new Date().toISOString(),
+        ...(rsvpData.attendanceCount ? { attendanceCount: String(rsvpData.attendanceCount) } : {}),
+        ...(rsvpData.dietaryPreference ? { dietaryPreference: rsvpData.dietaryPreference } : {}),
+        ...(rsvpData.tshirtSize ? { tshirtSize: rsvpData.tshirtSize } : {}),
+        ...(rsvpData.hardwareRequirement ? { hardwareRequirement: rsvpData.hardwareRequirement } : {}),
+        ...(rsvpData.remarks ? { remarks: rsvpData.remarks } : {}),
+        ...(rsvpData.declineReason ? { declineReason: rsvpData.declineReason } : {}),
+      },
+    };
+    updated.unshift(newReg);
+  }
+
+  try {
+    localStorage.setItem(`${EVENT_REGS_PREFIX}${eventId}`, JSON.stringify(updated));
+    window.dispatchEvent(new Event('hackers_unity_storage_change'));
+    return true;
+  } catch (e) {
+    console.error('[Storage] updateRegistrationRsvp error:', e);
+    return false;
   }
 }
 

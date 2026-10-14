@@ -476,6 +476,10 @@ export function EventEmailModal({
           actionButtonText,
           isTest: true,
           testEmail: testEmailAddress,
+          testRecipientName: previewRecipient?.userName || 'Chinmay Bhatt',
+          testTeamName: (previewRecipient as any)?.teamName || 'hcj',
+          testCollege: previewRecipient?.college || '',
+          origin: typeof window !== 'undefined' ? window.location.origin : undefined,
         }),
       });
 
@@ -523,6 +527,7 @@ export function EventEmailModal({
           templateType: selectedTemplate,
           actionButtonText,
           isTest: false,
+          origin: typeof window !== 'undefined' ? window.location.origin : undefined,
         }),
       });
 
@@ -878,6 +883,7 @@ export function EventEmailModal({
                   { tag: '{event_title}', label: 'Event Title' },
                   { tag: '{college}', label: 'College' },
                   { tag: '{status}', label: 'Status' },
+                  { tag: '{rsvp_url}', label: 'RSVP Mini Form Link' },
                 ].map(({ tag, label }) => (
                   <div
                     key={tag}
@@ -898,6 +904,27 @@ export function EventEmailModal({
                   </div>
                 ))}
               </div>
+
+              {/* RSVP Form Preview Notice */}
+              {selectedTemplate === 'rsvp' && (
+                <div className="mt-2.5 p-2.5 rounded-xl bg-orange-500/10 border border-orange-500/30 text-[11px] text-orange-950 dark:text-orange-200 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 font-medium">
+                    <Sparkles className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                    <span>
+                      RSVP Flow Active: The CTA button will automatically open the interactive <strong>RSVP Mini Form</strong> pre-filled with each candidate&apos;s Team Name, Name, and Email.
+                    </span>
+                  </div>
+                  <a
+                    href={`/rsvp?eventId=${encodeURIComponent(event.id)}&eventTitle=${encodeURIComponent(event.title)}&name=${encodeURIComponent(previewRecipient.userName)}&team=${encodeURIComponent((previewRecipient as any).teamName || `${previewRecipient.userName}'s Squad`)}&email=${encodeURIComponent(previewRecipient.userEmail)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2.5 py-1 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-bold text-[10px] shrink-0 inline-flex items-center gap-1 transition-colors"
+                  >
+                    <span>Test Form</span>
+                    <Eye className="w-3 h-3" />
+                  </a>
+                </div>
+              )}
             </div>
 
             {/* Editor or Preview Pane */}

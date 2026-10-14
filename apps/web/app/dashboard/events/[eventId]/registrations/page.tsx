@@ -54,8 +54,8 @@ export default function EventRegistrationsPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true);
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
-  const [stats, setStats] = useState({ total: 0, approved: 0, pending: 0, rejected: 0 });
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'RSVP_YES' | 'RSVP_NO'>('ALL');
+  const [stats, setStats] = useState({ total: 0, approved: 0, pending: 0, rejected: 0, rsvpYes: 0, rsvpNo: 0 });
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
   const [notification, setNotification] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -186,6 +186,8 @@ export default function EventRegistrationsPage({ params }: PageProps) {
         approved: combined.filter((r) => r.status === 'APPROVED' || r.status === 'CONFIRMED').length,
         pending: combined.filter((r) => r.status === 'PENDING').length,
         rejected: combined.filter((r) => r.status === 'REJECTED').length,
+        rsvpYes: combined.filter((r) => r.rsvpStatus === 'ATTENDING' || r.customAnswers?.rsvpStatus === 'ATTENDING').length,
+        rsvpNo: combined.filter((r) => r.rsvpStatus === 'NOT_ATTENDING' || r.customAnswers?.rsvpStatus === 'NOT_ATTENDING').length,
       });
     }
     setLoading(false);
@@ -367,6 +369,12 @@ export default function EventRegistrationsPage({ params }: PageProps) {
       'Dietary Preference',
       'Experience Level',
       'Custom Answers',
+      'RSVP Status',
+      'RSVP Attending Count',
+      'RSVP Dietary',
+      'RSVP T-Shirt',
+      'RSVP Hardware',
+      'RSVP Notes',
       'Status',
       'Registered At',
     ];
@@ -387,6 +395,12 @@ export default function EventRegistrationsPage({ params }: PageProps) {
       `"${((r as any).dietaryPreference || r.customAnswers?.dietary_preference || r.customAnswers?.dietaryPreference || '').replace(/"/g, '""')}"`,
       `"${((r as any).experienceLevel || r.customAnswers?.experience_level || r.customAnswers?.experienceLevel || '').replace(/"/g, '""')}"`,
       `"${JSON.stringify(r.customAnswers || {}).replace(/"/g, '""')}"`,
+      `"${r.rsvpStatus || r.customAnswers?.rsvpStatus || 'PENDING'}"`,
+      `"${r.customAnswers?.attendanceCount || ''}"`,
+      `"${r.dietaryPreference || r.customAnswers?.dietaryPreference || ''}"`,
+      `"${r.tshirtSize || r.customAnswers?.tshirtSize || ''}"`,
+      `"${(r.customAnswers?.hardwareRequirement || '').replace(/"/g, '""')}"`,
+      `"${(r.customAnswers?.remarks || r.customAnswers?.declineReason || '').replace(/"/g, '""')}"`,
       `"${r.status}"`,
       `"${r.registeredAt}"`,
     ]);
@@ -412,9 +426,13 @@ export default function EventRegistrationsPage({ params }: PageProps) {
         (r.college && r.college.toLowerCase().includes(q)) ||
         (r.city && r.city.toLowerCase().includes(q));
 
+      const rsvp = r.rsvpStatus || r.customAnswers?.rsvpStatus;
+
       const matchesStatus =
         statusFilter === 'ALL' ||
         (statusFilter === 'APPROVED' && (r.status === 'APPROVED' || r.status === 'CONFIRMED')) ||
+        (statusFilter === 'RSVP_YES' && rsvp === 'ATTENDING') ||
+        (statusFilter === 'RSVP_NO' && rsvp === 'NOT_ATTENDING') ||
         r.status === statusFilter;
 
       return matchesSearch && matchesStatus;
@@ -532,7 +550,15 @@ export default function EventRegistrationsPage({ params }: PageProps) {
           </button>
 
           <button
-            onClick={() => handleOpenEmailAll(statusFilter)}
+            onClick={() =>
+              handleOpenEmailAll(
+                statusFilter === 'RSVP_YES'
+                  ? 'APPROVED'
+                  : statusFilter === 'RSVP_NO'
+                  ? 'REJECTED'
+                  : statusFilter
+              )
+            }
             disabled={registrations.length === 0}
             className="px-4 py-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800/40 hover:bg-sky-100 dark:hover:bg-sky-900/40 text-[#0099e6] dark:text-sky-300 text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             title="Send broadcast email to registered participants"
@@ -602,8 +628,8 @@ export default function EventRegistrationsPage({ params }: PageProps) {
       )}
 
       {/* ─── Stats Cards ────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] shadow-xs space-y-1">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+        <div className="p-4 rounded-2xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] shadow-xs space-y-1">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Total Applicants</span>
             <Users className="w-4 h-4 text-[#0099e6]" />
@@ -611,15 +637,23 @@ export default function EventRegistrationsPage({ params }: PageProps) {
           <div className="text-2xl font-black text-slate-900 dark:text-white font-mono">{stats.total}</div>
         </div>
 
-        <div className="p-5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/30 shadow-xs space-y-1">
+        <div className="p-4 rounded-2xl bg-sky-50/60 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-800/30 shadow-xs space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Approved</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span className="text-xs font-bold text-[#0099e6] dark:text-sky-400">Approved</span>
+            <CheckCircle2 className="w-4 h-4 text-[#0099e6] dark:text-sky-400" />
           </div>
-          <div className="text-2xl font-black text-emerald-900 dark:text-emerald-200 font-mono">{stats.approved}</div>
+          <div className="text-2xl font-black text-slate-900 dark:text-white font-mono">{stats.approved}</div>
         </div>
 
-        <div className="p-5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30 shadow-xs space-y-1">
+        <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/30 shadow-xs space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">RSVP Confirmed</span>
+            <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div className="text-2xl font-black text-emerald-900 dark:text-emerald-200 font-mono">{stats.rsvpYes}</div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/30 shadow-xs space-y-1">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-amber-700 dark:text-amber-400">Pending Review</span>
             <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
@@ -627,12 +661,12 @@ export default function EventRegistrationsPage({ params }: PageProps) {
           <div className="text-2xl font-black text-amber-900 dark:text-amber-200 font-mono">{stats.pending}</div>
         </div>
 
-        <div className="p-5 rounded-2xl bg-red-50/60 dark:bg-red-950/20 border border-red-200 dark:border-red-800/30 shadow-xs space-y-1">
+        <div className="p-4 rounded-2xl bg-red-50/60 dark:bg-red-950/20 border border-red-200 dark:border-red-800/30 shadow-xs space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-red-700 dark:text-red-400">Rejected</span>
+            <span className="text-xs font-bold text-red-700 dark:text-red-400">Rejected / Declined</span>
             <XCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
           </div>
-          <div className="text-2xl font-black text-red-900 dark:text-red-200 font-mono">{stats.rejected}</div>
+          <div className="text-2xl font-black text-red-900 dark:text-red-200 font-mono">{stats.rejected + stats.rsvpNo}</div>
         </div>
       </div>
 
@@ -649,24 +683,25 @@ export default function EventRegistrationsPage({ params }: PageProps) {
           />
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto">
-          {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map((filter) => (
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+          {[
+            { id: 'ALL', label: `All (${registrations.length})` },
+            { id: 'RSVP_YES', label: `RSVP Attending (${stats.rsvpYes})` },
+            { id: 'RSVP_NO', label: `RSVP Declined (${stats.rsvpNo})` },
+            { id: 'APPROVED', label: `Approved (${stats.approved})` },
+            { id: 'PENDING', label: `None (${stats.pending})` },
+            { id: 'REJECTED', label: `Rejected (${stats.rejected})` },
+          ].map((tab) => (
             <button
-              key={filter}
-              onClick={() => setStatusFilter(filter)}
+              key={tab.id}
+              onClick={() => setStatusFilter(tab.id as any)}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                statusFilter === filter
+                statusFilter === tab.id
                   ? 'bg-[#0099e6] text-white shadow-2xs'
                   : 'bg-slate-50 dark:bg-[#121824] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-white/[0.08]'
               }`}
             >
-              {filter === 'ALL'
-                ? 'All Applicants'
-                : filter === 'PENDING'
-                ? 'None'
-                : filter === 'APPROVED'
-                ? 'Approved'
-                : 'Rejected'}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -789,9 +824,28 @@ export default function EventRegistrationsPage({ params }: PageProps) {
                       </td>
 
                       <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-900 dark:text-white">{reg.userName}</div>
+                        <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
+                          <span>{reg.userName}</span>
+                          {(reg.rsvpStatus === 'ATTENDING' || reg.customAnswers?.rsvpStatus === 'ATTENDING') && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 inline-flex items-center gap-0.5">
+                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500" /> RSVP Yes
+                            </span>
+                          )}
+                          {(reg.rsvpStatus === 'NOT_ATTENDING' || reg.customAnswers?.rsvpStatus === 'NOT_ATTENDING') && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40 inline-flex items-center gap-0.5">
+                              <XCircle className="w-2.5 h-2.5 text-rose-500" /> RSVP No
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">{reg.userEmail}</div>
-                        {reg.phone && <div className="text-[10px] text-slate-400 dark:text-slate-500">{reg.phone}</div>}
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400 dark:text-slate-500">
+                          {reg.teamName && (
+                            <span className="font-semibold text-slate-600 dark:text-slate-300">
+                              Team: {reg.teamName}
+                            </span>
+                          )}
+                          {reg.phone && <span>• {reg.phone}</span>}
+                        </div>
                       </td>
 
                       <td className="py-3.5 px-4">
@@ -1078,6 +1132,10 @@ export default function EventRegistrationsPage({ params }: PageProps) {
             {/* Core Info */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
               <div className="p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/[0.06] space-y-1">
+                <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Team Name</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">{viewingApplicant.teamName || '—'}</span>
+              </div>
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/[0.06] space-y-1">
                 <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Phone Number</span>
                 <span className="font-semibold text-slate-800 dark:text-slate-200">{viewingApplicant.phone || '—'}</span>
               </div>
@@ -1086,14 +1144,88 @@ export default function EventRegistrationsPage({ params }: PageProps) {
                 <span className="font-semibold text-slate-800 dark:text-slate-200">{viewingApplicant.college || '—'}</span>
               </div>
               <div className="p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/[0.06] space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">City / Location</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">{viewingApplicant.city || '—'}</span>
-              </div>
-              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/[0.06] space-y-1">
                 <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Registered At</span>
                 <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono">{formatDate(viewingApplicant.registeredAt)}</span>
               </div>
             </div>
+
+            {/* Dedicated RSVP Response Info if applicant responded */}
+            {(viewingApplicant.rsvpStatus || viewingApplicant.customAnswers?.rsvpStatus) && (
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-[#0099e6]" />
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                      RSVP Spot Confirmation Details
+                    </h4>
+                  </div>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                      (viewingApplicant.rsvpStatus || viewingApplicant.customAnswers?.rsvpStatus) === 'ATTENDING'
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                    }`}
+                  >
+                    {(viewingApplicant.rsvpStatus || viewingApplicant.customAnswers?.rsvpStatus) === 'ATTENDING'
+                      ? '✓ Attending Event'
+                      : '✗ Declined Spot'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.06]">
+                    <span className="text-[10px] text-slate-400 block font-bold">Squad Attendance</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                      {viewingApplicant.customAnswers?.attendanceCount || '1'} Hacker(s)
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.06]">
+                    <span className="text-[10px] text-slate-400 block font-bold">Dietary Choice</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                      {viewingApplicant.dietaryPreference || viewingApplicant.customAnswers?.dietaryPreference || 'Veg'}
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.06]">
+                    <span className="text-[10px] text-slate-400 block font-bold">Swag T-Shirt</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                      {viewingApplicant.tshirtSize || viewingApplicant.customAnswers?.tshirtSize || 'L'}
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.06] sm:col-span-2">
+                    <span className="text-[10px] text-slate-400 block font-bold">Hardware Kit</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                      {viewingApplicant.customAnswers?.hardwareRequirement || 'None'}
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.06]">
+                    <span className="text-[10px] text-slate-400 block font-bold">RSVP Recorded</span>
+                    <span className="font-mono text-slate-800 dark:text-slate-200 text-[11px] mt-0.5 block">
+                      {viewingApplicant.rsvpAt || viewingApplicant.customAnswers?.rsvpAt
+                        ? new Date(viewingApplicant.rsvpAt || viewingApplicant.customAnswers?.rsvpAt).toLocaleDateString()
+                        : 'Recorded'}
+                    </span>
+                  </div>
+                </div>
+
+                {viewingApplicant.customAnswers?.remarks && (
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.06] text-xs">
+                    <span className="text-[10px] text-slate-400 block font-bold">Special Requests / Notes:</span>
+                    <p className="text-slate-800 dark:text-slate-200 mt-0.5 italic">
+                      &quot;{viewingApplicant.customAnswers.remarks}&quot;
+                    </p>
+                  </div>
+                )}
+
+                {viewingApplicant.customAnswers?.declineReason && (
+                  <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/30 text-xs">
+                    <span className="text-[10px] text-rose-500 block font-bold">Decline Feedback:</span>
+                    <p className="text-rose-800 dark:text-rose-300 mt-0.5">
+                      {viewingApplicant.customAnswers.declineReason}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Profiles & Links */}
             <div className="space-y-2">

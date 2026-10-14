@@ -55,7 +55,19 @@ export async function POST(req: Request) {
       );
     }
 
-    const baseUrl = origin || process.env.NEXT_PUBLIC_APP_URL || 'https://hackersunity.com';
+    // Resolve accurate base URL from request origin/headers so local dev points to localhost:3000
+    const hostHeader = req.headers.get('x-forwarded-host') || req.headers.get('host') || '';
+    const protoHeader =
+      req.headers.get('x-forwarded-proto') || (hostHeader.includes('localhost') ? 'http' : 'https');
+    const headerOrigin = req.headers.get('origin') || (hostHeader ? `${protoHeader}://${hostHeader}` : '');
+
+    const baseUrl =
+      origin ||
+      headerOrigin ||
+      (hostHeader.includes('localhost') ? `http://${hostHeader}` : null) ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      'https://hackersunity.com';
+
     const ctaUrl = actionButtonUrl || `${baseUrl}/dashboard`;
     const ctaText = actionButtonText || 'Open Event Dashboard →';
 
@@ -63,10 +75,10 @@ export async function POST(req: Request) {
     const targetRecipients: RecipientInput[] = isTest
       ? [
           {
-            name: 'Hacker Preview',
+            name: body.testRecipientName || 'Chinmay Bhatt',
             email: testEmail || 'info@hackersunity.com',
-            teamName: 'Team Alpha',
-            college: 'IIT Bombay',
+            teamName: body.testTeamName || 'hcj',
+            college: body.testCollege || 'Participant',
             status: 'APPROVED',
           },
         ]
@@ -140,6 +152,27 @@ export async function POST(req: Request) {
         badgeColor = '#d97706';
         badgeLabel = 'Action Required: RSVP';
       }
+
+      // Generate recipient CTA link
+      let recipientCtaUrl = ctaUrl;
+      const isRsvpFlow =
+        templateType === 'rsvp' ||
+        ctaText.toLowerCase().includes('rsvp') ||
+        ctaUrl.includes('/rsvp');
+
+      if (isRsvpFlow) {
+        const rsvpParams = new URLSearchParams();
+        if (eventId) rsvpParams.set('eventId', eventId);
+        if (eventTitle) rsvpParams.set('eventTitle', eventTitle);
+        if (r.email) rsvpParams.set('email', r.email);
+        if (recipientName) rsvpParams.set('name', recipientName);
+        if (teamName) rsvpParams.set('team', teamName);
+        if (r.college) rsvpParams.set('college', r.college);
+        recipientCtaUrl = `${baseUrl}/rsvp?${rsvpParams.toString()}`;
+      }
+
+      // Also replace {rsvp_url} in body if present
+      renderedBody = renderedBody.replace(/\{rsvp_url\}/gi, recipientCtaUrl);
 
       return `
 <!DOCTYPE html>
@@ -221,7 +254,7 @@ export async function POST(req: Request) {
               <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 32px 0 20px 0;">
                 <tr>
                   <td align="center">
-                    <a href="${ctaUrl}" target="_blank" style="display: inline-block; background-color: #0099e6; color: #ffffff; font-size: 14px; font-weight: 800; text-decoration: none; padding: 14px 32px; border-radius: 12px; box-shadow: 0 4px 14px rgba(0, 153, 230, 0.35); letter-spacing: 0.3px;">
+                    <a href="${recipientCtaUrl}" target="_blank" style="display: inline-block; background-color: #0099e6; color: #ffffff; font-size: 14px; font-weight: 800; text-decoration: none; padding: 14px 32px; border-radius: 12px; box-shadow: 0 4px 14px rgba(0, 153, 230, 0.35); letter-spacing: 0.3px;">
                       ${ctaText}
                     </a>
                   </td>
