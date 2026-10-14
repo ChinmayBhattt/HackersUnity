@@ -54,6 +54,25 @@ export async function GET(req: Request) {
           .maybeSingle();
         resolvedEvent = ev;
       }
+
+      // If not resolved yet, search by title or slug substring
+      if (!resolvedEvent) {
+        const { data: evMatches } = await serverSupabase
+          .from('events')
+          .select('id, title, slug, location, start_date, end_date, banner_url, mode, organizer_id')
+          .or(`slug.ilike.%${eventIdParam}%,title.ilike.%${eventIdParam}%`)
+          .limit(1);
+        if (evMatches && evMatches[0]) {
+          resolvedEvent = evMatches[0];
+        } else if (/sphinx/i.test(eventIdParam)) {
+          const { data: sphinxEv } = await serverSupabase
+            .from('events')
+            .select('id, title, slug, location, start_date, end_date, banner_url, mode, organizer_id')
+            .ilike('title', '%SPHINX%')
+            .maybeSingle();
+          if (sphinxEv) resolvedEvent = sphinxEv;
+        }
+      }
     } catch (e) {
       console.warn('[api/rsvp] Supabase event fetch warning:', e);
     }
@@ -64,17 +83,24 @@ export async function GET(req: Request) {
       resolvedEvent = allMocks.find((e: any) => e.id === eventIdParam || e.slug === eventIdParam) || null;
     }
 
-    // 2. If email provided, fetch registration
+    // 2. If email provided, fetch registration safely
     let existingRegistration: any = null;
-    if (emailParam && resolvedEvent?.id) {
+    if (emailParam) {
       const cleanEmail = emailParam.toLowerCase().trim();
       try {
-        const { data: reg } = await serverSupabase
+        const targetId = resolvedEvent?.id;
+        const isTargetUuid = targetId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetId);
+
+        let query = serverSupabase
           .from('registrations')
           .select('*')
-          .eq('event_id', resolvedEvent.id)
-          .eq('user_email', cleanEmail)
-          .maybeSingle();
+          .eq('user_email', cleanEmail);
+
+        if (isTargetUuid) {
+          query = query.eq('event_id', targetId);
+        }
+
+        const { data: reg } = await query.order('registered_at', { ascending: false }).limit(1).maybeSingle();
 
         if (reg) {
           existingRegistration = {
@@ -146,6 +172,15 @@ export async function POST(req: Request) {
       );
     }
 
+    const cleanPhone = String(phone || '').trim();
+    const phoneDigits = cleanPhone.replace(/\D/g, '');
+    if (!cleanPhone || phoneDigits.length < 10) {
+      return NextResponse.json(
+        { error: 'WhatsApp / Contact Number is mandatory and must contain at least 10 digits.' },
+        { status: 400 }
+      );
+    }
+
     const cleanEmail = email.toLowerCase().trim();
     const serverSupabase = createAdminClient();
 
@@ -154,26 +189,74 @@ export async function POST(req: Request) {
     let eventTitle = inputEventTitle || 'Hackathon Event';
     let eventSlug = eventId;
 
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
+    let isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
     try {
-      const query = serverSupabase.from('events').select('id, title, slug');
-      const { data: evData } = isUuid
-        ? await query.eq('id', eventId).maybeSingle()
-        : await query.eq('slug', eventId).maybeSingle();
-
-      if (evData?.id) {
-        targetEventId = evData.id;
-        eventTitle = evData.title || eventTitle;
-        eventSlug = evData.slug || eventSlug;
+      if (isUuid) {
+        const { data: evData } = await serverSupabase
+          .from('events')
+          .select('id, title, slug')
+          .eq('id', eventId)
+          .maybeSingle();
+        if (evData?.id) {
+          targetEventId = evData.id;
+          eventTitle = evData.title || eventTitle;
+          eventSlug = evData.slug || eventSlug;
+        }
       } else {
-        const mock = getAllEvents().find((e: any) => e.id === eventId || e.slug === eventId);
-        if (mock) {
-          eventTitle = mock.title;
-          eventSlug = mock.slug || mock.id;
+        const { data: evBySlug } = await serverSupabase
+          .from('events')
+          .select('id, title, slug')
+          .eq('slug', eventId)
+          .maybeSingle();
+        if (evBySlug?.id) {
+          targetEventId = evBySlug.id;
+          eventTitle = evBySlug.title || eventTitle;
+          eventSlug = evBySlug.slug || eventSlug;
+        } else {
+          const { data: evMatches } = await serverSupabase
+            .from('events')
+            .select('id, title, slug')
+            .or(`slug.ilike.%${eventId}%,title.ilike.%${inputEventTitle || eventId}%`)
+            .limit(1);
+          if (evMatches && evMatches[0]) {
+            targetEventId = evMatches[0].id;
+            eventTitle = evMatches[0].title || eventTitle;
+            eventSlug = evMatches[0].slug || eventSlug;
+          } else if (/sphinx/i.test(eventId) || /sphinx/i.test(inputEventTitle || '')) {
+            const { data: sphinxEv } = await serverSupabase
+              .from('events')
+              .select('id, title, slug')
+              .ilike('title', '%SPHINX%')
+              .maybeSingle();
+            if (sphinxEv?.id) {
+              targetEventId = sphinxEv.id;
+              eventTitle = sphinxEv.title;
+              eventSlug = sphinxEv.slug;
+            }
+          }
         }
       }
     } catch (e) {
       console.warn('[api/rsvp] Event lookup warning:', e);
+    }
+
+    // Fallback: If targetEventId is still not a valid UUID, search by mock or get active event from Supabase
+    isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetEventId);
+    if (!isUuid) {
+      try {
+        const { data: latestEv } = await serverSupabase
+          .from('events')
+          .select('id, title, slug')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (latestEv?.id) {
+          targetEventId = latestEv.id;
+          isUuid = true;
+          if (!inputEventTitle) eventTitle = latestEv.title;
+          if (!eventSlug) eventSlug = latestEv.slug;
+        }
+      } catch {}
     }
 
     const rsvpStatus = attending ? 'ATTENDING' : 'NOT_ATTENDING';
@@ -182,15 +265,19 @@ export async function POST(req: Request) {
 
     // 2. Fetch existing registration to preserve previous fields
     let existingReg: any = null;
-    try {
-      const { data: reg } = await serverSupabase
-        .from('registrations')
-        .select('*')
-        .eq('event_id', targetEventId)
-        .eq('user_email', cleanEmail)
-        .maybeSingle();
-      existingReg = reg;
-    } catch {}
+    if (isUuid) {
+      try {
+        const { data: reg } = await serverSupabase
+          .from('registrations')
+          .select('*')
+          .eq('event_id', targetEventId)
+          .eq('user_email', cleanEmail)
+          .maybeSingle();
+        existingReg = reg;
+      } catch (err: any) {
+        console.warn('[api/rsvp] Reg lookup warning:', err?.message);
+      }
+    }
 
     const customAnswers = {
       ...(existingReg?.custom_answers || {}),
@@ -200,7 +287,7 @@ export async function POST(req: Request) {
       attendanceCount: String(attendanceCount),
       dietaryPreference,
       tshirtSize,
-      ...(phone ? { phone } : {}),
+      phone: cleanPhone,
       ...(hardwareRequirement ? { hardwareRequirement } : {}),
       ...(remarks ? { remarks } : {}),
       ...(declineReason ? { declineReason } : {}),
@@ -211,7 +298,7 @@ export async function POST(req: Request) {
       user_name: personName,
       user_email: cleanEmail,
       team_name: teamName,
-      phone: phone || existingReg?.phone || null,
+      phone: cleanPhone,
       status: finalStatus,
       dietary_preference: dietaryPreference,
       tshirt_size: tshirtSize,
@@ -220,34 +307,36 @@ export async function POST(req: Request) {
 
     // If existing registration, update it
     let dbSuccess = false;
-    try {
-      if (existingReg?.id) {
-        const { error: updateErr } = await serverSupabase
-          .from('registrations')
-          .update(updatePayload)
-          .eq('id', existingReg.id);
+    if (isUuid) {
+      try {
+        if (existingReg?.id) {
+          const { error: updateErr } = await serverSupabase
+            .from('registrations')
+            .update(updatePayload)
+            .eq('id', existingReg.id);
 
-        if (!updateErr) {
-          dbSuccess = true;
+          if (!updateErr) {
+            dbSuccess = true;
+          } else {
+            console.warn('[api/rsvp] Update DB error:', updateErr.message);
+          }
         } else {
-          console.warn('[api/rsvp] Update DB error:', updateErr.message);
-        }
-      } else {
-        // If no registration row exists yet, create one
-        updatePayload.registered_at = nowIso;
-        updatePayload.role = 'Team Leader';
-        const { error: insertErr } = await serverSupabase
-          .from('registrations')
-          .insert(updatePayload);
+          // If no registration row exists yet, create one
+          updatePayload.registered_at = nowIso;
+          updatePayload.role = 'Team Leader';
+          const { error: insertErr } = await serverSupabase
+            .from('registrations')
+            .insert(updatePayload);
 
-        if (!insertErr) {
-          dbSuccess = true;
-        } else {
-          console.warn('[api/rsvp] Insert DB error:', insertErr.message);
+          if (!insertErr) {
+            dbSuccess = true;
+          } else {
+            console.warn('[api/rsvp] Insert DB error:', insertErr.message);
+          }
         }
+      } catch (dbErr: any) {
+        console.warn('[api/rsvp] Supabase error:', dbErr?.message);
       }
-    } catch (dbErr: any) {
-      console.warn('[api/rsvp] Supabase error:', dbErr?.message);
     }
 
     // 3. Dispatch an automated RSVP receipt / confirmation email
@@ -296,6 +385,7 @@ export async function POST(req: Request) {
                   <td style="padding: 16px;">
                     <div style="font-size: 12px; color: #64748b; margin-bottom: 6px;">Team Name: <strong style="color: #0f172a;">${teamName}</strong></div>
                     <div style="font-size: 12px; color: #64748b; margin-bottom: 6px;">Participant: <strong style="color: #0f172a;">${personName}</strong> (${cleanEmail})</div>
+                    <div style="font-size: 12px; color: #64748b; margin-bottom: 6px;">WhatsApp / Phone: <strong style="color: #0f172a;">${cleanPhone}</strong></div>
                     <div style="font-size: 12px; color: #64748b; margin-bottom: 6px;">Status: <strong style="color: ${attending ? '#059669' : '#dc2626'};">${attending ? 'ATTENDING (CONFIRMED)' : 'DECLINED'}</strong></div>
                     ${attending ? `<div style="font-size: 12px; color: #64748b; margin-bottom: 6px;">Members Attending: <strong style="color: #0f172a;">${attendanceCount}</strong></div>` : ''}
                     ${attending ? `<div style="font-size: 12px; color: #64748b;">Food / Dietary: <strong style="color: #0f172a;">${dietaryPreference}</strong></div>` : ''}

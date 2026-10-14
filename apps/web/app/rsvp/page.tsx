@@ -41,9 +41,10 @@ function RsvpContent() {
   const urlName = searchParams.get('name') || '';
   const urlTeam = searchParams.get('team') || '';
   const urlCollege = searchParams.get('college') || '';
+  const urlPhone = searchParams.get('phone') || '';
 
   // Form states
-  const [eventId, setEventId] = useState(urlEventId || 'evt_sphinx_26');
+  const [eventId, setEventId] = useState(urlEventId || 'ee511926-1089-4171-9090-684e6d179826');
   const [eventTitle, setEventTitle] = useState(urlEventTitle || "SPHINX '26");
   const [eventLocation, setEventLocation] = useState('Main Auditorium & Builder Labs, Campus');
   const [eventDates, setEventDates] = useState('Upcoming Hackathon');
@@ -52,7 +53,7 @@ function RsvpContent() {
   const [teamName, setTeamName] = useState(urlTeam || '');
   const [personName, setPersonName] = useState(urlName || '');
   const [email, setEmail] = useState(urlEmail || '');
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState(urlPhone);
 
   // Primary decision: 'yes' (Attending) | 'no' (Declined) | null
   const [attending, setAttending] = useState<'yes' | 'no' | null>('yes');
@@ -149,6 +150,15 @@ function RsvpContent() {
       setErrorMessage('Please enter a valid Email Address');
       return;
     }
+    if (!phone.trim()) {
+      setErrorMessage('Please enter your WhatsApp / Contact Number (Mandatory for entry & check-in)');
+      return;
+    }
+    const phoneDigits = phone.trim().replace(/\D/g, '');
+    if (phoneDigits.length < 10) {
+      setErrorMessage('Please enter a valid 10-digit WhatsApp / Contact Number');
+      return;
+    }
     if (attending === null) {
       setErrorMessage('Please confirm whether you will be attending or not.');
       return;
@@ -172,7 +182,7 @@ function RsvpContent() {
       attendanceCount: isAttendingBool ? attendanceCount : 0,
       dietaryPreference: isAttendingBool ? dietaryPreference : undefined,
       tshirtSize: isAttendingBool ? tshirtSize : undefined,
-      phone: phone.trim() || undefined,
+      phone: phone.trim(),
       hardwareRequirement: isAttendingBool ? finalHardware : undefined,
       remarks: remarks.trim() || undefined,
       declineReason: !isAttendingBool ? finalDeclineReason : undefined,
@@ -201,7 +211,7 @@ function RsvpContent() {
         attendanceCount: isAttendingBool ? attendanceCount : 0,
         dietaryPreference: isAttendingBool ? dietaryPreference : undefined,
         tshirtSize: isAttendingBool ? tshirtSize : undefined,
-        phone: phone.trim() || undefined,
+        phone: phone.trim(),
         hardwareRequirement: isAttendingBool ? finalHardware : undefined,
         remarks: remarks.trim() || undefined,
         declineReason: !isAttendingBool ? finalDeclineReason : undefined,
@@ -323,6 +333,10 @@ function RsvpContent() {
                       <div>
                         <span className="text-[10px] text-slate-400 block font-semibold">PARTICIPANT</span>
                         <span className="font-bold text-white text-sm">{personName}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block font-semibold">WHATSAPP / CONTACT</span>
+                        <span className="font-mono text-emerald-400 font-bold text-xs">{phone}</span>
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-400 block font-semibold">SQUAD COUNT</span>
@@ -503,16 +517,22 @@ function RsvpContent() {
                     {/* Contact Number */}
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-200 flex items-center justify-between">
-                        <span>WhatsApp / Contact Number</span>
-                        <span className="text-[10px] text-slate-400 font-normal">For on-ground SMS updates</span>
+                        <span className="flex items-center gap-1">
+                          WhatsApp / Contact Number <span className="text-[#0099e6] font-black">*</span>
+                        </span>
+                        <span className="text-[10px] text-amber-400 font-semibold flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                          Mandatory for SMS &amp; Check-in
+                        </span>
                       </label>
                       <div className="relative">
                         <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                         <input
                           type="tel"
+                          required
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
-                          placeholder="+91 98765 43210"
+                          placeholder="e.g. +91 98765 43210"
                           className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-[#090d18] border border-white/[0.1] text-xs font-semibold text-white placeholder-slate-500 outline-none focus:border-[#0099e6] focus:ring-1 focus:ring-[#0099e6]"
                         />
                       </div>
