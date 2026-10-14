@@ -556,11 +556,38 @@ export default function DashboardPage() {
       return { isSuperseded: false, matchingPaidPayment: null };
     };
 
+    // Build slug lookup map from allEvents
+    const eventSlugMap = new Map<string, string>();
+    allEvents.forEach((evt) => {
+      if (evt.id && evt.slug && !evt.slug.startsWith('evt_')) {
+        eventSlugMap.set(evt.id, evt.slug);
+        eventSlugMap.set(evt.id.toLowerCase(), evt.slug);
+      }
+      if (evt.title && evt.slug && !evt.slug.startsWith('evt_')) {
+        eventSlugMap.set(evt.title.toLowerCase().trim(), evt.slug);
+      }
+      if (evt.slug && !evt.slug.startsWith('evt_')) {
+        eventSlugMap.set(evt.slug.toLowerCase().trim(), evt.slug);
+      }
+    });
+
     // Decorate raw payments with superseded flag and matching receipt
     const list: any[] = rawList.map((item) => {
       const { isSuperseded, matchingPaidPayment } = checkSuperseded(item);
+      const rawEid = item.event_id || item.eventId || '';
+      const rawTitle = (item.event_name || item.eventName || item.events?.title || '').toLowerCase().trim();
+      const resolvedSlug =
+        (item.slug && !item.slug.startsWith('evt_') ? item.slug : null) ||
+        (item.events?.slug && !item.events.slug.startsWith('evt_') ? item.events.slug : null) ||
+        (rawEid ? eventSlugMap.get(rawEid) : null) ||
+        (rawEid ? eventSlugMap.get(rawEid.toLowerCase()) : null) ||
+        (rawTitle ? eventSlugMap.get(rawTitle) : null) ||
+        (rawTitle.includes('sphinx') ? 'sphinx-26' : null) ||
+        (rawEid && !rawEid.startsWith('evt_') ? rawEid : 'sphinx-26');
+
       return {
         ...item,
+        slug: resolvedSlug,
         isSuperseded,
         matchingPaidPayment,
       };
@@ -578,6 +605,16 @@ export default function DashboardPage() {
 
       const isMember = Boolean(reg.isTeam && reg.role && !reg.role.toLowerCase().includes('lead'));
       if (!isAlreadyPaid && (reg.entryFee || 0) > 0) {
+        const regEid = reg.eventId || '';
+        const regTitle = (reg.eventName || '').toLowerCase().trim();
+        const resolvedRegSlug =
+          (reg.slug && !reg.slug.startsWith('evt_') ? reg.slug : null) ||
+          (regEid ? eventSlugMap.get(regEid) : null) ||
+          (regEid ? eventSlugMap.get(regEid.toLowerCase()) : null) ||
+          (regTitle ? eventSlugMap.get(regTitle) : null) ||
+          (regTitle.includes('sphinx') ? 'sphinx-26' : null) ||
+          (regEid && !regEid.startsWith('evt_') ? regEid : 'sphinx-26');
+
         list.push({
           id: `pending_${reg.eventId}_${reg.teamId || 'reg'}`,
           event_id: reg.eventId,
@@ -597,7 +634,7 @@ export default function DashboardPage() {
           receipt_number: 'PENDING-PAYMENT',
           created_at: reg.registeredAt,
           transaction_date: null,
-          slug: reg.slug || reg.eventId,
+          slug: resolvedRegSlug,
           isPendingRegistration: true,
           isSquadMember: isMember,
           isSuperseded: false,
@@ -2920,6 +2957,7 @@ export default function DashboardPage() {
           mode={reminderDrawerMode}
           targetPayment={selectedReminderPayment}
           allPendingPayments={allPendingPaymentsList}
+          allEvents={allEvents}
           onClose={() => {
             setReminderDrawerOpen(false);
             setSelectedReminderPayment(null);

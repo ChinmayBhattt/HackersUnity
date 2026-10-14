@@ -4,6 +4,7 @@ import {
   authenticateRequest,
   unauthorizedResponse,
   rateLimitedResponse,
+  createAdminClient,
 } from '@/lib/api-auth';
 import { checkRateLimit, EMAIL_RATE_LIMIT } from '@/lib/rate-limit';
 
@@ -84,8 +85,35 @@ export async function POST(req: Request) {
       process.env.NEXT_PUBLIC_APP_URL ||
       'https://hackersunity.com';
 
+    // 0. Query clean event slug from DB if eventId is provided (e.g. resolve evt_ai_... to sphinx-26)
+    let resolvedEventSlug: string | null = null;
+    if (eventId) {
+      try {
+        const adminSupabase = createAdminClient();
+        const { data: eventData } = await adminSupabase
+          .from('events')
+          .select('id, slug, title')
+          .or(`id.eq.${eventId},slug.eq.${eventId}`)
+          .maybeSingle();
+
+        if (eventData?.slug && !eventData.slug.startsWith('evt_')) {
+          resolvedEventSlug = eventData.slug;
+        }
+      } catch (dbErr) {
+        console.warn('[event-broadcast-email] Could not query event slug:', dbErr);
+      }
+    }
+    if (!resolvedEventSlug && eventTitle && eventTitle.toLowerCase().includes('sphinx')) {
+      resolvedEventSlug = 'sphinx-26';
+    }
+
     const ctaUrl = actionButtonUrl || `${baseUrl}/dashboard`;
     const ctaText = actionButtonText || (templateType === 'payment_reminder' ? 'Complete Payment (₹{amount}) →' : 'Open Event Dashboard →');
+
+    // Clean test payment URL with resolved slug
+    const defaultTestSlug = resolvedEventSlug || 'sphinx-26';
+    const rawTestPaymentUrl = body.testPaymentUrl || `${baseUrl}/hackathons/${defaultTestSlug}/register?step=4`;
+    const cleanTestPaymentUrl = rawTestPaymentUrl.replace(/\/hackathons\/evt_[^/?#]+/g, `/hackathons/${defaultTestSlug}`);
 
     // Determine target list: if isTest, send to testEmail only
     const targetRecipients: RecipientInput[] = isTest
@@ -97,7 +125,7 @@ export async function POST(req: Request) {
             college: body.testCollege || 'Participant',
             status: 'PENDING',
             amount: body.testAmount || 800,
-            paymentUrl: body.testPaymentUrl || `${baseUrl}/hackathons/sphinx-26/register?step=4`,
+            paymentUrl: cleanTestPaymentUrl,
             eventTitle: eventTitle,
           },
         ]
@@ -138,6 +166,15 @@ export async function POST(req: Request) {
         recipientCtaUrl = `${baseUrl}/rsvp?${rsvpParams.toString()}`;
       }
 
+      // Sanitize any raw evt_ internal IDs in URL
+      const fallbackCleanSlug = resolvedEventSlug || (recEventTitle.toLowerCase().includes('sphinx') ? 'sphinx-26' : null);
+      if (fallbackCleanSlug) {
+        recipientCtaUrl = recipientCtaUrl.replace(/\/hackathons\/evt_[^/?#]+/g, `/hackathons/${fallbackCleanSlug}`);
+      }
+
+      // Styled clickable fallback link for any in-text {payment_url}
+      const styledPaymentLink = `<a href="${recipientCtaUrl}" target="_blank" style="color: #0099e6; text-decoration: underline; font-weight: 600; word-break: break-all;">${recipientCtaUrl}</a>`;
+
       // Replace template variables
       let renderedBody = bodyText
         .replace(/\{name\}/gi, recipientName)
@@ -147,9 +184,20 @@ export async function POST(req: Request) {
         .replace(/\{event_title\}/gi, recEventTitle)
         .replace(/\{college\}/gi, r.college || 'Participant')
         .replace(/\{amount\}/gi, formattedAmount)
-        .replace(/\{payment_url\}/gi, recipientCtaUrl)
-        .replace(/\{rsvp_url\}/gi, recipientCtaUrl)
+        .replace(/\{payment_url\}/gi, styledPaymentLink)
+        .replace(/\{rsvp_url\}/gi, styledPaymentLink)
         .replace(/\{status\}/gi, r.status || 'Registered');
+
+      // Sanitize internal event IDs if in body text
+      if (fallbackCleanSlug) {
+        renderedBody = renderedBody.replace(/\/hackathons\/evt_[^/?#]+/g, `/hackathons/${fallbackCleanSlug}`);
+      }
+
+      // 1. Strip any leading greeting from bodyText to avoid "Hi Tanmay, Hi Tanmay," duplicate greeting
+      renderedBody = renderedBody.replace(/^\s*(hi|hello|dear|hey)\s+[^,\n]+,?\s*/i, '').trim();
+
+      // 2. Strip premature sign-off from bodyText so it doesn't appear awkwardly before the CTA button
+      renderedBody = renderedBody.replace(/\n\s*(best regards|warm regards|regards|sincerely|thanks)\s*,?\s*[\r\n]+.*$/i, '').trim();
 
       // Handle rich HTML or markdown formatting for email clients
       const isHtml = /<[a-z][\s\S]*>/i.test(renderedBody);
@@ -285,7 +333,7 @@ export async function POST(req: Request) {
               </table>
 
               <!-- Call to Action Button -->
-              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 32px 0 20px 0;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 28px 0 16px 0;">
                 <tr>
                   <td align="center">
                     <a href="${recipientCtaUrl}" target="_blank" style="display: inline-block; background-color: ${templateType === 'payment_reminder' ? '#ea580c' : '#0099e6'}; color: #ffffff; font-size: 14px; font-weight: 800; text-decoration: none; padding: 14px 32px; border-radius: 12px; box-shadow: 0 4px 14px ${templateType === 'payment_reminder' ? 'rgba(234, 88, 12, 0.35)' : 'rgba(0, 153, 230, 0.35)'}; letter-spacing: 0.3px;">
@@ -295,7 +343,18 @@ export async function POST(req: Request) {
                 </tr>
               </table>
 
-              <p style="font-size: 12px; color: #94a3b8; line-height: 1.5; margin: 16px 0 0 0; text-align: center;">
+              <!-- Direct Link Fallback -->
+              <div style="font-size: 11px; color: #64748b; line-height: 1.5; text-align: center; margin: 12px 0 24px 0; word-break: break-all;">
+                Direct link: <a href="${recipientCtaUrl}" target="_blank" style="color: #0099e6; text-decoration: underline; font-weight: 500;">${recipientCtaUrl}</a>
+              </div>
+
+              <!-- Sign-off Block Placed After CTA -->
+              <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #f1f5f9; font-size: 14px; color: #475569; line-height: 1.6;">
+                Best regards,<br/>
+                <strong style="color: #0f172a; font-weight: 700;">Hacker&apos;s Unity Organizing Team</strong>
+              </div>
+
+              <p style="font-size: 12px; color: #94a3b8; line-height: 1.5; margin: 20px 0 0 0; text-align: center;">
                 Need assistance? Reply directly to this email or reach us at <a href="mailto:info@hackersunity.com" style="color: #0099e6; text-decoration: none; font-weight: 600;">info@hackersunity.com</a>
               </p>
             </td>

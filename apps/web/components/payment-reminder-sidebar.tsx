@@ -61,6 +61,7 @@ export interface PaymentReminderSidebarProps {
   mode: 'single' | 'bulk';
   targetPayment?: PaymentItem | null;
   allPendingPayments?: PaymentItem[];
+  allEvents?: any[];
   onSuccess?: () => void;
 }
 
@@ -81,10 +82,35 @@ export function PaymentReminderSidebar({
   mode,
   targetPayment,
   allPendingPayments = [],
+  allEvents = [],
   onSuccess,
 }: PaymentReminderSidebarProps) {
   const { user, supabaseUser } = useAuth();
   const drawerRef = useRef<HTMLDivElement>(null);
+
+  // Helper to resolve clean slug from payment object and allEvents (replaces raw internal IDs like evt_ai_...)
+  const resolveEventSlug = (p?: PaymentItem | null): string => {
+    if (!p) return 'sphinx-26';
+    if (p.slug && !p.slug.startsWith('evt_')) return p.slug;
+    if (p.events?.slug && !p.events.slug.startsWith('evt_')) return p.events.slug;
+
+    const targetId = p.event_id || p.eventId;
+    const targetTitle = (p.event_name || p.eventName || p.events?.title || '').toLowerCase().trim();
+
+    if (allEvents && allEvents.length > 0) {
+      const matched = allEvents.find((e: any) => {
+        if (targetId && (e.id === targetId || e.slug === targetId)) return true;
+        if (targetTitle && (e.title?.toLowerCase().trim() === targetTitle || e.name?.toLowerCase().trim() === targetTitle)) return true;
+        return false;
+      });
+      if (matched?.slug && !matched.slug.startsWith('evt_')) return matched.slug;
+    }
+
+    if (targetTitle.includes('sphinx')) return 'sphinx-26';
+    if (p.slug && !p.slug.startsWith('evt_')) return p.slug;
+    if (targetId && !targetId.startsWith('evt_')) return targetId;
+    return 'sphinx-26';
+  };
 
   // Active tab: compose vs preview
   const [activeTab, setActiveTab] = useState<'compose' | 'preview'>('compose');
@@ -151,19 +177,13 @@ export function PaymentReminderSidebar({
       const eTitle = targetPayment.event_name || targetPayment.eventName || targetPayment.events?.title || 'Hackathon Arena';
       setSubject(`Action Required: Complete your registration payment for ${eTitle}`);
       setBodyText(
-`Hi {name},
-
-Thank you for registering for **{event_title}** with squad **{team_name}**!
+`Thank you for registering for **{event_title}** with squad **{team_name}**!
 
 Your registration has been received and your spot is currently reserved on the arena waitlist awaiting payment verification. To complete your payment process for approval and confirm your squad's slot in the arena, please complete the registration fee of **₹{amount}**.
 
 Once your payment is verified, your registration status will be confirmed and your entire team will receive full hackathon workspace and discord access.
 
-Click the button below to complete your payment process:
-{payment_url}
-
-Best regards,
-Hacker's Unity Organizing Team`
+Please click the button below to complete your payment process:`
       );
       setActionButtonText('Complete Registration Payment (₹{amount}) →');
     } else {
@@ -173,19 +193,13 @@ Hacker's Unity Organizing Team`
 
       setSubject(`Action Required: Complete your registration payment for {event_title}`);
       setBodyText(
-`Hi {name},
-
-Thank you for registering for **{event_title}** with squad **{team_name}**!
+`Thank you for registering for **{event_title}** with squad **{team_name}**!
 
 Your registration has been received and your spot is currently reserved on the arena waitlist awaiting payment verification. To complete your payment process for approval and confirm your squad's slot in the arena, please complete the registration fee of **₹{amount}**.
 
 Once your payment is verified, your registration status will be confirmed and your entire team will receive full hackathon workspace access.
 
-Click the button below to complete your payment process:
-{payment_url}
-
-Best regards,
-Hacker's Unity Organizing Team`
+Please click the button below to complete your payment process:`
       );
       setActionButtonText('Complete Registration Payment (₹{amount}) →');
     }
@@ -266,7 +280,7 @@ Hacker's Unity Organizing Team`
   const getPayloadRecipients = () => {
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://hackersunity.com';
     return selectedRecipients.map((p) => {
-      const slug = p.slug || p.events?.slug || p.event_id || 'sphinx-26';
+      const slug = resolveEventSlug(p);
       const eventName = p.event_name || p.eventName || p.events?.title || 'Hackathon Arena';
       const amountVal = Number(p.amount) || 800;
 
@@ -298,7 +312,7 @@ Hacker's Unity Organizing Team`
 
       const sampleEventTitle = previewRecipient?.event_name || previewRecipient?.events?.title || eventTitle;
       const sampleAmount = Number(previewRecipient?.amount) || 800;
-      const sampleSlug = previewRecipient?.slug || previewRecipient?.events?.slug || previewRecipient?.event_id || 'sphinx-26';
+      const sampleSlug = resolveEventSlug(previewRecipient);
       const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://hackersunity.com';
 
       const res = await fetch('/api/event-broadcast-email', {
@@ -417,7 +431,7 @@ Hacker's Unity Organizing Team`
   const previewTeam = previewRecipient?.team_name || previewRecipient?.teamName || 'Solo Builder';
   const previewEvent = previewRecipient?.event_name || previewRecipient?.eventName || previewRecipient?.events?.title || 'SPHINX \'26';
   const previewAmount = Number(previewRecipient?.amount) || 800;
-  const previewSlug = previewRecipient?.slug || previewRecipient?.events?.slug || previewRecipient?.event_id || 'sphinx-26';
+  const previewSlug = resolveEventSlug(previewRecipient);
   const previewPaymentUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/hackathons/${previewSlug}/register?step=4`
     : `https://hackersunity.com/hackathons/${previewSlug}/register?step=4`;
@@ -430,14 +444,20 @@ Hacker's Unity Organizing Team`
     .replace(/\{event_title\}/gi, previewEvent)
     .replace(/\{amount\}/gi, `₹${previewAmount.toLocaleString('en-IN')}`);
 
-  const renderedPreviewBody = bodyText
+  // Strip duplicate greeting and premature sign-off for preview body
+  const cleanPreviewBodyText = bodyText
+    .replace(/^\s*(hi|hello|dear|hey)\s+[^,\n]+,?\s*/i, '')
+    .replace(/\n\s*(best regards|warm regards|regards|sincerely|thanks)\s*,?\s*[\r\n]+.*$/i, '')
+    .trim();
+
+  const renderedPreviewBody = cleanPreviewBodyText
     .replace(/\{name\}/gi, previewName)
     .replace(/\{user\}/gi, previewName)
     .replace(/\{team_name\}/gi, previewTeam)
     .replace(/\{team\}/gi, previewTeam)
     .replace(/\{event_title\}/gi, previewEvent)
     .replace(/\{amount\}/gi, `₹${previewAmount.toLocaleString('en-IN')}`)
-    .replace(/\{payment_url\}/gi, previewPaymentUrl);
+    .replace(/\{payment_url\}/gi, `<a href="${previewPaymentUrl}" target="_blank" class="text-[#0099e6] underline font-bold">${previewPaymentUrl}</a>`);
 
   const renderedPreviewButton = actionButtonText
     .replace(/\{amount\}/gi, `₹${previewAmount.toLocaleString('en-IN')}`)
@@ -908,7 +928,7 @@ Hacker's Unity Organizing Team`
                       </div>
 
                       {/* CTA Button */}
-                      <div className="py-3 text-center">
+                      <div className="pt-2 text-center">
                         <a
                           href={previewPaymentUrl}
                           target="_blank"
@@ -917,6 +937,17 @@ Hacker's Unity Organizing Team`
                         >
                           {renderedPreviewButton}
                         </a>
+                      </div>
+
+                      {/* Direct Link Fallback */}
+                      <div className="text-[11px] text-slate-400 text-center break-all">
+                        Direct link: <a href={previewPaymentUrl} target="_blank" rel="noreferrer" className="text-[#0099e6] underline font-semibold">{previewPaymentUrl}</a>
+                      </div>
+
+                      {/* Sign-off Block Placed After CTA */}
+                      <div className="pt-4 border-t border-slate-100 text-xs text-slate-600 space-y-0.5">
+                        <div>Best regards,</div>
+                        <div className="font-bold text-slate-900">Hacker&apos;s Unity Organizing Team</div>
                       </div>
 
                       <div className="text-[11px] text-slate-400 text-center pt-2">
