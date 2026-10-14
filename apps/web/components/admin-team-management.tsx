@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import Image from 'next/image';
 import {
   Users,
   ShieldCheck,
@@ -126,6 +125,54 @@ const ROLE_CONFIG: Record<
     ],
   },
 };
+
+function AdminAvatar({
+  avatarUrl,
+  name,
+  email,
+}: {
+  avatarUrl?: string | null;
+  name?: string | null;
+  email: string;
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    setHasError(false);
+  }, [avatarUrl]);
+
+  const cleanUrl = avatarUrl?.trim();
+  const isImageUrl = Boolean(
+    cleanUrl &&
+      !hasError &&
+      (cleanUrl.startsWith('http://') ||
+        cleanUrl.startsWith('https://') ||
+        cleanUrl.startsWith('/') ||
+        cleanUrl.startsWith('data:image/'))
+  );
+
+  const displayName = name || email.split('@')[0] || 'User';
+  const initial = displayName.charAt(0).toUpperCase() || 'U';
+
+  return (
+    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#0099e6] to-[#ea580c] p-0.5 shrink-0 shadow-xs overflow-hidden">
+      {isImageUrl ? (
+        <img
+          src={cleanUrl}
+          alt={displayName}
+          className="w-full h-full object-cover rounded-[14px]"
+          referrerPolicy="no-referrer"
+          loading="lazy"
+          onError={() => setHasError(true)}
+        />
+      ) : (
+        <div className="w-full h-full bg-slate-100 dark:bg-[#0c1017] rounded-[14px] flex items-center justify-center font-bold text-xs text-slate-800 dark:text-white uppercase select-none">
+          {initial}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function AdminTeamManagement({
   onNotification,
@@ -692,21 +739,11 @@ CREATE POLICY "Active team members can view csap_team" ON public.csap_team FOR S
                       {/* Administrator Info */}
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#0099e6] to-[#ea580c] p-0.5 shrink-0 shadow-xs overflow-hidden">
-                            {member.avatar_url ? (
-                              <Image
-                                src={member.avatar_url}
-                                alt={member.name || member.email}
-                                width={40}
-                                height={40}
-                                className="w-full h-full object-cover rounded-[14px]"
-                              />
-                            ) : (
-                              <div className="w-full h-full bg-slate-100 dark:bg-[#0c1017] rounded-[14px] flex items-center justify-center font-bold text-xs text-slate-800 dark:text-white uppercase">
-                                {(member.name || member.email)[0]}
-                              </div>
-                            )}
-                          </div>
+                          <AdminAvatar
+                            avatarUrl={member.avatar_url}
+                            name={member.name}
+                            email={member.email}
+                          />
 
                           <div>
                             <div className="flex items-center gap-2">

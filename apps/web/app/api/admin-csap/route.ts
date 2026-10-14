@@ -282,14 +282,29 @@ export async function GET(req: NextRequest) {
           }
         }
 
+        const isImageUrl = (val?: string | null) =>
+          typeof val === 'string' &&
+          Boolean(val.trim()) &&
+          (val.startsWith('http://') ||
+            val.startsWith('https://') ||
+            val.startsWith('/') ||
+            val.startsWith('data:image/'));
+
         const enrichedMembers = allMembers.map((m) => {
           const emailKey = m.email?.trim().toLowerCase() || '';
           const prof = profilesMap[emailKey];
+          const bestAvatar =
+            (isImageUrl(prof?.avatar_url) ? prof.avatar_url.trim() : null) ||
+            (isImageUrl(m.avatar_url) ? m.avatar_url.trim() : null) ||
+            (emailKey === ROOT_OWNER_EMAIL
+              ? 'https://lh3.googleusercontent.com/a/ACg8ocJbKHCPfHalXF3JMBVDHrZJG6DBRv9QelXXavRM5hzt4ulAy4kB=s96-c'
+              : null);
+
           return {
             ...m,
             name: prof?.name || m.name || emailKey.split('@')[0],
             username: prof?.username || m.username || null,
-            avatar_url: prof?.avatar_url || m.avatar_url || null,
+            avatar_url: bestAvatar,
           };
         });
 
