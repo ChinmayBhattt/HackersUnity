@@ -2002,8 +2002,8 @@ export default function DashboardPage() {
              ───────────────────────────────────────────────────────────── */}
           {activeTab === 'payments' && (
             <div className="p-7 rounded-3xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] shadow-sm space-y-6 animate-in fade-in duration-150">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-white/[0.08] pb-4">
-                <div>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 dark:border-white/[0.08] pb-4">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
                       <CreditCard className="w-5 h-5 text-[#0099e6]" />
@@ -2017,7 +2017,7 @@ export default function DashboardPage() {
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xl">
                     {((adminEmail && ((user?.email && user.email.toLowerCase() === adminEmail) || (supabaseUser?.email && supabaseUser.email.toLowerCase() === adminEmail))) ||
                       user?.role === UserRole.ADMIN ||
                       myHostedEvents.length > 0)
@@ -2026,7 +2026,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-2.5 shrink-0">
                   {pendingPaymentsCount > 0 && (
                     <button
                       type="button"
@@ -2034,7 +2034,7 @@ export default function DashboardPage() {
                         setReminderDrawerMode('bulk');
                         setReminderDrawerOpen(true);
                       }}
-                      className="px-3.5 py-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border border-orange-400/30 text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-md shadow-orange-500/20 shrink-0 cursor-pointer"
+                      className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-orange-500/20 shrink-0 cursor-pointer whitespace-nowrap active:scale-95"
                       title="Send payment reminder email to all pending participants"
                     >
                       <Mail className="w-3.5 h-3.5" />
@@ -2044,7 +2044,7 @@ export default function DashboardPage() {
 
                   <Link
                     href="/hackathons"
-                    className="px-4 py-2 rounded-2xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 text-[#0099e6] border border-sky-200 dark:border-sky-800/40 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs shrink-0"
+                    className="px-3.5 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 text-[#0099e6] border border-sky-200 dark:border-sky-800/40 text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs shrink-0 whitespace-nowrap active:scale-95"
                   >
                     <Search className="w-3.5 h-3.5" />
                     <span>Explore Arenas</span>
@@ -2110,20 +2110,6 @@ export default function DashboardPage() {
                       {filter === 'FAILED' && `Failed (${failedPaymentsCount})`}
                     </button>
                   ))}
-
-                  {pendingPaymentsCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setReminderDrawerMode('bulk');
-                        setReminderDrawerOpen(true);
-                      }}
-                      className="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-                    >
-                      <Mail className="w-3.5 h-3.5 text-[#ea580c]" />
-                      <span>Mail All Pending ({pendingPaymentsCount})</span>
-                    </button>
-                  )}
                 </div>
 
                 <div className="relative w-full sm:w-64">
