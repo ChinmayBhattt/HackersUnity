@@ -13,27 +13,43 @@ interface RecipientInput {
   teamName?: string;
   college?: string;
   status?: string;
+  amount?: number | string;
+  paymentUrl?: string;
+  ctaUrl?: string;
+  eventTitle?: string;
 }
 
 export async function POST(req: Request) {
   try {
-    const auth = await authenticateRequest();
+    const auth = await authenticateRequest(req);
     // Allow if authenticated user or CSAP cookie is present
     const cookieHeader = req.headers.get('cookie') || '';
     const isAdminCsap = cookieHeader.includes('is_admin_csap=1');
+    const adminEmail = (process.env.ADMIN_EMAIL || process.env.NEXT_PUBLIC_ADMIN_EMAIL || '').toLowerCase().trim();
 
-    if (!auth && !isAdminCsap) {
+    const body = await req.json();
+    const isCallerAdmin = Boolean(
+      isAdminCsap ||
+      (adminEmail && (
+        (auth?.email && auth.email.toLowerCase().trim() === adminEmail) ||
+        (body?.senderEmail && body.senderEmail.toLowerCase().trim() === adminEmail)
+      )) ||
+      (auth?.user?.user_metadata?.role === 'ADMIN' ||
+       auth?.user?.user_metadata?.role === 'SUPER_ADMIN' ||
+       auth?.user?.user_metadata?.role === 'ORGANIZER')
+    );
+
+    if (!auth && !isCallerAdmin) {
       return unauthorizedResponse('You must be signed in as an organizer or admin to send broadcast emails.');
     }
 
-    if (auth) {
+    if (auth && !isCallerAdmin) {
       const rateLimit = checkRateLimit(auth.userId, EMAIL_RATE_LIMIT);
       if (!rateLimit.allowed) {
         return rateLimitedResponse(rateLimit.resetInMs);
       }
     }
 
-    const body = await req.json();
     const {
       eventId,
       eventTitle = 'Hackathon Event',
@@ -69,7 +85,7 @@ export async function POST(req: Request) {
       'https://hackersunity.com';
 
     const ctaUrl = actionButtonUrl || `${baseUrl}/dashboard`;
-    const ctaText = actionButtonText || 'Open Event Dashboard →';
+    const ctaText = actionButtonText || (templateType === 'payment_reminder' ? 'Complete Payment (₹{amount}) →' : 'Open Event Dashboard →');
 
     // Determine target list: if isTest, send to testEmail only
     const targetRecipients: RecipientInput[] = isTest
@@ -77,9 +93,12 @@ export async function POST(req: Request) {
           {
             name: body.testRecipientName || 'Chinmay Bhatt',
             email: testEmail || 'info@hackersunity.com',
-            teamName: body.testTeamName || 'hcj',
+            teamName: body.testTeamName || 'Solo Builder',
             college: body.testCollege || 'Participant',
-            status: 'APPROVED',
+            status: 'PENDING',
+            amount: body.testAmount || 800,
+            paymentUrl: body.testPaymentUrl || `${baseUrl}/hackathons/sphinx-26/register?step=4`,
+            eventTitle: eventTitle,
           },
         ]
       : recipients;
@@ -98,6 +117,26 @@ export async function POST(req: Request) {
     const generateHtml = (r: RecipientInput) => {
       const recipientName = r.name || 'Hacker';
       const teamName = r.teamName || recipientName;
+      const recEventTitle = r.eventTitle || eventTitle;
+      const formattedAmount = r.amount ? `₹${Number(r.amount).toLocaleString('en-IN')}` : '₹800';
+
+      // Generate recipient CTA link (supports recipient-specific paymentUrl)
+      let recipientCtaUrl = r.paymentUrl || r.ctaUrl || ctaUrl;
+      const isRsvpFlow =
+        templateType === 'rsvp' ||
+        ctaText.toLowerCase().includes('rsvp') ||
+        ctaUrl.includes('/rsvp');
+
+      if (isRsvpFlow) {
+        const rsvpParams = new URLSearchParams();
+        if (eventId) rsvpParams.set('eventId', eventId);
+        if (recEventTitle) rsvpParams.set('eventTitle', recEventTitle);
+        if (r.email) rsvpParams.set('email', r.email);
+        if (recipientName) rsvpParams.set('name', recipientName);
+        if (teamName) rsvpParams.set('team', teamName);
+        if (r.college) rsvpParams.set('college', r.college);
+        recipientCtaUrl = `${baseUrl}/rsvp?${rsvpParams.toString()}`;
+      }
 
       // Replace template variables
       let renderedBody = bodyText
@@ -105,8 +144,11 @@ export async function POST(req: Request) {
         .replace(/\{user\}/gi, recipientName)
         .replace(/\{team_name\}/gi, teamName)
         .replace(/\{team\}/gi, teamName)
-        .replace(/\{event_title\}/gi, eventTitle)
+        .replace(/\{event_title\}/gi, recEventTitle)
         .replace(/\{college\}/gi, r.college || 'Participant')
+        .replace(/\{amount\}/gi, formattedAmount)
+        .replace(/\{payment_url\}/gi, recipientCtaUrl)
+        .replace(/\{rsvp_url\}/gi, recipientCtaUrl)
         .replace(/\{status\}/gi, r.status || 'Registered');
 
       // Handle rich HTML or markdown formatting for email clients
@@ -135,7 +177,11 @@ export async function POST(req: Request) {
       let badgeColor = '#0284c7';
       let badgeLabel = 'Event Update';
 
-      if (templateType === 'selection' || templateType === 'approval') {
+      if (templateType === 'payment_reminder') {
+        badgeBg = '#fff7ed';
+        badgeColor = '#ea580c';
+        badgeLabel = 'Action Required: Complete Payment';
+      } else if (templateType === 'selection' || templateType === 'approval') {
         badgeBg = '#ecfdf5';
         badgeColor = '#059669';
         badgeLabel = 'Application Approved / Shortlisted';
@@ -153,26 +199,10 @@ export async function POST(req: Request) {
         badgeLabel = 'Action Required: RSVP';
       }
 
-      // Generate recipient CTA link
-      let recipientCtaUrl = ctaUrl;
-      const isRsvpFlow =
-        templateType === 'rsvp' ||
-        ctaText.toLowerCase().includes('rsvp') ||
-        ctaUrl.includes('/rsvp');
-
-      if (isRsvpFlow) {
-        const rsvpParams = new URLSearchParams();
-        if (eventId) rsvpParams.set('eventId', eventId);
-        if (eventTitle) rsvpParams.set('eventTitle', eventTitle);
-        if (r.email) rsvpParams.set('email', r.email);
-        if (recipientName) rsvpParams.set('name', recipientName);
-        if (teamName) rsvpParams.set('team', teamName);
-        if (r.college) rsvpParams.set('college', r.college);
-        recipientCtaUrl = `${baseUrl}/rsvp?${rsvpParams.toString()}`;
-      }
-
-      // Also replace {rsvp_url} in body if present
-      renderedBody = renderedBody.replace(/\{rsvp_url\}/gi, recipientCtaUrl);
+      const personalCtaText = (ctaText || 'Complete Payment →')
+        .replace(/\{amount\}/gi, formattedAmount)
+        .replace(/\{name\}/gi, recipientName)
+        .replace(/\{team_name\}/gi, teamName);
 
       return `
 <!DOCTYPE html>
@@ -233,17 +263,21 @@ export async function POST(req: Request) {
               ${bodyParagraphs}
 
               <!-- Highlight Information Card -->
-              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: ${badgeBg}; border-radius: 14px; border: 1px solid #e2e8f0; margin: 24px 0;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: ${badgeBg}; border-radius: 14px; border: 1px solid ${templateType === 'payment_reminder' ? '#fed7aa' : '#e2e8f0'}; margin: 24px 0;">
                 <tr>
                   <td style="padding: 16px 20px;">
                     <table width="100%" border="0" cellspacing="0" cellpadding="0">
                       <tr>
-                        <td width="50%" style="font-size: 12px; color: #64748b; font-weight: 600;">
-                          Participant: <strong style="color: #0f172a;">${recipientName}</strong>
+                        <td width="34%" style="font-size: 12px; color: #64748b; font-weight: 600;">
+                          Leader: <strong style="color: #0f172a;">${recipientName}</strong>
                         </td>
-                        <td width="50%" align="right" style="font-size: 12px; color: #64748b; font-weight: 600;">
-                          Team: <strong style="color: ${badgeColor};">${teamName}</strong>
+                        <td width="33%" align="center" style="font-size: 12px; color: #64748b; font-weight: 600;">
+                          Squad: <strong style="color: ${badgeColor};">${teamName}</strong>
                         </td>
+                        ${templateType === 'payment_reminder' ? `
+                        <td width="33%" align="right" style="font-size: 12px; color: #64748b; font-weight: 600;">
+                          Pending Due: <strong style="color: #ea580c; font-size: 13px;">${formattedAmount}</strong>
+                        </td>` : ''}
                       </tr>
                     </table>
                   </td>
@@ -254,8 +288,8 @@ export async function POST(req: Request) {
               <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin: 32px 0 20px 0;">
                 <tr>
                   <td align="center">
-                    <a href="${recipientCtaUrl}" target="_blank" style="display: inline-block; background-color: #0099e6; color: #ffffff; font-size: 14px; font-weight: 800; text-decoration: none; padding: 14px 32px; border-radius: 12px; box-shadow: 0 4px 14px rgba(0, 153, 230, 0.35); letter-spacing: 0.3px;">
-                      ${ctaText}
+                    <a href="${recipientCtaUrl}" target="_blank" style="display: inline-block; background-color: ${templateType === 'payment_reminder' ? '#ea580c' : '#0099e6'}; color: #ffffff; font-size: 14px; font-weight: 800; text-decoration: none; padding: 14px 32px; border-radius: 12px; box-shadow: 0 4px 14px ${templateType === 'payment_reminder' ? 'rgba(234, 88, 12, 0.35)' : 'rgba(0, 153, 230, 0.35)'}; letter-spacing: 0.3px;">
+                      ${personalCtaText}
                     </a>
                   </td>
                 </tr>
@@ -293,12 +327,15 @@ export async function POST(req: Request) {
     const getSubjectFor = (r: RecipientInput) => {
       const recipientName = r.name || 'Hacker';
       const teamName = r.teamName || recipientName;
+      const recEventTitle = r.eventTitle || eventTitle;
+      const formattedAmount = r.amount ? `₹${Number(r.amount).toLocaleString('en-IN')}` : '₹800';
       return subject
         .replace(/\{name\}/gi, recipientName)
         .replace(/\{user\}/gi, recipientName)
         .replace(/\{team_name\}/gi, teamName)
         .replace(/\{team\}/gi, teamName)
-        .replace(/\{event_title\}/gi, eventTitle);
+        .replace(/\{event_title\}/gi, recEventTitle)
+        .replace(/\{amount\}/gi, formattedAmount);
     };
 
     // 1. Send via Resend if RESEND_API_KEY is configured
@@ -316,12 +353,26 @@ export async function POST(req: Request) {
           const personalSubject = getSubjectFor(rec);
           const personalHtml = generateHtml(rec);
 
-          const { data, error: sendError } = await resend.emails.send({
+          let { data, error: sendError } = await resend.emails.send({
             from: fromEmail,
             to: rec.email,
             subject: personalSubject,
             html: personalHtml,
           });
+
+          // If domain unverified, attempt fallback to onboarding@resend.dev
+          if (sendError && (sendError.message?.toLowerCase().includes('domain') || sendError.message?.toLowerCase().includes('verify'))) {
+            const fallbackSend = await resend.emails.send({
+              from: 'Hacker\'s Unity <onboarding@resend.dev>',
+              to: rec.email,
+              subject: personalSubject,
+              html: personalHtml,
+            });
+            if (!fallbackSend.error) {
+              sendError = null;
+              data = fallbackSend.data;
+            }
+          }
 
           if (sendError) {
             console.warn('[event-broadcast-email] Resend error:', sendError.message);
@@ -352,12 +403,24 @@ export async function POST(req: Request) {
             const personalSubject = getSubjectFor(rec);
             const personalHtml = generateHtml(rec);
 
-            const { error: sendError } = await resend.emails.send({
+            let { error: sendError } = await resend.emails.send({
               from: fromEmail,
               to: rec.email,
               subject: personalSubject,
               html: personalHtml,
             });
+
+            if (sendError && (sendError.message?.toLowerCase().includes('domain') || sendError.message?.toLowerCase().includes('verify'))) {
+              const fallbackSend = await resend.emails.send({
+                from: 'Hacker\'s Unity <onboarding@resend.dev>',
+                to: rec.email,
+                subject: personalSubject,
+                html: personalHtml,
+              });
+              if (!fallbackSend.error) {
+                sendError = null;
+              }
+            }
 
             if (sendError) {
               failedEmails.push({ email: rec.email, reason: sendError.message });

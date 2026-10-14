@@ -446,6 +446,9 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
 
     async function checkExisting() {
       try {
+        const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const wantsStep4 = urlParams?.get('step') === '4';
+
         // 1. Check if user already has a squad for this event ID or slug
         const squad =
           (await fetchUserTeamForEvent(currentEvent.id, userId || '')) ||
@@ -460,7 +463,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
             squad.leader_id === userId ? `Squad Leader (${squad.name})` : `Squad Member (${squad.name})`
           );
           setMode(squad.leader_id === userId ? 'CREATE_TEAM' : 'JOIN_TEAM');
-          setCurrentStep(3);
+          setCurrentStep(wantsStep4 ? 4 : 3);
 
           if (squad.payment_status === 'PAID') {
             setPaymentStatus('PAID');
@@ -539,7 +542,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
           setRegisteredRole(
             reg.registration.role || 'Solo Builder'
           );
-          setCurrentStep(3);
+          setCurrentStep(wantsStep4 ? 4 : 3);
           return;
         }
 

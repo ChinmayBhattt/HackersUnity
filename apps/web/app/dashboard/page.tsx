@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Trophy,
@@ -92,6 +92,7 @@ import { AuthModal } from '@/components/auth-modal';
 import { EditEventModal } from '@/components/edit-event-modal';
 import { PublicProfileModal } from '@/components/public-profile-modal';
 import { ProjectSubmissionModal } from '@/components/project-submission-modal';
+import { PaymentReminderSidebar } from '@/components/payment-reminder-sidebar';
 
 import { UserRole } from '@hackers-unity/shared-types';
 
@@ -113,6 +114,11 @@ export default function DashboardPage() {
   const [selectedReceiptPayment, setSelectedReceiptPayment] = useState<any | null>(null);
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [copiedPaymentKey, setCopiedPaymentKey] = useState<string | null>(null);
+
+  // Payment Reminder Drawer States
+  const [reminderDrawerOpen, setReminderDrawerOpen] = useState(false);
+  const [reminderDrawerMode, setReminderDrawerMode] = useState<'single' | 'bulk'>('single');
+  const [selectedReminderPayment, setSelectedReminderPayment] = useState<any | null>(null);
 
   const copyPaymentValue = (text: string, key: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -486,6 +492,21 @@ export default function DashboardPage() {
   })();
 
   const pendingPaymentsCount = allPaymentsList.filter((p) => p.status === 'PENDING' || p.status === 'CREATED').length;
+  const allPendingPaymentsList = useMemo(() => {
+    return allPaymentsList.filter((p) => p.status === 'PENDING' || p.status === 'CREATED');
+  }, [allPaymentsList]);
+
+  const isPlatformAdminOrOrganizer = Boolean(
+    (adminEmail && (
+      (user?.email && user.email.toLowerCase() === adminEmail) ||
+      (supabaseUser?.email && supabaseUser.email.toLowerCase() === adminEmail)
+    )) ||
+    user?.role === UserRole.ADMIN ||
+    user?.role === UserRole.SUPER_ADMIN ||
+    user?.role === UserRole.ORGANIZER ||
+    myHostedEvents.length > 0
+  );
+
   const paidPaymentsCount = allPaymentsList.filter((p) => p.status === 'PAID').length;
   const failedPaymentsCount = allPaymentsList.filter((p) => p.status === 'FAILED').length;
   const totalAmountPaid = allPaymentsList
@@ -2005,7 +2026,22 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {pendingPaymentsCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReminderDrawerMode('bulk');
+                        setReminderDrawerOpen(true);
+                      }}
+                      className="px-3.5 py-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white border border-orange-400/30 text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-md shadow-orange-500/20 shrink-0 cursor-pointer"
+                      title="Send payment reminder email to all pending participants"
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      <span>Mail All ({pendingPaymentsCount})</span>
+                    </button>
+                  )}
+
                   <Link
                     href="/hackathons"
                     className="px-4 py-2 rounded-2xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 text-[#0099e6] border border-sky-200 dark:border-sky-800/40 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs shrink-0"
@@ -2074,6 +2110,20 @@ export default function DashboardPage() {
                       {filter === 'FAILED' && `Failed (${failedPaymentsCount})`}
                     </button>
                   ))}
+
+                  {pendingPaymentsCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReminderDrawerMode('bulk');
+                        setReminderDrawerOpen(true);
+                      }}
+                      className="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50 flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <Mail className="w-3.5 h-3.5 text-[#ea580c]" />
+                      <span>Mail All Pending ({pendingPaymentsCount})</span>
+                    </button>
+                  )}
                 </div>
 
                 <div className="relative w-full sm:w-64">
@@ -2095,6 +2145,37 @@ export default function DashboardPage() {
                   )}
                 </div>
               </div>
+
+              {/* Pending Dues Reminder Broadcast Banner */}
+              {paymentFilter === 'PENDING' && pendingPaymentsCount > 0 && (
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/5 border border-amber-300/80 dark:border-amber-700/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white shrink-0 shadow-xs shadow-orange-500/25">
+                      <Mail className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span>{pendingPaymentsCount} Participants Awaiting Payment Confirmation</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5">
+                        Send automated email reminders with direct payment links so participants can complete their registration payment.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReminderDrawerMode('bulk');
+                      setReminderDrawerOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-xl text-xs font-extrabold bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md shadow-orange-500/25 flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0 self-start sm:self-auto"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Mail All Pending ({pendingPaymentsCount}) →</span>
+                  </button>
+                </div>
+              )}
 
               {/* Transactions List */}
               {filteredPayments.length === 0 ? (
@@ -2282,6 +2363,20 @@ export default function DashboardPage() {
                                   <Clock className="w-3.5 h-3.5" />
                                   <span>Leader Payment Pending</span>
                                 </span>
+                              ) : isPlatformAdminOrOrganizer || (user?.email && p.team_leader_email && p.team_leader_email.toLowerCase() !== user.email.toLowerCase()) ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedReminderPayment(p);
+                                    setReminderDrawerMode('single');
+                                    setReminderDrawerOpen(true);
+                                  }}
+                                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-md shadow-orange-500/20 transition-all cursor-pointer"
+                                  title="Send payment reminder email to participant"
+                                >
+                                  <Mail className="w-3.5 h-3.5" />
+                                  <span>Reminder Mail</span>
+                                </button>
                               ) : (
                                 <Link
                                   href={`/hackathons/${eventSlug}/register?step=4`}
@@ -2711,6 +2806,23 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Payment Reminder Slide-Over Drawer */}
+      {reminderDrawerOpen && (
+        <PaymentReminderSidebar
+          isOpen={reminderDrawerOpen}
+          mode={reminderDrawerMode}
+          targetPayment={selectedReminderPayment}
+          allPendingPayments={allPendingPaymentsList}
+          onClose={() => {
+            setReminderDrawerOpen(false);
+            setSelectedReminderPayment(null);
+          }}
+          onSuccess={() => {
+            loadDashboardData();
+          }}
+        />
       )}
     </div>
   );
