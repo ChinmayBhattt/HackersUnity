@@ -97,11 +97,26 @@ export async function POST(req: Request) {
         .replace(/\{college\}/gi, r.college || 'Participant')
         .replace(/\{status\}/gi, r.status || 'Registered');
 
-      // Convert newlines to formatted paragraphs/breaks
-      const bodyParagraphs = renderedBody
-        .split('\n\n')
-        .map((p: string) => `<p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #334155;">${p.replace(/\n/g, '<br/>')}</p>`)
-        .join('');
+      // Handle rich HTML or markdown formatting for email clients
+      const isHtml = /<[a-z][\s\S]*>/i.test(renderedBody);
+      let bodyParagraphs = '';
+
+      if (isHtml) {
+        bodyParagraphs = renderedBody
+          .replace(/<p(\s[^>]*)?>/gi, '<p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #334155;">')
+          .replace(/<h1(\s[^>]*)?>/gi, '<h1 style="font-size: 20px; font-weight: 800; color: #0f172a; margin: 0 0 14px 0;">')
+          .replace(/<h2(\s[^>]*)?>/gi, '<h2 style="font-size: 16px; font-weight: 700; color: #0f172a; margin: 0 0 12px 0;">')
+          .replace(/<ul(\s[^>]*)?>/gi, '<ul style="margin: 0 0 16px 0; padding-left: 20px; font-size: 14px; line-height: 1.6; color: #334155;">')
+          .replace(/<ol(\s[^>]*)?>/gi, '<ol style="margin: 0 0 16px 0; padding-left: 20px; font-size: 14px; line-height: 1.6; color: #334155;">')
+          .replace(/<li(\s[^>]*)?>/gi, '<li style="margin-bottom: 6px; font-size: 14px; color: #334155;">')
+          .replace(/<a /gi, '<a style="color: #0099e6; text-decoration: underline;" ');
+      } else {
+        bodyParagraphs = renderedBody
+          .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+          .split('\n\n')
+          .map((p: string) => `<p style="margin: 0 0 16px 0; font-size: 14px; line-height: 1.6; color: #334155;">${p.replace(/\n/g, '<br/>')}</p>`)
+          .join('');
+      }
 
       // Status/Type badge color
       let badgeBg = '#f1f5f9';

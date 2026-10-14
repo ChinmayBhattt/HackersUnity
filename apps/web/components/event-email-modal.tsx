@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   X,
   Mail,
@@ -21,7 +21,34 @@ import {
   Award,
   XCircle,
   Bell,
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+  Heading1,
+  Heading2,
+  List,
+  ListOrdered,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Link as LinkIcon,
+  Undo,
+  Redo,
+  RemoveFormatting,
+  GripVertical,
 } from 'lucide-react';
+
+function textToHtml(text: string): string {
+  if (!text) return '<p></p>';
+  if (/<[a-z][\s\S]*>/i.test(text)) return text;
+
+  const withBold = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  return withBold
+    .split(/\n\n+/)
+    .map((para) => `<p>${para.replace(/\n/g, '<br>')}</p>`)
+    .join('');
+}
 import { EventRegistration } from '@/lib/storage';
 import { ExtendedEvent } from '@/lib/mock-data';
 
@@ -151,8 +178,132 @@ export function EventEmailModal({
   // Selected template
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('selection');
   const [subject, setSubject] = useState<string>(TEMPLATES[0].subject);
-  const [bodyText, setBodyText] = useState<string>(TEMPLATES[0].body);
+  const [bodyText, setBodyText] = useState<string>(() => textToHtml(TEMPLATES[0].body));
   const [actionButtonText, setActionButtonText] = useState<string>(TEMPLATES[0].ctaText);
+
+  // Rich-text editor refs & format states
+  const editorRef = useRef<HTMLDivElement>(null);
+  const savedSelectionRef = useRef<Range | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [activeFormats, setActiveFormats] = useState({
+    bold: false,
+    italic: false,
+    underline: false,
+    strike: false,
+    h1: false,
+    h2: false,
+    ul: false,
+    ol: false,
+    left: false,
+    center: false,
+    right: false,
+  });
+
+  // Save current caret/selection range inside the editor
+  const saveSelection = () => {
+    if (typeof window === 'undefined') return;
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && editorRef.current) {
+      const range = sel.getRangeAt(0);
+      if (editorRef.current.contains(range.commonAncestorContainer)) {
+        savedSelectionRef.current = range.cloneRange();
+      }
+    }
+  };
+
+  // Inspect current formatting at selection for toolbar button highlighting
+  const updateActiveFormats = () => {
+    if (typeof document === 'undefined') return;
+    try {
+      const block = (document.queryCommandValue('formatBlock') || '').toLowerCase();
+      setActiveFormats({
+        bold: document.queryCommandState('bold'),
+        italic: document.queryCommandState('italic'),
+        underline: document.queryCommandState('underline'),
+        strike: document.queryCommandState('strikeThrough'),
+        h1: block === 'h1',
+        h2: block === 'h2',
+        ul: document.queryCommandState('insertUnorderedList'),
+        ol: document.queryCommandState('insertOrderedList'),
+        left: document.queryCommandState('justifyLeft'),
+        center: document.queryCommandState('justifyCenter'),
+        right: document.queryCommandState('justifyRight'),
+      });
+    } catch {
+      // Ignore when selection is outside active document
+    }
+  };
+
+  // Execute formatting command on editor
+  const runCommand = (cmd: string, val: string | undefined = undefined) => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+
+    if (savedSelectionRef.current) {
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(savedSelectionRef.current);
+      }
+    }
+
+    document.execCommand(cmd, false, val);
+    if (editorRef.current) {
+      setBodyText(editorRef.current.innerHTML);
+    }
+    saveSelection();
+    updateActiveFormats();
+  };
+
+  // Toggle Heading 1 or Heading 2
+  const toggleHeading = (level: 'h1' | 'h2') => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+
+    if (savedSelectionRef.current) {
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(savedSelectionRef.current);
+      }
+    }
+
+    const currentBlock = (document.queryCommandValue('formatBlock') || '').toLowerCase();
+    if (currentBlock === level) {
+      document.execCommand('formatBlock', false, '<p>');
+    } else {
+      document.execCommand('formatBlock', false, `<${level}>`);
+    }
+
+    if (editorRef.current) {
+      setBodyText(editorRef.current.innerHTML);
+    }
+    saveSelection();
+    updateActiveFormats();
+  };
+
+  // Create hyperlink
+  const handleCreateLink = () => {
+    if (!editorRef.current) return;
+    const url = prompt('Enter link URL (e.g. https://...):', 'https://');
+    if (!url) return;
+
+    editorRef.current.focus();
+    if (savedSelectionRef.current) {
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(savedSelectionRef.current);
+      }
+    }
+
+    document.execCommand('createLink', false, url);
+    if (editorRef.current) {
+      setBodyText(editorRef.current.innerHTML);
+    }
+    saveSelection();
+    updateActiveFormats();
+  };
 
   // Recipient selection overrides
   const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>(
@@ -221,6 +372,15 @@ export function EventEmailModal({
     );
   }, [targetRecipients, recipientSearch]);
 
+  // Sync editor content with bodyText when opening or switching back to editor tab
+  useEffect(() => {
+    if (isOpen && activeTab === 'compose' && editorRef.current) {
+      if (editorRef.current.innerHTML !== bodyText) {
+        editorRef.current.innerHTML = bodyText;
+      }
+    }
+  }, [isOpen, activeTab, selectedTemplate]);
+
   if (!isOpen || !event) return null;
 
   // Handle template selection
@@ -229,14 +389,72 @@ export function EventEmailModal({
     const tmpl = TEMPLATES.find((t) => t.id === tmplId);
     if (tmpl) {
       setSubject(tmpl.subject);
-      setBodyText(tmpl.body);
+      const html = textToHtml(tmpl.body);
+      setBodyText(html);
+      if (editorRef.current) {
+        editorRef.current.innerHTML = html;
+      }
       setActionButtonText(tmpl.ctaText);
     }
   };
 
-  // Insert variable tag into body text
+  // Insert variable tag into body text at current cursor / selection
   const handleInsertTag = (tag: string) => {
-    setBodyText((prev) => prev + ` ${tag} `);
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+
+    if (savedSelectionRef.current) {
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(savedSelectionRef.current);
+      }
+    }
+
+    document.execCommand('insertText', false, tag);
+    if (editorRef.current) {
+      setBodyText(editorRef.current.innerHTML);
+    }
+    saveSelection();
+    updateActiveFormats();
+  };
+
+  // Handle dropping a dragged dynamic tag chip onto editor
+  const handleDropTag = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+    const tag = e.dataTransfer.getData('text/plain');
+    if (!tag) return;
+
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+
+    let range: Range | null = null;
+    if (document.caretRangeFromPoint) {
+      range = document.caretRangeFromPoint(e.clientX, e.clientY);
+    } else if ((document as any).caretPositionFromPoint) {
+      const pos = (document as any).caretPositionFromPoint(e.clientX, e.clientY);
+      if (pos) {
+        range = document.createRange();
+        range.setStart(pos.offsetNode, pos.offset);
+        range.collapse(true);
+      }
+    }
+
+    if (range) {
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+    }
+
+    document.execCommand('insertText', false, tag);
+    if (editorRef.current) {
+      setBodyText(editorRef.current.innerHTML);
+    }
+    saveSelection();
+    updateActiveFormats();
   };
 
   // Send a test email
@@ -633,12 +851,7 @@ export function EventEmailModal({
                   <button
                     key={tmpl.id}
                     type="button"
-                    onClick={() => {
-                      setSelectedTemplate(tmpl.id);
-                      setSubject(tmpl.subject);
-                      setBodyText(tmpl.body);
-                      setActionButtonText(tmpl.ctaText);
-                    }}
+                    onClick={() => handleSelectTemplate(tmpl.id)}
                     className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 hover:bg-sky-50 dark:bg-white/[0.06] dark:hover:bg-sky-950/30 text-slate-600 hover:text-[#0099e6] dark:text-slate-300 transition-colors cursor-pointer border border-slate-200 dark:border-white/[0.08]"
                   >
                     {tmpl.badge}
@@ -647,41 +860,338 @@ export function EventEmailModal({
               </div>
             </div>
 
-            {/* Dynamic Variable Chips */}
-            <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#121824] border border-slate-200 dark:border-white/[0.06] flex items-center gap-2 flex-wrap text-xs">
-              <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
-                <Code className="w-3.5 h-3.5 text-[#0099e6]" /> Insert Dynamic Tags:
-              </span>
-              {[
-                { tag: '{name}', label: 'Hacker Name' },
-                { tag: '{team_name}', label: 'Team Name' },
-                { tag: '{event_title}', label: 'Event Title' },
-                { tag: '{college}', label: 'College' },
-              ].map(({ tag, label }) => (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() => handleInsertTag(tag)}
-                  title={`Click to insert ${tag}`}
-                  className="px-2 py-0.5 rounded-md bg-white dark:bg-[#0c1017] hover:bg-sky-50 text-[11px] font-mono font-bold text-[#0099e6] border border-slate-200 dark:border-white/[0.1] shadow-2xs cursor-pointer"
-                >
-                  +{tag}
-                </button>
-              ))}
+            {/* Dynamic Variable Chips (Draggable to any position, or click to insert at cursor) */}
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-[#121824] border border-slate-200 dark:border-white/[0.06] space-y-2">
+              <div className="flex items-center justify-between flex-wrap gap-1">
+                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Code className="w-3.5 h-3.5 text-[#0099e6]" />
+                  <span>Dynamic Tags</span>
+                </span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                  Drag &amp; drop anywhere into body, or click to place at cursor
+                </span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                {[
+                  { tag: '{name}', label: 'Hacker Name' },
+                  { tag: '{team_name}', label: 'Team Name' },
+                  { tag: '{event_title}', label: 'Event Title' },
+                  { tag: '{college}', label: 'College' },
+                  { tag: '{status}', label: 'Status' },
+                ].map(({ tag, label }) => (
+                  <div
+                    key={tag}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', tag);
+                      e.dataTransfer.effectAllowed = 'copy';
+                    }}
+                    onClick={() => handleInsertTag(tag)}
+                    title={`Drag into body or click to insert ${tag} (${label})`}
+                    className="group px-2.5 py-1 rounded-lg bg-white dark:bg-[#0c1017] hover:bg-sky-50 dark:hover:bg-sky-950/40 text-[11px] font-mono font-bold text-[#0099e6] border border-slate-200 dark:border-white/[0.1] shadow-2xs cursor-grab active:cursor-grabbing hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 select-none"
+                  >
+                    <GripVertical className="w-3 h-3 text-slate-400 group-hover:text-[#0099e6] transition-colors" />
+                    <span>+{tag}</span>
+                    <span className="text-[9px] text-slate-400 font-sans font-normal hidden sm:inline">
+                      ({label})
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Editor or Preview Pane */}
             {activeTab === 'compose' ? (
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Email Message Body
-                </label>
-                <textarea
-                  rows={8}
-                  value={bodyText}
-                  onChange={(e) => setBodyText(e.target.value)}
-                  placeholder="Type your message to participants..."
-                  className="w-full p-3.5 bg-slate-50 dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] rounded-xl text-xs text-slate-900 dark:text-white font-sans leading-relaxed outline-none focus:border-[#0099e6]"
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Email Message Body (Rich Text)
+                  </label>
+                  <span className="text-[10px] text-slate-400">
+                    Supports rich styling &amp; drag-and-drop tags
+                  </span>
+                </div>
+
+                {/* Rich Text Formatting Toolbar */}
+                <div className="flex items-center flex-wrap gap-1 p-2 bg-slate-100/90 dark:bg-[#151c2c] border border-slate-200 dark:border-white/[0.08] rounded-t-xl">
+                  {/* Undo / Redo */}
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      runCommand('undo');
+                    }}
+                    title="Undo (Ctrl+Z)"
+                    className="p-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/[0.08] transition-colors cursor-pointer"
+                  >
+                    <Undo className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      runCommand('redo');
+                    }}
+                    title="Redo (Ctrl+Y)"
+                    className="p-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/[0.08] transition-colors cursor-pointer"
+                  >
+                    <Redo className="w-3.5 h-3.5" />
+                  </button>
+
+                  <div className="w-[1px] h-4 bg-slate-200 dark:bg-white/[0.1] mx-0.5" />
+
+                  {/* Character Styles */}
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      runCommand('bold');
+                    }}
+                    title="Bold"
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      activeFormats.bold
+                        ? 'bg-[#0099e6] text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <Bold className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      runCommand('italic');
+                    }}
+                    title="Italic"
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      activeFormats.italic
+                        ? 'bg-[#0099e6] text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <Italic className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      runCommand('underline');
+                    }}
+                    title="Underline"
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      activeFormats.underline
+                        ? 'bg-[#0099e6] text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <Underline className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      runCommand('strikeThrough');
+                    }}
+                    title="Strikethrough"
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      activeFormats.strike
+                        ? 'bg-[#0099e6] text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <Strikethrough className="w-3.5 h-3.5" />
+                  </button>
+
+                  <div className="w-[1px] h-4 bg-slate-200 dark:bg-white/[0.1] mx-0.5" />
+
+                  {/* Headings */}
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      toggleHeading('h1');
+                    }}
+                    title="Heading 1"
+                    className={`px-1.5 py-1 rounded-lg text-[11px] font-black transition-colors cursor-pointer flex items-center gap-0.5 ${
+                      activeFormats.h1
+                        ? 'bg-[#0099e6] text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <Heading1 className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      toggleHeading('h2');
+                    }}
+                    title="Heading 2"
+                    className={`px-1.5 py-1 rounded-lg text-[11px] font-black transition-colors cursor-pointer flex items-center gap-0.5 ${
+                      activeFormats.h2
+                        ? 'bg-[#0099e6] text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <Heading2 className="w-3.5 h-3.5" />
+                  </button>
+
+                  <div className="w-[1px] h-4 bg-slate-200 dark:bg-white/[0.1] mx-0.5" />
+
+                  {/* Lists */}
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      runCommand('insertUnorderedList');
+                    }}
+                    title="Bullet List"
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      activeFormats.ul
+                        ? 'bg-[#0099e6] text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <List className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      runCommand('insertOrderedList');
+                    }}
+                    title="Numbered List"
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      activeFormats.ol
+                        ? 'bg-[#0099e6] text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <ListOrdered className="w-3.5 h-3.5" />
+                  </button>
+
+                  <div className="w-[1px] h-4 bg-slate-200 dark:bg-white/[0.1] mx-0.5" />
+
+                  {/* Alignment */}
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      runCommand('justifyLeft');
+                    }}
+                    title="Align Left"
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      activeFormats.left
+                        ? 'bg-[#0099e6] text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <AlignLeft className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      runCommand('justifyCenter');
+                    }}
+                    title="Align Center"
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      activeFormats.center
+                        ? 'bg-[#0099e6] text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <AlignCenter className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      runCommand('justifyRight');
+                    }}
+                    title="Align Right"
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      activeFormats.right
+                        ? 'bg-[#0099e6] text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <AlignRight className="w-3.5 h-3.5" />
+                  </button>
+
+                  <div className="w-[1px] h-4 bg-slate-200 dark:bg-white/[0.1] mx-0.5" />
+
+                  {/* Link & Clear Format */}
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleCreateLink();
+                    }}
+                    title="Insert Link"
+                    className="p-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/[0.08] transition-colors cursor-pointer"
+                  >
+                    <LinkIcon className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      runCommand('removeFormat');
+                    }}
+                    title="Clear Formatting"
+                    className="p-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/[0.08] transition-colors cursor-pointer"
+                  >
+                    <RemoveFormatting className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* ContentEditable Rich Text Area with Drag & Drop */}
+                <div
+                  ref={editorRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onInput={() => {
+                    if (editorRef.current) {
+                      setBodyText(editorRef.current.innerHTML);
+                    }
+                    updateActiveFormats();
+                  }}
+                  onKeyUp={() => {
+                    saveSelection();
+                    updateActiveFormats();
+                  }}
+                  onMouseUp={() => {
+                    saveSelection();
+                    updateActiveFormats();
+                  }}
+                  onFocus={() => {
+                    saveSelection();
+                    updateActiveFormats();
+                  }}
+                  onBlur={() => {
+                    saveSelection();
+                  }}
+                  onDragEnter={() => setIsDraggingOver(true)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'copy';
+                  }}
+                  onDragLeave={() => setIsDraggingOver(false)}
+                  onDrop={handleDropTag}
+                  className={`w-full min-h-[220px] max-h-[360px] overflow-y-auto p-4 bg-slate-50 dark:bg-[#121824] border border-t-0 rounded-b-xl text-xs text-slate-900 dark:text-white font-sans leading-relaxed outline-none transition-all prose prose-sm dark:prose-invert max-w-none [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h1]:text-base [&_h1]:font-black [&_h2]:text-sm [&_h2]:font-bold [&_a]:text-[#0099e6] [&_a]:underline ${
+                    isDraggingOver
+                      ? 'border-[#0099e6] ring-2 ring-[#0099e6]/30 bg-sky-50/50 dark:bg-sky-950/20'
+                      : 'border-slate-200 dark:border-white/[0.08] focus:border-[#0099e6]'
+                  }`}
                 />
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
@@ -726,9 +1236,14 @@ export function EventEmailModal({
                     Subject: {previewSubject}
                   </div>
 
-                  <div className="text-xs leading-relaxed text-slate-700 dark:text-slate-300 whitespace-pre-line">
-                    <p className="font-bold mb-2">Hi {previewRecipient.userName},</p>
-                    {previewBody}
+                  <div className="text-xs leading-relaxed text-slate-700 dark:text-slate-300">
+                    <p className="font-bold mb-3 text-slate-900 dark:text-white">
+                      Hi {previewRecipient.userName},
+                    </p>
+                    <div
+                      className="space-y-3 prose prose-sm dark:prose-invert max-w-none [&_p]:mb-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_h1]:text-base [&_h1]:font-black [&_h2]:text-sm [&_h2]:font-bold [&_a]:text-[#0099e6] [&_a]:underline"
+                      dangerouslySetInnerHTML={{ __html: previewBody }}
+                    />
                   </div>
 
                   {/* CTA button inside preview */}
