@@ -21,6 +21,7 @@ import {
   ChevronRight,
   ShieldAlert,
   Eye,
+  Mail,
 } from 'lucide-react';
 import {
   getEventRegistrations,
@@ -36,6 +37,7 @@ import {
 import { ExtendedEvent } from '@/lib/mock-data';
 import { formatDate } from '@/lib/utils';
 import { BulkRegistrationModal } from '@/components/bulk-registration-modal';
+import { EventEmailModal } from '@/components/event-email-modal';
 import { fetchEventBySlug } from '@/lib/supabase-service';
 import { useAuth } from '@/lib/auth-context';
 import { UserRole } from '@hackers-unity/shared-types';
@@ -55,6 +57,12 @@ export default function EventRegistrationsPage({ params }: PageProps) {
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
   const [notification, setNotification] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
+
+  // Email modal state
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [emailTargetParticipant, setEmailTargetParticipant] = useState<EventRegistration | null>(null);
+  const [emailInitialSelectedIds, setEmailInitialSelectedIds] = useState<string[]>([]);
+  const [emailInitialFilter, setEmailInitialFilter] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL');
 
   // Auth context for authorization checks
   const { user, supabaseUser, loading: authLoading } = useAuth();
@@ -107,6 +115,26 @@ export default function EventRegistrationsPage({ params }: PageProps) {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
+
+  // Email handlers
+  const handleOpenEmailAll = (filter: 'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED' = 'ALL') => {
+    setEmailTargetParticipant(null);
+    setEmailInitialSelectedIds([]);
+    setEmailInitialFilter(filter);
+    setIsEmailModalOpen(true);
+  };
+
+  const handleOpenEmailSelected = () => {
+    setEmailTargetParticipant(null);
+    setEmailInitialSelectedIds(selectedIds);
+    setIsEmailModalOpen(true);
+  };
+
+  const handleOpenEmailSingle = (reg: EventRegistration) => {
+    setEmailTargetParticipant(reg);
+    setEmailInitialSelectedIds([reg.id]);
+    setIsEmailModalOpen(true);
+  };
 
   const loadData = async () => {
     let found = getAllEvents().find((e) => e.id === resolvedParams.eventId || e.slug === resolvedParams.eventId);
@@ -501,6 +529,16 @@ export default function EventRegistrationsPage({ params }: PageProps) {
           </button>
 
           <button
+            onClick={() => handleOpenEmailAll(statusFilter)}
+            disabled={registrations.length === 0}
+            className="px-4 py-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800/40 hover:bg-sky-100 dark:hover:bg-sky-900/40 text-[#0099e6] dark:text-sky-300 text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Send broadcast email to participants"
+          >
+            <Mail className="w-4 h-4 text-[#0099e6]" />
+            <span>Email Participants</span>
+          </button>
+
+          <button
             onClick={handleExportCSV}
             disabled={registrations.length === 0}
             className="px-4 py-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] hover:bg-slate-50 dark:hover:bg-white/[0.04] text-slate-700 dark:text-slate-200 text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
@@ -658,6 +696,14 @@ export default function EventRegistrationsPage({ params }: PageProps) {
             </button>
 
             <button
+              onClick={handleOpenEmailSelected}
+              className="px-3 py-1.5 rounded-xl bg-[#0099e6] hover:bg-[#0088cc] text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>Email Selected ({selectedIds.length})</span>
+            </button>
+
+            <button
               onClick={handleBulkDeleteSelected}
               className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
             >
@@ -804,6 +850,13 @@ export default function EventRegistrationsPage({ params }: PageProps) {
                             className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 text-[#0099e6] transition-colors cursor-pointer border border-sky-200 dark:border-sky-800/40"
                           >
                             <Eye className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleOpenEmailSingle(reg)}
+                            title={`Send Email to ${reg.userName}`}
+                            className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800/40"
+                          >
+                            <Mail className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleStatusChange(reg.id, 'APPROVED')}
@@ -963,6 +1016,17 @@ export default function EventRegistrationsPage({ params }: PageProps) {
           }}
         />
       )}
+
+      {/* ─── Send Email Drawer / Modal ───────────────────────────── */}
+      <EventEmailModal
+        isOpen={isEmailModalOpen}
+        onClose={() => setIsEmailModalOpen(false)}
+        event={event}
+        registrations={registrations}
+        singleRecipient={emailTargetParticipant}
+        initialSelectedIds={emailInitialSelectedIds}
+        initialFilter={emailInitialFilter}
+      />
 
       {/* ─── Applicant Details Modal ───────────────────────────── */}
       {viewingApplicant && (
@@ -1189,6 +1253,13 @@ export default function EventRegistrationsPage({ params }: PageProps) {
                   className="px-3.5 py-2 rounded-xl bg-slate-600 hover:bg-slate-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
                 >
                   <Minus className="w-3.5 h-3.5" /> <span>None</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenEmailSingle(viewingApplicant)}
+                  className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                >
+                  <Mail className="w-3.5 h-3.5" /> <span>Send Email</span>
                 </button>
               </div>
 
