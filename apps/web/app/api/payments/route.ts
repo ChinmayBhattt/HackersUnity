@@ -16,11 +16,11 @@ export async function GET(req: NextRequest) {
     const auth = await authenticateRequest(req);
     const serverSupabase = createAdminClient();
 
+    const adminEmail = (process.env.ADMIN_EMAIL || process.env.NEXT_PUBLIC_ADMIN_EMAIL || '').toLowerCase().trim();
     const isPlatformAdmin = Boolean(
       isAdminParam ||
       scope === 'all' ||
-      auth?.email === 'chinmaybhatt26@gmail.com' ||
-      email === 'chinmaybhatt26@gmail.com' ||
+      (adminEmail && (auth?.email?.toLowerCase().trim() === adminEmail || email?.toLowerCase().trim() === adminEmail)) ||
       (auth?.user?.user_metadata?.role === UserRole.ADMIN || auth?.user?.user_metadata?.role === UserRole.SUPER_ADMIN)
     );
 

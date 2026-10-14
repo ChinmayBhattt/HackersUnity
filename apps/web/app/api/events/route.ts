@@ -289,16 +289,15 @@ export async function PATCH(req: Request) {
         existingEvent?.organizer_id === 'usr_organizer' ||
         existingEvent?.organizer_id === 'usr_me')
     );
+    const adminEmail = (process.env.ADMIN_EMAIL || process.env.NEXT_PUBLIC_ADMIN_EMAIL || '').toLowerCase().trim();
     const isAdmin =
       isCsapAdmin ||
       userRole === 'ADMIN' ||
       userRole === 'SUPER_ADMIN' ||
       userRole === 'ORGANIZER' ||
-      userEmail === 'chinmaybhatt26@gmail.com' ||
       userEmail === 'info@hackersunity.com' ||
-      userEmail.includes('chinmay') ||
       userEmail.endsWith('@hackersunity.dev') ||
-      userEmail === process.env.ADMIN_EMAIL?.toLowerCase();
+      Boolean(adminEmail && userEmail === adminEmail);
 
     let isCoHost = false;
     if (existingEvent && !isOwner && !isAdmin && auth) {

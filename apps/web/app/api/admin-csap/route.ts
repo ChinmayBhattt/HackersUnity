@@ -1,14 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { createAdminClient } from '@/lib/api-auth';
+import { createAdminClient, authenticateRequest } from '@/lib/api-auth';
 
+export type CsapRole = 'owner' | 'admin' | 'manager' | 'viewer';
+
+export interface CsapAuthResult {
+  authenticated: boolean;
+  authorized: boolean;
+  email: string | null;
+  role: CsapRole | null;
+  name: string | null;
+  avatar_url?: string | null;
+  error?: string;
+}
+
+export const ROOT_OWNER_EMAIL = (
+  process.env.ADMIN_EMAIL ||
+  process.env.NEXT_PUBLIC_ADMIN_EMAIL ||
+  process.env.CSAP_ROOT_ADMIN_EMAIL ||
+  ''
+).trim().toLowerCase();
 const ADMIN_USER = process.env.ADMIN_CSAP_USER || 'HU';
 const ADMIN_PASS = process.env.ADMIN_CSAP_PASS || 'HU269';
 const SESSION_COOKIE_NAME = 'admin_csap_session';
 const SECRET_SALT = process.env.SUPABASE_SECRET_KEY || 'hackers-unity-admin-csap-secret-salt-2026';
 
 /**
- * Creates a signed token for admin session
+ * Creates a signed token for admin session (legacy fallback support)
  */
 function createSessionToken(username: string): string {
   const timestamp = Date.now().toString();
@@ -20,7 +38,7 @@ function createSessionToken(username: string): string {
 }
 
 /**
- * Validates the admin session token
+ * Validates the admin session token (legacy fallback support)
  */
 function verifySessionToken(token: string | undefined): boolean {
   if (!token) return false;
@@ -29,11 +47,9 @@ function verifySessionToken(token: string | undefined): boolean {
     const { u, t, s } = JSON.parse(raw);
     if (!u || !t || !s) return false;
 
-    // Check expiration (7 days)
     const ageMs = Date.now() - Number(t);
     if (ageMs > 7 * 24 * 60 * 60 * 1000) return false;
 
-    // Verify HMAC signature
     const expectedSig = crypto
       .createHmac('sha256', SECRET_SALT)
       .update(`${u}:${t}`)
@@ -46,7 +62,7 @@ function verifySessionToken(token: string | undefined): boolean {
 }
 
 /**
- * Verifies admin credentials securely
+ * Verifies admin credentials securely (legacy fallback support)
  */
 function checkCredentials(user: string, pass: string): boolean {
   if (typeof user !== 'string' || typeof pass !== 'string') return false;
@@ -59,11 +75,138 @@ function checkCredentials(user: string, pass: string): boolean {
   return Boolean(userMatch && passMatch);
 }
 
-// ─── GET: Fetch all hackathon or blog submissions & statistics ───────────────
+/**
+ * Core Database & Session Authorization Checker for CSAP
+ * 1. Checks Supabase User (via Cookie or Bearer Token)
+ * 2. Roots ADMIN_EMAIL from env automatically with 'owner' role
+ * 3. Checks csap_team table in Supabase for user's assigned role
+ */
+async function verifyCsapAuthorization(req: NextRequest): Promise<CsapAuthResult> {
+  let email: string | null = null;
+  let authUser: any = null;
+
+  try {
+    authUser = await authenticateRequest(req);
+    if (authUser?.email) {
+      email = authUser.email.trim().toLowerCase();
+    }
+  } catch (err) {
+    console.warn('[CSAP Auth] authenticateRequest exception:', err);
+  }
+
+  // Fallback: Check Authorization Bearer header
+  if (!email) {
+    const authHeader = req.headers.get('authorization') || req.headers.get('Authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+      try {
+        const adminClient = createAdminClient();
+        const { data: tokenUser } = await adminClient.auth.getUser(token);
+        if (tokenUser?.user?.email) {
+          email = tokenUser.user.email.trim().toLowerCase();
+        }
+      } catch (tokenErr) {
+        console.warn('[CSAP Auth] Bearer token error:', tokenErr);
+      }
+    }
+  }
+
+  // Fallback: Check legacy session cookie if still present
+  if (!email) {
+    const legacyToken = req.cookies.get(SESSION_COOKIE_NAME)?.value;
+    if (verifySessionToken(legacyToken)) {
+      email = ROOT_OWNER_EMAIL;
+    }
+  }
+
+  if (!email) {
+    return {
+      authenticated: false,
+      authorized: false,
+      email: null,
+      role: null,
+      name: null,
+      error: 'Authentication required. Please sign in to Hacker\'s Unity with an authorized account.',
+    };
+  }
+
+  const supabase = createAdminClient();
+
+  // Root Owner from environment is ALWAYS authorized as owner
+  if (ROOT_OWNER_EMAIL && email === ROOT_OWNER_EMAIL) {
+    return {
+      authenticated: true,
+      authorized: true,
+      email,
+      role: 'owner',
+      name: 'Chinmay Bhatt',
+      avatar_url: 'https://lh3.googleusercontent.com/a/ACg8ocJbKHCPfHalXF3JMBVDHrZJG6DBRv9QelXXavRM5hzt4ulAy4kB=s96-c',
+    };
+  }
+
+  // Check database table csap_team
+  try {
+    const { data: member, error } = await supabase
+      .from('csap_team')
+      .select('*')
+      .ilike('email', email)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[CSAP Auth] csap_team lookup warning:', error.message);
+      return {
+        authenticated: true,
+        authorized: false,
+        email,
+        role: null,
+        name: null,
+        error: 'Access restricted: Database table csap_team needs setup or member record not found.',
+      };
+    }
+
+    if (!member) {
+      return {
+        authenticated: true,
+        authorized: false,
+        email,
+        role: null,
+        name: null,
+        error: `Access denied: ${email} is not listed in the authorized CSAP Administrator Team.`,
+      };
+    }
+
+    return {
+      authenticated: true,
+      authorized: true,
+      email,
+      role: (member.role as CsapRole) || 'viewer',
+      name: member.name || email.split('@')[0],
+      avatar_url: member.avatar_url || null,
+    };
+  } catch (err: any) {
+    return {
+      authenticated: true,
+      authorized: false,
+      email,
+      role: null,
+      name: null,
+      error: err.message || 'Error verifying CSAP authorization',
+    };
+  }
+}
+
+// ─── GET: Fetch all hackathon, blog, mentor submissions or team members ──────
 export async function GET(req: NextRequest) {
-  const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!verifySessionToken(token)) {
-    return NextResponse.json({ authenticated: false, error: 'Unauthorized' }, { status: 401 });
+  const auth = await verifyCsapAuthorization(req);
+  if (!auth.authenticated) {
+    return NextResponse.json({ authenticated: false, error: auth.error || 'Unauthorized' }, { status: 401 });
+  }
+  if (!auth.authorized) {
+    return NextResponse.json(
+      { authenticated: true, authorized: false, error: auth.error, email: auth.email },
+      { status: 403 }
+    );
   }
 
   const { searchParams } = new URL(req.url);
@@ -71,6 +214,125 @@ export async function GET(req: NextRequest) {
 
   try {
     const supabase = createAdminClient();
+
+    // ── Team & Access Governance Query ──
+    if (resource === 'team') {
+      try {
+        const { data: members, error } = await supabase
+          .from('csap_team')
+          .select('*')
+          .order('created_at', { ascending: true });
+
+        const isMissing =
+          error &&
+          (error.code === '42P01' ||
+            error.message?.toLowerCase().includes('relation "csap_team" does not exist') ||
+            error.message?.toLowerCase().includes('does not exist'));
+
+        let allMembers = members || [];
+
+        // Always guarantee Root Owner is represented in the list
+        const hasRootOwner = allMembers.some(
+          (m) => m.email?.trim().toLowerCase() === ROOT_OWNER_EMAIL
+        );
+        if (!hasRootOwner) {
+          allMembers = [
+            {
+              id: 'root-owner-chinmay',
+              email: ROOT_OWNER_EMAIL,
+              role: 'owner',
+              name: 'Chinmay Bhatt',
+              username: 'chinmaybhatt',
+              avatar_url:
+                'https://lh3.googleusercontent.com/a/ACg8ocJbKHCPfHalXF3JMBVDHrZJG6DBRv9QelXXavRM5hzt4ulAy4kB=s96-c',
+              status: 'active',
+              added_by: 'system_root',
+              created_at: new Date().toISOString(),
+            },
+            ...allMembers,
+          ];
+        }
+
+        // Match with profiles table to enrich names, usernames, and avatars
+        const emails = Array.from(
+          new Set(
+            allMembers
+              .map((m) => m.email?.trim().toLowerCase())
+              .filter(Boolean)
+          )
+        );
+
+        let profilesMap: Record<string, any> = {};
+        if (emails.length > 0) {
+          try {
+            const { data: profilesList } = await supabase
+              .from('profiles')
+              .select('id, username, name, email, avatar_url')
+              .in('email', emails);
+
+            if (profilesList) {
+              for (const p of profilesList) {
+                if (p.email) {
+                  profilesMap[p.email.trim().toLowerCase()] = p;
+                }
+              }
+            }
+          } catch (profErr) {
+            console.warn('[Admin CSAP Team] Profiles join warning:', profErr);
+          }
+        }
+
+        const enrichedMembers = allMembers.map((m) => {
+          const emailKey = m.email?.trim().toLowerCase() || '';
+          const prof = profilesMap[emailKey];
+          return {
+            ...m,
+            name: prof?.name || m.name || emailKey.split('@')[0],
+            username: prof?.username || m.username || null,
+            avatar_url: prof?.avatar_url || m.avatar_url || null,
+          };
+        });
+
+        return NextResponse.json({
+          authenticated: true,
+          authorized: true,
+          team: enrichedMembers,
+          currentUser: {
+            email: auth.email,
+            role: auth.role,
+            name: auth.name,
+          },
+          tableReady: !isMissing,
+          error: error ? error.message : null,
+          message: isMissing
+            ? 'csap_team table not found. Run apps/web/supabase/csap-team-migration.sql in Supabase SQL editor.'
+            : undefined,
+        });
+      } catch (teamErr: any) {
+        return NextResponse.json({
+          authenticated: true,
+          authorized: true,
+          team: [
+            {
+              id: 'root-owner-chinmay',
+              email: ROOT_OWNER_EMAIL,
+              role: 'owner',
+              name: 'Chinmay Bhatt',
+              status: 'active',
+              added_by: 'system_root',
+              created_at: new Date().toISOString(),
+            },
+          ],
+          currentUser: {
+            email: auth.email,
+            role: auth.role,
+            name: auth.name,
+          },
+          tableReady: false,
+          error: teamErr.message,
+        });
+      }
+    }
 
     // ── Blogs Moderation Query ──
     if (resource === 'blogs') {
@@ -108,6 +370,12 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json({
           authenticated: true,
+          authorized: true,
+          currentUser: {
+            email: auth.email,
+            role: auth.role,
+            name: auth.name,
+          },
           blogs: allBlogs,
           stats,
           tableReady: true,
@@ -198,6 +466,12 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json({
           authenticated: true,
+          authorized: true,
+          currentUser: {
+            email: auth.email,
+            role: auth.role,
+            name: auth.name,
+          },
           mentors: enrichedMentors,
           stats,
           tableReady: true,
@@ -328,6 +602,12 @@ export async function GET(req: NextRequest) {
 
     const res = NextResponse.json({
       authenticated: true,
+      authorized: true,
+      currentUser: {
+        email: auth.email,
+        role: auth.role,
+        name: auth.name,
+      },
       events: eventsWithCounts,
       stats,
     });
@@ -348,13 +628,154 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ─── POST: Login, Logout, or Session Check ───────────────────────────────────
+// ─── POST: Check Access, Add Team Member, Logout, or Login ──────────────────
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { action, username, password } = body;
+    const auth = await verifyCsapAuthorization(req);
+    const body = await req.json().catch(() => ({}));
+    const { action, username, password, email, role } = body;
 
-    // Login Action
+    // ── Check Access Action ──
+    if (action === 'check_access') {
+      return NextResponse.json({
+        authenticated: auth.authenticated,
+        authorized: auth.authorized,
+        email: auth.email,
+        role: auth.role,
+        name: auth.name,
+        avatar_url: auth.avatar_url,
+        error: auth.error,
+      });
+    }
+
+    // ── Add Team Member Action ──
+    if (action === 'add_team_member') {
+      if (!auth.authenticated) {
+        return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+      }
+      if (!auth.authorized || (auth.role !== 'owner' && auth.role !== 'admin')) {
+        return NextResponse.json(
+          { error: 'Only Owners and Admins can add team members.' },
+          { status: 403 }
+        );
+      }
+
+      const targetEmail = (email || '').trim().toLowerCase();
+      if (!targetEmail || !targetEmail.includes('@')) {
+        return NextResponse.json({ error: 'Valid email address is required.' }, { status: 400 });
+      }
+
+      const validRoles: CsapRole[] = ['owner', 'admin', 'manager', 'viewer'];
+      const targetRole: CsapRole = validRoles.includes(role) ? role : 'viewer';
+
+      if (auth.role === 'admin' && targetRole === 'owner') {
+        return NextResponse.json(
+          { error: 'Admins cannot assign the Owner role. Only an Owner can assign the Owner role.' },
+          { status: 403 }
+        );
+      }
+
+      const supabase = createAdminClient();
+
+      // Check if already in csap_team
+      const { data: existing } = await supabase
+        .from('csap_team')
+        .select('id, email, role')
+        .ilike('email', targetEmail)
+        .maybeSingle();
+
+      if (existing) {
+        return NextResponse.json(
+          { error: `User "${targetEmail}" is already a CSAP team member with role "${existing.role}".` },
+          { status: 409 }
+        );
+      }
+
+      // Check profiles table for avatar & name
+      let memberName = targetEmail.split('@')[0];
+      let avatarUrl: string | null = null;
+      let memberUsername: string | null = null;
+
+      try {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('name, username, avatar_url')
+          .ilike('email', targetEmail)
+          .maybeSingle();
+
+        if (prof) {
+          if (prof.name) memberName = prof.name;
+          if (prof.avatar_url) avatarUrl = prof.avatar_url;
+          if (prof.username) memberUsername = prof.username;
+        }
+      } catch (profErr) {
+        console.warn('Profile lookup warning:', profErr);
+      }
+
+      const { data: newMember, error: insertError } = await supabase
+        .from('csap_team')
+        .insert({
+          email: targetEmail,
+          role: targetRole,
+          name: memberName,
+          avatar_url: avatarUrl,
+          status: 'active',
+          added_by: auth.email || 'admin',
+        })
+        .select('*')
+        .single();
+
+      if (insertError) {
+        const isTableMissing =
+          insertError.code === '42P01' ||
+          insertError.message?.toLowerCase().includes('relation "csap_team" does not exist');
+
+        return NextResponse.json(
+          {
+            error: isTableMissing
+              ? 'Database table "csap_team" does not exist yet. Please run apps/web/supabase/csap-team-migration.sql in Supabase SQL editor.'
+              : insertError.message,
+          },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        member: {
+          ...newMember,
+          username: memberUsername,
+        },
+        message: `Granted ${targetRole.toUpperCase()} access to ${targetEmail}`,
+      });
+    }
+
+    // Logout Action
+    if (action === 'logout') {
+      const res = NextResponse.json({ success: true, message: 'Logged out successfully' });
+      res.cookies.set({
+        name: SESSION_COOKIE_NAME,
+        value: '',
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 0,
+      });
+      res.cookies.set({
+        name: 'is_admin_csap',
+        value: '',
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 0,
+      });
+
+      return res;
+    }
+
+    // Login Action (legacy fallback)
     if (action === 'login') {
       if (!checkCredentials(username, password)) {
         return NextResponse.json(
@@ -392,36 +813,9 @@ export async function POST(req: NextRequest) {
       return res;
     }
 
-    // Logout Action
-    if (action === 'logout') {
-      const res = NextResponse.json({ success: true, message: 'Logged out successfully' });
-      res.cookies.set({
-        name: SESSION_COOKIE_NAME,
-        value: '',
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 0,
-      });
-      res.cookies.set({
-        name: 'is_admin_csap',
-        value: '',
-        httpOnly: false,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 0,
-      });
-
-      return res;
-    }
-
     // Verify Session Action
     if (action === 'verify') {
-      const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-      const isValid = verifySessionToken(token);
-      return NextResponse.json({ authenticated: isValid });
+      return NextResponse.json({ authenticated: auth.authenticated, authorized: auth.authorized });
     }
 
     return NextResponse.json({ error: 'Unsupported action' }, { status: 400 });
@@ -432,16 +826,75 @@ export async function POST(req: NextRequest) {
 
 // ─── PATCH: Approve or Reject Hackathon Request ─────────────────────────────
 export async function PATCH(req: NextRequest) {
-  const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!verifySessionToken(token)) {
-    return NextResponse.json({ authenticated: false, error: 'Unauthorized' }, { status: 401 });
+  const auth = await verifyCsapAuthorization(req);
+  if (!auth.authenticated) {
+    return NextResponse.json({ authenticated: false, error: auth.error || 'Unauthorized' }, { status: 401 });
+  }
+  if (!auth.authorized) {
+    return NextResponse.json(
+      { authenticated: true, authorized: false, error: auth.error, email: auth.email },
+      { status: 403 }
+    );
+  }
+
+  // Viewers cannot perform any mutations
+  if (auth.role === 'viewer') {
+    return NextResponse.json(
+      { error: 'Viewer accounts have read-only access and cannot make modifications.' },
+      { status: 403 }
+    );
   }
 
   try {
     const body = await req.json();
-    const { action, eventId, blogId, feedback } = body;
+    const { action, eventId, blogId, feedback, memberId, email: targetEmail, role: newRole } = body;
 
     const supabase = createAdminClient();
+
+    // ── Update Team Member Role ──
+    if (action === 'update_team_member_role') {
+      if (auth.role !== 'owner' && auth.role !== 'admin') {
+        return NextResponse.json({ error: 'Only Owners and Admins can update roles.' }, { status: 403 });
+      }
+
+      if (!memberId) {
+        return NextResponse.json({ error: 'Missing memberId' }, { status: 400 });
+      }
+
+      const normalizedTarget = (targetEmail || '').trim().toLowerCase();
+      if (normalizedTarget === ROOT_OWNER_EMAIL) {
+        return NextResponse.json(
+          { error: 'Root Owner permissions are locked and cannot be changed.' },
+          { status: 403 }
+        );
+      }
+
+      const validRoles: CsapRole[] = ['owner', 'admin', 'manager', 'viewer'];
+      if (!validRoles.includes(newRole)) {
+        return NextResponse.json({ error: 'Invalid role specified.' }, { status: 400 });
+      }
+
+      if (auth.role === 'admin' && newRole === 'owner') {
+        return NextResponse.json({ error: 'Admins cannot grant Owner role.' }, { status: 403 });
+      }
+
+      const { error: updateErr } = await supabase
+        .from('csap_team')
+        .update({
+          role: newRole,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', memberId);
+
+      if (updateErr) {
+        return NextResponse.json({ error: updateErr.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Updated role to ${newRole.toUpperCase()}`,
+      });
+    }
 
     // ── Blog Approval / Rejection ──
     if (action === 'approve_blog') {
@@ -1020,23 +1473,76 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// ─── DELETE: Delete a hackathon submission ───────────────────────────────────
+// ─── DELETE: Delete a hackathon, blog, mentor, or team member ────────────────
 export async function DELETE(req: NextRequest) {
-  const token = req.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!verifySessionToken(token)) {
-    return NextResponse.json({ authenticated: false, error: 'Unauthorized' }, { status: 401 });
+  const auth = await verifyCsapAuthorization(req);
+  if (!auth.authenticated) {
+    return NextResponse.json({ authenticated: false, error: auth.error || 'Unauthorized' }, { status: 401 });
+  }
+  if (!auth.authorized) {
+    return NextResponse.json(
+      { authenticated: true, authorized: false, error: auth.error, email: auth.email },
+      { status: 403 }
+    );
+  }
+
+  // Deletions are restricted to Owner and Admin roles
+  if (auth.role !== 'owner' && auth.role !== 'admin') {
+    return NextResponse.json(
+      { error: 'Only Owners and Admins have permission to delete resources.' },
+      { status: 403 }
+    );
   }
 
   try {
     const { searchParams } = new URL(req.url);
     const resource = searchParams.get('resource');
+    const memberId = searchParams.get('memberId');
+    const targetEmail = searchParams.get('email');
     const eventId = searchParams.get('eventId') || searchParams.get('blogId') || searchParams.get('mentorId');
+
+    const supabase = createAdminClient();
+
+    // ── Team Member Removal ──
+    if (resource === 'team') {
+      if (auth.role !== 'owner') {
+        return NextResponse.json(
+          { error: 'Only the Owner can remove team members from CSAP.' },
+          { status: 403 }
+        );
+      }
+
+      const cleanEmail = (targetEmail || '').trim().toLowerCase();
+      if (cleanEmail === ROOT_OWNER_EMAIL) {
+        return NextResponse.json(
+          { error: 'Root Owner account is protected and cannot be removed from CSAP.' },
+          { status: 400 }
+        );
+      }
+
+      let query = supabase.from('csap_team').delete();
+      if (memberId) {
+        query = query.eq('id', memberId);
+      } else if (cleanEmail) {
+        query = query.ilike('email', cleanEmail);
+      } else {
+        return NextResponse.json({ error: 'Missing memberId or email' }, { status: 400 });
+      }
+
+      const { error: delErr } = await query;
+      if (delErr) {
+        return NextResponse.json({ error: delErr.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Team member removed from CSAP successfully',
+      });
+    }
 
     if (!eventId) {
       return NextResponse.json({ error: 'Missing ID' }, { status: 400 });
     }
-
-    const supabase = createAdminClient();
 
     if (resource === 'mentors') {
       const { error } = await supabase.from('mentor_applications').delete().eq('id', eventId);

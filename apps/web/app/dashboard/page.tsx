@@ -97,6 +97,7 @@ import { UserRole } from '@hackers-unity/shared-types';
 
 export default function DashboardPage() {
   const { user, supabaseUser, loading } = useAuth();
+  const adminEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || '').trim().toLowerCase();
   const [authOpen, setAuthOpen] = useState(false);
   const [submissionModalEvent, setSubmissionModalEvent] = useState<ExtendedEvent | null>(null);
 
@@ -193,9 +194,9 @@ export default function DashboardPage() {
       }
 
       const isDbUser = Boolean(userId && userId.length > 10 && userId.includes('-'));
-      const userEmail = user?.email || supabaseUser?.email || '';
+      const userEmail = (user?.email || supabaseUser?.email || '').toLowerCase();
       const isAdminOrOrganizer = Boolean(
-        userEmail === 'chinmaybhatt26@gmail.com' ||
+        (adminEmail && userEmail === adminEmail) ||
         user?.role === UserRole.ADMIN ||
         user?.role === UserRole.SUPER_ADMIN ||
         user?.role === UserRole.ORGANIZER
@@ -1703,8 +1704,11 @@ export default function DashboardPage() {
                     const prizeString =
                       evt.prize || (evt.totalPrizeValue ? formatCurrency(evt.totalPrizeValue) : 'Perks & Swag');
                     const isPending = evt.status === 'PENDING_APPROVAL';
+                    const isSuperAdminEmail = Boolean(
+                      adminEmail && user?.email && user.email.toLowerCase() === adminEmail
+                    );
                     const isAdminUser =
-                      user?.email === 'chinmaybhatt26@gmail.com' ||
+                      isSuperAdminEmail ||
                       user?.role === UserRole.ADMIN ||
                       user?.role === UserRole.SUPER_ADMIN;
 
@@ -1984,8 +1988,7 @@ export default function DashboardPage() {
                       <CreditCard className="w-5 h-5 text-[#0099e6]" />
                       <span>Payments, Receipts & Invoices</span>
                     </h2>
-                    {(user?.email === 'chinmaybhatt26@gmail.com' ||
-                      supabaseUser?.email === 'chinmaybhatt26@gmail.com' ||
+                    {((adminEmail && ((user?.email && user.email.toLowerCase() === adminEmail) || (supabaseUser?.email && supabaseUser.email.toLowerCase() === adminEmail))) ||
                       user?.role === UserRole.ADMIN ||
                       myHostedEvents.length > 0) && (
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-50 dark:bg-sky-950/40 text-[#0099e6] border border-sky-200 dark:border-sky-800/40">
@@ -1994,8 +1997,7 @@ export default function DashboardPage() {
                     )}
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    {(user?.email === 'chinmaybhatt26@gmail.com' ||
-                      supabaseUser?.email === 'chinmaybhatt26@gmail.com' ||
+                    {((adminEmail && ((user?.email && user.email.toLowerCase() === adminEmail) || (supabaseUser?.email && supabaseUser.email.toLowerCase() === adminEmail))) ||
                       user?.role === UserRole.ADMIN ||
                       myHostedEvents.length > 0)
                       ? 'Live overview of all hackathon participant payments, bank UTR references, and verified transactions.'

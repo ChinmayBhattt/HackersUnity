@@ -40,12 +40,12 @@ export async function POST(req: Request) {
     const userRole = auth.user?.user_metadata?.role;
     const userEmail = (auth.email || auth.user?.email || '').toLowerCase().trim();
     const isOwner = event.organizer_id === auth.userId || !event.organizer_id;
+    const adminEmail = (process.env.ADMIN_EMAIL || process.env.NEXT_PUBLIC_ADMIN_EMAIL || '').toLowerCase().trim();
     const isAdmin =
       userRole === 'ADMIN' ||
       userRole === 'SUPER_ADMIN' ||
-      userEmail === 'chinmaybhatt26@gmail.com' ||
       userEmail === 'info@hackersunity.com' ||
-      userEmail === process.env.ADMIN_EMAIL?.toLowerCase();
+      Boolean(adminEmail && userEmail === adminEmail);
 
     if (!isOwner && !isAdmin) {
       return forbiddenResponse('Only the event organizer or platform admins can broadcast this event.');

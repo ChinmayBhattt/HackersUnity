@@ -44,14 +44,18 @@ import {
   PenTool,
   FileSpreadsheet,
   GripVertical,
-  Flame,
   ArrowUpToLine,
+  ShieldAlert,
+  Crown,
+  Flame,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/auth-context';
 import { formatCurrency } from '@/lib/utils';
 import { Logo } from '@/components/logo';
 import { AdminBlogsModeration } from '@/components/admin-blogs-moderation';
 import { AdminMentorsModeration } from '@/components/admin-mentors-moderation';
+import { AdminTeamManagement, CsapRole } from '@/components/admin-team-management';
 import { RichDescription } from '@/components/rich-description';
 import { AdminEditEventModal } from '@/components/admin-edit-event-modal';
 import { AdminShowcaseReorder } from '@/components/admin-showcase-reorder';
@@ -108,18 +112,20 @@ interface AdminEvent {
 }
 
 export default function AdminCsapPortal() {
-  // Navigation Section (Hackathons vs Blogs vs Mentors)
-  const [activeSection, setActiveSection] = useState<'hackathons' | 'blogs' | 'mentors'>('hackathons');
-  const [pendingMentorsCount, setPendingMentorsCount] = useState<number>(0);
+  const { user, supabaseUser, session, loading: contextAuthLoading, signOut } = useAuth();
 
-  // Authentication states
+  // Navigation Section (Hackathons vs Blogs vs Mentors vs Team)
+  const [activeSection, setActiveSection] = useState<'hackathons' | 'blogs' | 'mentors' | 'team'>('hackathons');
+  const [pendingMentorsCount, setPendingMentorsCount] = useState<number>(0);
+  const [teamCount, setTeamCount] = useState<number>(0);
+
+  // Authentication & Database Authorization states
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [username, setUsername] = useState('HU');
-  const [password, setPassword] = useState('HU269');
-  const [showPassword, setShowPassword] = useState(false);
-  const [loginError, setLoginError] = useState('');
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState<CsapRole | null>(null);
+  const [currentAdminUser, setCurrentAdminUser] = useState<{ email: string; role: CsapRole; name: string } | null>(null);
+  const isViewer = currentUserRole === 'viewer';
 
   // Dashboard states
   const [events, setEvents] = useState<AdminEvent[]>([]);
@@ -136,7 +142,12 @@ export default function AdminCsapPortal() {
   // ─── Fetch Mentor Applications Count ─────────────────────────────────────────
   const fetchMentorCount = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin-csap?resource=mentors');
+      const { data: { session: sbSession } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {};
+      if (sbSession?.access_token) {
+        headers['Authorization'] = `Bearer ${sbSession.access_token}`;
+      }
+      const res = await fetch('/api/admin-csap?resource=mentors', { headers });
       if (res.ok) {
         const data = await res.json();
         if (data.authenticated && data.stats) {
@@ -146,27 +157,76 @@ export default function AdminCsapPortal() {
     } catch {}
   }, []);
 
-  // ─── 1. Check existing session on load ──────────────────────────────────────
-  const checkSession = useCallback(async () => {
+  // ─── Fetch Team Count ────────────────────────────────────────────────────────
+  const fetchTeamCount = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin-csap');
+      const { data: { session: sbSession } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {};
+      if (sbSession?.access_token) {
+        headers['Authorization'] = `Bearer ${sbSession.access_token}`;
+      }
+      const res = await fetch('/api/admin-csap?resource=team', { headers });
       if (res.ok) {
         const data = await res.json();
-        if (data.authenticated) {
-          setIsAuthenticated(true);
-          setEvents(data.events || []);
-          fetchMentorCount();
-          return;
+        if (data.team) {
+          setTeamCount(data.team.length);
         }
       }
+    } catch {}
+  }, []);
+
+  // ─── 1. Check existing session & database authorization on load ─────────────
+  const checkSession = useCallback(async () => {
+    if (contextAuthLoading) return;
+
+    if (!user && !supabaseUser) {
       setIsAuthenticated(false);
-    } catch {
+      setIsAuthorized(false);
+      setAuthLoading(false);
+      setLoadingEvents(false);
+      return;
+    }
+
+    try {
+      const { data: { session: sbSession } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {};
+      if (sbSession?.access_token) {
+        headers['Authorization'] = `Bearer ${sbSession.access_token}`;
+      }
+
+      const res = await fetch('/api/admin-csap', { headers });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 401 || !data.authenticated) {
+        setIsAuthenticated(false);
+        setIsAuthorized(false);
+      } else if (res.status === 403 || data.authorized === false) {
+        setIsAuthenticated(true);
+        setIsAuthorized(false);
+        if (data.email) {
+          setCurrentAdminUser({ email: data.email, role: 'viewer', name: data.email.split('@')[0] });
+        }
+      } else if (res.ok && data.authenticated && data.authorized) {
+        setIsAuthenticated(true);
+        setIsAuthorized(true);
+        setCurrentUserRole(data.currentUser?.role || 'viewer');
+        setCurrentAdminUser(data.currentUser || null);
+        setEvents(data.events || []);
+        fetchMentorCount();
+        fetchTeamCount();
+      } else {
+        setIsAuthenticated(false);
+        setIsAuthorized(false);
+      }
+    } catch (err) {
+      console.error('Session check error:', err);
       setIsAuthenticated(false);
+      setIsAuthorized(false);
     } finally {
       setAuthLoading(false);
       setLoadingEvents(false);
     }
-  }, [fetchMentorCount]);
+  }, [contextAuthLoading, user, supabaseUser, fetchMentorCount, fetchTeamCount]);
 
   useEffect(() => {
     checkSession();
@@ -176,12 +236,19 @@ export default function AdminCsapPortal() {
   const fetchEvents = useCallback(async () => {
     setLoadingEvents(true);
     try {
-      const res = await fetch('/api/admin-csap');
+      const { data: { session: sbSession } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {};
+      if (sbSession?.access_token) {
+        headers['Authorization'] = `Bearer ${sbSession.access_token}`;
+      }
+
+      const res = await fetch('/api/admin-csap', { headers });
       if (res.ok) {
         const data = await res.json();
-        if (data.authenticated) {
+        if (data.authenticated && data.authorized) {
           setEvents(data.events || []);
           fetchMentorCount();
+          fetchTeamCount();
         }
       }
     } catch (err) {
@@ -189,11 +256,11 @@ export default function AdminCsapPortal() {
     } finally {
       setLoadingEvents(false);
     }
-  }, [fetchMentorCount]);
+  }, [fetchMentorCount, fetchTeamCount]);
 
   // ─── 3. Realtime Supabase Subscription ──────────────────────────────────────
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !isAuthorized) return;
 
     // Listen to real-time broadcasts and Postgres changes on events
     const channel = supabase
@@ -223,7 +290,7 @@ export default function AdminCsapPortal() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [isAuthenticated, fetchEvents]);
+  }, [isAuthenticated, isAuthorized, fetchEvents]);
 
   // Auto-dismiss notification toast
   useEffect(() => {
@@ -233,34 +300,7 @@ export default function AdminCsapPortal() {
     }
   }, [notificationMsg]);
 
-  // ─── 4. Login Handler ───────────────────────────────────────────────────────
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError('');
-    setIsLoggingIn(true);
-
-    try {
-      const res = await fetch('/api/admin-csap', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'login', username, password }),
-      });
-
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setIsAuthenticated(true);
-        fetchEvents();
-      } else {
-        setLoginError(data.error || 'Invalid credentials. Access denied.');
-      }
-    } catch (err: any) {
-      setLoginError(err.message || 'Login connection failed.');
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  // ─── 5. Logout Handler ──────────────────────────────────────────────────────
+  // ─── 4. Logout Handler ──────────────────────────────────────────────────────
   const handleLogout = async () => {
     try {
       await fetch('/api/admin-csap', {
@@ -268,8 +308,10 @@ export default function AdminCsapPortal() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'logout' }),
       });
+      await signOut();
     } finally {
       setIsAuthenticated(false);
+      setIsAuthorized(false);
       setEvents([]);
       setSelectedEvent(null);
     }
@@ -553,7 +595,7 @@ export default function AdminCsapPortal() {
     );
   }
 
-  // ─── RENDER: Hacker's Unity Login Gate (If not authenticated) ───────────────
+  // ─── RENDER: Unauthenticated Gate (Prompt to sign in) ───────────────────────
   if (!isAuthenticated) {
     return (
       <div className="flex-1 flex items-center justify-center px-4 py-12 sm:py-20">
@@ -567,7 +609,7 @@ export default function AdminCsapPortal() {
               <div className="flex justify-center mb-3">
                 <Logo size={80} showText={false} />
               </div>
-              
+
               <div className="flex items-center justify-center font-black italic tracking-tight select-none text-2xl leading-none whitespace-nowrap mb-2">
                 <span className="text-[#0099e6] font-extrabold pr-1">Hacker&apos;s</span>
                 <span className="text-[#ea580c] font-extrabold">Unity</span>
@@ -578,85 +620,95 @@ export default function AdminCsapPortal() {
                 <span>CSAP Central Admin Portal</span>
               </div>
 
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white mt-2 mb-1">
+                Administrator Sign In Required
+              </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium max-w-xs mx-auto">
-                Sign in with authorized administrator credentials to review and approve hackathon requests.
+                Sign in with your authorized Hacker&apos;s Unity account to access the moderation &amp; approval engine.
               </p>
             </div>
 
-            {/* Error Message */}
-            {loginError && (
-              <div className="mb-6 p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/40 text-rose-700 dark:text-rose-400 text-xs font-semibold flex items-center gap-2.5 animate-in fade-in">
-                <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
-                <span>{loginError}</span>
-              </div>
-            )}
-
-            {/* Form */}
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Admin Username
-                </label>
-                <div className="relative">
-                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Enter admin username"
-                    required
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-[#080c14] border border-slate-200 dark:border-white/[0.08] focus:bg-white dark:focus:bg-[#080c14] focus:border-[#0099e6] focus:ring-2 focus:ring-[#0099e6]/20 rounded-2xl text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm font-semibold transition"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Admin Password
-                </label>
-                <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter security password"
-                    required
-                    className="w-full pl-10 pr-10 py-3 bg-slate-50 dark:bg-[#080c14] border border-slate-200 dark:border-white/[0.08] focus:bg-white dark:focus:bg-[#080c14] focus:border-[#0099e6] focus:ring-2 focus:ring-[#0099e6]/20 rounded-2xl text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm font-semibold transition"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 cursor-pointer"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoggingIn}
-                className="w-full mt-6 py-3.5 px-4 bg-[#0099e6] hover:bg-[#0284c7] text-white font-extrabold text-sm rounded-2xl shadow-md shadow-sky-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+            <div className="space-y-3">
+              <Link
+                href="/login?redirect=/admin-csap"
+                className="w-full py-3.5 px-4 bg-[#0099e6] hover:bg-[#0284c7] text-white font-extrabold text-sm rounded-2xl shadow-md shadow-sky-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                {isLoggingIn ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Verifying Credentials...</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>Access CSAP Dashboard</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            </form>
+                <User className="w-4 h-4" />
+                <span>Sign In to Hacker&apos;s Unity</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+
+              <Link
+                href="/"
+                className="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 font-bold text-xs rounded-2xl transition flex items-center justify-center"
+              >
+                Return to Public Website
+              </Link>
+            </div>
 
             <div className="mt-8 pt-5 border-t border-slate-100 dark:border-white/[0.08] flex items-center justify-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span>Real-time Supabase Database Connected</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── RENDER: Unauthorized Gate (Logged in, but email not in CSAP team) ──────
+  if (isAuthenticated && !isAuthorized) {
+    const userEmail = currentAdminUser?.email || user?.email || supabaseUser?.email || 'Unknown';
+    return (
+      <div className="flex-1 flex items-center justify-center px-4 py-12 sm:py-20">
+        <div className="w-full max-w-md">
+          <div className="bg-white dark:bg-[#0c1017] border border-rose-200/80 dark:border-rose-900/40 rounded-3xl p-8 sm:p-10 shadow-xl shadow-slate-200/50 dark:shadow-black/50 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-500 via-amber-500 to-rose-600" />
+
+            <div className="text-center mb-6">
+              <div className="w-14 h-14 rounded-3xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto mb-4 shadow-sm">
+                <ShieldAlert className="w-7 h-7" />
+              </div>
+
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/40 text-rose-600 dark:text-rose-400 text-[11px] font-bold uppercase tracking-wider mb-3">
+                <span>Access Denied • 403 Forbidden</span>
+              </div>
+
+              <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight mb-2">
+                Unauthorized Account
+              </h2>
+
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-[#080c14] border border-slate-200/70 dark:border-white/[0.06] mb-4">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5">
+                  Signed in as
+                </p>
+                <p className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200 break-all">
+                  {userEmail}
+                </p>
+              </div>
+
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed max-w-sm mx-auto">
+                Your email is not listed in the authorized CSAP Administrator Team registry. If you require access,
+                please contact the platform administrator to add you with an Owner, Admin, or Manager role.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full py-3.5 px-4 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-md shadow-rose-600/20 transition cursor-pointer flex items-center justify-center gap-2"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Switch to Authorized Account</span>
+              </button>
+
+              <Link
+                href="/dashboard"
+                className="w-full py-3 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 font-bold text-xs rounded-2xl transition flex items-center justify-center gap-1.5"
+              >
+                <span>Go to Community Dashboard</span>
+              </Link>
             </div>
           </div>
         </div>
@@ -670,9 +722,22 @@ export default function AdminCsapPortal() {
       {/* ─── Top Dashboard Header ────────────────────────────────────────── */}
       <div className="mt-2 sm:mt-4 bg-white dark:bg-[#0c1017] border border-slate-200/90 dark:border-white/[0.08] rounded-3xl p-6 sm:p-8 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
         <div className="space-y-2 relative z-10">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/40 text-[#0099e6] dark:text-[#38bdf8] text-[11px] font-bold uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>CSAP Super Admin • Hacker&apos;s Unity</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/40 text-[#0099e6] dark:text-[#38bdf8] text-[11px] font-bold uppercase tracking-wider">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>CSAP Super Admin • Hacker&apos;s Unity</span>
+            </div>
+
+            {currentAdminUser && (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/40 text-purple-700 dark:text-purple-300 text-[11px] font-bold">
+                <Crown className="w-3 h-3 text-amber-500" />
+                <span>Role: {(currentUserRole || currentAdminUser.role || 'viewer').toUpperCase()}</span>
+                <span className="text-slate-400 dark:text-slate-500">•</span>
+                <span className="font-mono text-[10px] text-slate-600 dark:text-slate-300">
+                  {currentAdminUser.email}
+                </span>
+              </div>
+            )}
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
@@ -680,14 +745,18 @@ export default function AdminCsapPortal() {
               ? 'Hackathon Moderation & Approval Engine'
               : activeSection === 'blogs'
               ? 'Community Blogs & Playbooks Moderation'
-              : 'Mentor Network & Applications Engine'}
+              : activeSection === 'mentors'
+              ? 'Mentor Network & Applications Engine'
+              : 'CSAP Team & Access Governance'}
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium max-w-2xl">
             {activeSection === 'hackathons'
               ? 'Review host requests submitted by colleges and organizations in real-time. Approved hackathons instantly become public across the main website.'
               : activeSection === 'blogs'
               ? 'Review tech blogs, tutorials, and ecosystem playbooks submitted by community builders. Approved posts are published live immediately on /blogs.'
-              : 'Review mentor and jury applications submitted by industry leaders and domain experts in real-time.'}
+              : activeSection === 'mentors'
+              ? 'Review mentor and jury applications submitted by industry leaders and domain experts in real-time.'
+              : 'Manage administrators, moderation managers, and auditors with role-based database permissions (Owner, Admin, Manager, Viewer).'}
           </p>
         </div>
 
@@ -742,8 +811,8 @@ export default function AdminCsapPortal() {
         </div>
       )}
 
-      {/* ─── Section Switcher: Hackathons vs Blogs vs Mentors ─────────────── */}
-      <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 dark:bg-white/[0.04] backdrop-blur-md rounded-2xl border border-slate-200/90 dark:border-white/[0.08] w-fit shadow-xs">
+      {/* ─── Section Switcher: Hackathons vs Blogs vs Mentors vs Team ─────── */}
+      <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 dark:bg-white/[0.04] backdrop-blur-md rounded-2xl border border-slate-200/90 dark:border-white/[0.08] w-fit shadow-xs flex-wrap">
         <button
           type="button"
           onClick={() => setActiveSection('hackathons')}
@@ -792,14 +861,43 @@ export default function AdminCsapPortal() {
             </span>
           )}
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSection('team')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition cursor-pointer ${
+            activeSection === 'team'
+              ? 'bg-white dark:bg-white/[0.1] text-slate-900 dark:text-white shadow-xs border border-slate-200/90 dark:border-white/[0.1]'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-white/[0.04]'
+          }`}
+        >
+          <Users className="w-4 h-4 text-[#0099e6]" />
+          <span>Team &amp; Access</span>
+          {teamCount > 0 && (
+            <span className="ml-1 px-2 py-0.5 rounded-full bg-sky-500/15 text-[#0099e6] dark:text-[#38bdf8] border border-sky-500/30 text-[10px] font-extrabold shadow-xs">
+              {teamCount}
+            </span>
+          )}
+        </button>
       </div>
 
       {activeSection === 'blogs' ? (
-        <AdminBlogsModeration onNotification={setNotificationMsg} />
+        <AdminBlogsModeration
+          onNotification={setNotificationMsg}
+          currentUserRole={currentUserRole}
+        />
       ) : activeSection === 'mentors' ? (
         <AdminMentorsModeration
           onNotification={setNotificationMsg}
           onPendingCountChange={setPendingMentorsCount}
+          currentUserRole={currentUserRole}
+        />
+      ) : activeSection === 'team' ? (
+        <AdminTeamManagement
+          onNotification={setNotificationMsg}
+          currentUserRole={currentUserRole}
+          currentEmail={currentAdminUser?.email || user?.email || supabaseUser?.email}
+          onTeamCountUpdate={setTeamCount}
         />
       ) : (
         <>
@@ -1208,8 +1306,13 @@ export default function AdminCsapPortal() {
 
                     <button
                       onClick={() => setEditingEvent(event)}
-                      className="w-full px-2.5 py-2 rounded-2xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-500/10 dark:hover:bg-sky-500/20 border border-sky-200 dark:border-sky-500/30 text-[#0099e6] dark:text-[#38bdf8] text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs text-center"
-                      title="Edit this hackathon as platform admin"
+                      disabled={isViewer}
+                      className={`w-full px-2.5 py-2 rounded-2xl border text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs text-center ${
+                        isViewer
+                          ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-white/[0.04] text-slate-400 border-slate-200 dark:border-white/[0.06]'
+                          : 'bg-sky-50 hover:bg-sky-100 dark:bg-sky-500/10 dark:hover:bg-sky-500/20 border border-sky-200 dark:border-sky-500/30 text-[#0099e6] dark:text-[#38bdf8] cursor-pointer'
+                      }`}
+                      title={isViewer ? 'Viewer role has read-only access' : 'Edit this hackathon as platform admin'}
                     >
                       <PenTool className="w-3.5 h-3.5 shrink-0" />
                       <span className="truncate">Edit Event</span>
@@ -1244,14 +1347,18 @@ export default function AdminCsapPortal() {
                     <button
                       type="button"
                       onClick={() => handleToggleExternalRedirect(event)}
-                      disabled={actionLoadingId === event.id}
-                      className={`px-3 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 border shrink-0 ${
-                        event.allow_external_redirect
-                          ? 'bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/40'
-                          : 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/40'
+                      disabled={actionLoadingId === event.id || isViewer}
+                      className={`px-3 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 border shrink-0 ${
+                        isViewer
+                          ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-white/[0.04] text-slate-400 border-slate-200 dark:border-white/[0.08]'
+                          : event.allow_external_redirect
+                          ? 'bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/40 cursor-pointer'
+                          : 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/40 cursor-pointer'
                       }`}
                       title={
-                        event.allow_external_redirect
+                        isViewer
+                          ? 'Viewer role has read-only access'
+                          : event.allow_external_redirect
                           ? 'Click to revoke external redirect permission (lock registration to platform)'
                           : 'Click to allow host to redirect registration to external portal'
                       }
@@ -1271,8 +1378,13 @@ export default function AdminCsapPortal() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleApprove(event)}
-                            disabled={actionLoadingId === event.id}
-                            className="px-5 py-2 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs transition flex items-center gap-1.5 shadow-md shadow-emerald-600/20 cursor-pointer disabled:opacity-50"
+                            disabled={actionLoadingId === event.id || isViewer}
+                            className={`px-5 py-2 rounded-2xl text-white font-extrabold text-xs transition flex items-center gap-1.5 shadow-md ${
+                              isViewer
+                                ? 'opacity-40 cursor-not-allowed bg-emerald-600/60'
+                                : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20 cursor-pointer'
+                            }`}
+                            title={isViewer ? 'Viewer role has read-only access' : 'Approve hackathon'}
                           >
                             {actionLoadingId === event.id ? (
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1283,8 +1395,13 @@ export default function AdminCsapPortal() {
                           </button>
                           <button
                             onClick={() => setRejectModalEvent(event)}
-                            disabled={actionLoadingId === event.id}
-                            className="px-4 py-2 rounded-2xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                            disabled={actionLoadingId === event.id || isViewer}
+                            className={`px-4 py-2 rounded-2xl border font-bold text-xs transition flex items-center gap-1.5 ${
+                              isViewer
+                                ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200'
+                                : 'bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 cursor-pointer'
+                            }`}
+                            title={isViewer ? 'Viewer role has read-only access' : 'Reject application'}
                           >
                             <X className="w-3.5 h-3.5" />
                             <span>Reject</span>
@@ -1297,15 +1414,26 @@ export default function AdminCsapPortal() {
                           <button
                             type="button"
                             onClick={() => setStatusFilter('SHOWCASE')}
-                            className="px-3 py-2 rounded-2xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                            title="Open Drag & Drop Showcase Ordering"
+                            disabled={isViewer}
+                            className={`px-3 py-2 rounded-2xl border text-xs font-bold transition flex items-center gap-1.5 ${
+                              isViewer
+                                ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200'
+                                : 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-300 cursor-pointer'
+                            }`}
+                            title={isViewer ? 'Viewer role has read-only access' : 'Open Drag & Drop Showcase Ordering'}
                           >
                             <GripVertical className="w-3.5 h-3.5" />
                             <span>Showcase Order</span>
                           </button>
                           <button
                             onClick={() => setRejectModalEvent(event)}
-                            className="px-4 py-2 rounded-2xl bg-slate-50 hover:bg-rose-50 dark:bg-white/[0.04] dark:hover:bg-rose-950/30 text-slate-500 hover:text-rose-700 dark:text-slate-400 dark:hover:text-rose-400 border border-slate-200 dark:border-white/[0.08] hover:border-rose-200 dark:hover:border-rose-900/40 text-xs font-bold transition cursor-pointer"
+                            disabled={isViewer}
+                            className={`px-4 py-2 rounded-2xl border text-xs font-bold transition ${
+                              isViewer
+                                ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200'
+                                : 'bg-slate-50 hover:bg-rose-50 dark:bg-white/[0.04] dark:hover:bg-rose-950/30 text-slate-500 hover:text-rose-700 dark:text-slate-400 dark:hover:text-rose-400 border-slate-200 dark:border-white/[0.08] hover:border-rose-200 dark:hover:border-rose-900/40 cursor-pointer'
+                            }`}
+                            title={isViewer ? 'Viewer role has read-only access' : 'Revoke Live Status'}
                           >
                             Revoke Live Status
                           </button>
@@ -1315,8 +1443,13 @@ export default function AdminCsapPortal() {
                       {isRejected && (
                         <button
                           onClick={() => handleApprove(event)}
-                          disabled={actionLoadingId === event.id}
-                          className="px-4 py-2 rounded-2xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-400 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer"
+                          disabled={actionLoadingId === event.id || isViewer}
+                          className={`px-4 py-2 rounded-2xl border font-bold text-xs transition flex items-center gap-1.5 ${
+                            isViewer
+                              ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200'
+                              : 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-900/40 text-emerald-700 dark:text-emerald-400 cursor-pointer'
+                          }`}
+                          title={isViewer ? 'Viewer role has read-only access' : 'Re-Approve'}
                         >
                           <Check className="w-3.5 h-3.5" />
                           <span>Re-Approve</span>
@@ -1645,12 +1778,15 @@ export default function AdminCsapPortal() {
                 <button
                   type="button"
                   onClick={() => handleToggleExternalRedirect(selectedEvent)}
-                  disabled={actionLoadingId === selectedEvent.id}
-                  className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0 border shadow-xs disabled:opacity-50 ${
-                    selectedEvent.allow_external_redirect
-                      ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/50'
-                      : 'bg-emerald-600 hover:bg-emerald-700 text-white border-transparent shadow-emerald-600/20'
+                  disabled={actionLoadingId === selectedEvent.id || isViewer}
+                  className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition flex items-center justify-center gap-1.5 shrink-0 border shadow-xs disabled:opacity-50 ${
+                    isViewer
+                      ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200'
+                      : selectedEvent.allow_external_redirect
+                      ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/50 cursor-pointer'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white border-transparent shadow-emerald-600/20 cursor-pointer'
                   }`}
+                  title={isViewer ? 'Viewer role has read-only access' : undefined}
                 >
                   {actionLoadingId === selectedEvent.id ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1677,7 +1813,13 @@ export default function AdminCsapPortal() {
                   setSelectedEvent(null);
                   setEditingEvent(evtToEdit);
                 }}
-                className="px-5 py-2.5 rounded-2xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/40 border border-sky-200 dark:border-sky-800/50 text-[#0099e6] dark:text-[#38bdf8] font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                disabled={isViewer}
+                className={`px-5 py-2.5 rounded-2xl border font-bold text-xs transition flex items-center justify-center gap-2 shadow-xs ${
+                  isViewer
+                    ? 'opacity-40 cursor-not-allowed bg-slate-100 dark:bg-white/[0.04] text-slate-400 border-slate-200 dark:border-white/[0.06]'
+                    : 'bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/40 border-sky-200 dark:border-sky-800/50 text-[#0099e6] dark:text-[#38bdf8] cursor-pointer'
+                }`}
+                title={isViewer ? 'Viewer role has read-only access' : undefined}
               >
                 <PenTool className="w-4 h-4" />
                 <span>Edit Event Details</span>
@@ -1696,7 +1838,13 @@ export default function AdminCsapPortal() {
                     setRejectModalEvent(selectedEvent);
                     setSelectedEvent(null);
                   }}
-                  className="px-5 py-2.5 rounded-2xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 font-bold text-xs transition cursor-pointer"
+                  disabled={isViewer}
+                  className={`px-5 py-2.5 rounded-2xl border font-bold text-xs transition ${
+                    isViewer
+                      ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200'
+                      : 'bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/40 cursor-pointer'
+                  }`}
+                  title={isViewer ? 'Viewer role has read-only access' : undefined}
                 >
                   Reject Request
                 </button>
@@ -1706,8 +1854,13 @@ export default function AdminCsapPortal() {
                     handleApprove(selectedEvent);
                     setSelectedEvent(null);
                   }}
-                  disabled={actionLoadingId === selectedEvent.id}
-                  className="px-6 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs transition flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 cursor-pointer"
+                  disabled={actionLoadingId === selectedEvent.id || isViewer}
+                  className={`px-6 py-2.5 rounded-2xl font-extrabold text-xs transition flex items-center justify-center gap-2 shadow-md ${
+                    isViewer
+                      ? 'opacity-40 cursor-not-allowed bg-emerald-600/60 text-white'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20 cursor-pointer'
+                  }`}
+                  title={isViewer ? 'Viewer role has read-only access' : undefined}
                 >
                   {actionLoadingId === selectedEvent.id ? (
                     <Loader2 className="w-4 h-4 animate-spin" />

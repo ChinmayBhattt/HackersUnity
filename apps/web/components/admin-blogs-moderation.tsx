@@ -55,9 +55,12 @@ export interface AdminBlog {
 
 interface AdminBlogsModerationProps {
   onNotification: (msg: { type: 'success' | 'error'; text: string }) => void;
+  currentUserRole?: string | null;
 }
 
-export function AdminBlogsModeration({ onNotification }: AdminBlogsModerationProps) {
+export function AdminBlogsModeration({ onNotification, currentUserRole }: AdminBlogsModerationProps) {
+  const isViewer = currentUserRole === 'viewer';
+  const canDelete = currentUserRole === 'owner' || currentUserRole === 'admin';
   const [blogs, setBlogs] = useState<AdminBlog[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -677,10 +680,14 @@ export function AdminBlogsModeration({ onNotification }: AdminBlogsModerationPro
                     {blog.status !== 'PENDING_APPROVAL' && (
                       <button
                         type="button"
-                        disabled={isActionLoading}
+                        disabled={isActionLoading || isViewer}
                         onClick={() => handleResetToPending(blog)}
-                        className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.05] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 text-xs font-bold transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                        title="Move back to Pending Review"
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                          isViewer
+                            ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400'
+                            : 'bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.05] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 cursor-pointer disabled:opacity-50'
+                        }`}
+                        title={isViewer ? 'Viewer role has read-only access' : 'Move back to Pending Review'}
                       >
                         <RefreshCw className="w-3.5 h-3.5" />
                         <span>Move to Pending</span>
@@ -691,12 +698,17 @@ export function AdminBlogsModeration({ onNotification }: AdminBlogsModerationPro
                     {blog.status !== 'REJECTED' && (
                       <button
                         type="button"
-                        disabled={isActionLoading}
+                        disabled={isActionLoading || isViewer}
                         onClick={() => {
                           setRejectModalBlog(blog);
                           setRejectFeedback('');
                         }}
-                        className="px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/40 text-xs font-bold transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                        className={`px-4 py-2 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 ${
+                          isViewer
+                            ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200'
+                            : 'bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800/40 cursor-pointer disabled:opacity-50'
+                        }`}
+                        title={isViewer ? 'Viewer role has read-only access' : 'Reject'}
                       >
                         <X className="w-3.5 h-3.5" />
                         <span>Reject</span>
@@ -707,9 +719,14 @@ export function AdminBlogsModeration({ onNotification }: AdminBlogsModerationPro
                     {blog.status !== 'APPROVED' && (
                       <button
                         type="button"
-                        disabled={isActionLoading}
+                        disabled={isActionLoading || isViewer}
                         onClick={() => handleApprove(blog)}
-                        className="px-5 py-2 rounded-xl bg-[#0099e6] hover:bg-[#0088cc] text-white text-xs font-bold shadow-md shadow-sky-500/20 transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                        className={`px-5 py-2 rounded-xl text-white text-xs font-bold shadow-md transition flex items-center gap-1.5 ${
+                          isViewer
+                            ? 'opacity-40 cursor-not-allowed bg-sky-500/50'
+                            : 'bg-[#0099e6] hover:bg-[#0088cc] shadow-sky-500/20 cursor-pointer disabled:opacity-50'
+                        }`}
+                        title={isViewer ? 'Viewer role has read-only access' : 'Approve'}
                       >
                         {isActionLoading ? (
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -721,15 +738,17 @@ export function AdminBlogsModeration({ onNotification }: AdminBlogsModerationPro
                     )}
 
                     {/* Delete */}
-                    <button
-                      type="button"
-                      disabled={isActionLoading}
-                      onClick={() => handleDelete(blog.id)}
-                      title="Permanently Delete Blog"
-                      className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {canDelete && (
+                      <button
+                        type="button"
+                        disabled={isActionLoading}
+                        onClick={() => handleDelete(blog.id)}
+                        title="Permanently Delete Blog"
+                        className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -862,11 +881,17 @@ export function AdminBlogsModeration({ onNotification }: AdminBlogsModerationPro
                 {selectedBlog.status !== 'PENDING_APPROVAL' && (
                   <button
                     type="button"
+                    disabled={isViewer}
                     onClick={() => {
                       handleResetToPending(selectedBlog);
                       setSelectedBlog(null);
                     }}
-                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                      isViewer
+                        ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400'
+                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 cursor-pointer'
+                    }`}
+                    title={isViewer ? 'Viewer role has read-only access' : undefined}
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     <span>Move to Pending</span>
@@ -875,11 +900,17 @@ export function AdminBlogsModeration({ onNotification }: AdminBlogsModerationPro
                 {selectedBlog.status !== 'REJECTED' && (
                   <button
                     type="button"
+                    disabled={isViewer}
                     onClick={() => {
                       setRejectModalBlog(selectedBlog);
                       setSelectedBlog(null);
                     }}
-                    className="px-4 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 text-xs font-bold hover:bg-rose-100 transition cursor-pointer"
+                    className={`px-4 py-2 rounded-xl border text-xs font-bold transition ${
+                      isViewer
+                        ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400 border-slate-200'
+                        : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 hover:bg-rose-100 cursor-pointer'
+                    }`}
+                    title={isViewer ? 'Viewer role has read-only access' : undefined}
                   >
                     Reject Article
                   </button>
@@ -887,8 +918,14 @@ export function AdminBlogsModeration({ onNotification }: AdminBlogsModerationPro
                 {selectedBlog.status !== 'APPROVED' && (
                   <button
                     type="button"
+                    disabled={isViewer}
                     onClick={() => handleApprove(selectedBlog)}
-                    className="px-6 py-2 rounded-xl bg-[#0099e6] hover:bg-[#0088cc] text-white text-xs font-bold shadow-md shadow-sky-500/20 transition cursor-pointer"
+                    className={`px-6 py-2 rounded-xl text-xs font-bold shadow-md transition ${
+                      isViewer
+                        ? 'opacity-40 cursor-not-allowed bg-sky-500/50 text-white'
+                        : 'bg-[#0099e6] hover:bg-[#0088cc] text-white shadow-sky-500/20 cursor-pointer'
+                    }`}
+                    title={isViewer ? 'Viewer role has read-only access' : undefined}
                   >
                     Approve &amp; Publish
                   </button>

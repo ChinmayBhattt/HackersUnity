@@ -73,12 +73,16 @@ export interface AdminMentor {
 interface AdminMentorsModerationProps {
   onNotification: (msg: { type: 'success' | 'error'; text: string }) => void;
   onPendingCountChange?: (count: number) => void;
+  currentUserRole?: string | null;
 }
 
 export function AdminMentorsModeration({
   onNotification,
   onPendingCountChange,
+  currentUserRole,
 }: AdminMentorsModerationProps) {
+  const isViewer = currentUserRole === 'viewer';
+  const canDelete = currentUserRole === 'owner' || currentUserRole === 'admin';
   const [mentors, setMentors] = useState<AdminMentor[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -999,9 +1003,13 @@ export function AdminMentorsModeration({
                       <button
                         type="button"
                         onClick={() => handleApprove(mentor)}
-                        disabled={isActionLoading}
-                        className="p-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 transition cursor-pointer"
-                        title="Approve as Verified Mentor"
+                        disabled={isActionLoading || isViewer}
+                        className={`p-1.5 rounded-xl transition ${
+                          isViewer
+                            ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400'
+                            : 'bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 cursor-pointer'
+                        }`}
+                        title={isViewer ? 'Viewer role has read-only access' : 'Approve as Verified Mentor'}
                       >
                         {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                       </button>
@@ -1012,9 +1020,13 @@ export function AdminMentorsModeration({
                       <button
                         type="button"
                         onClick={() => handleMarkInReview(mentor)}
-                        disabled={isActionLoading}
-                        className="p-1.5 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-500/10 dark:hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 transition cursor-pointer"
-                        title="Mark In Review"
+                        disabled={isActionLoading || isViewer}
+                        className={`p-1.5 rounded-xl transition ${
+                          isViewer
+                            ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400'
+                            : 'bg-sky-50 hover:bg-sky-100 dark:bg-sky-500/10 dark:hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 cursor-pointer'
+                        }`}
+                        title={isViewer ? 'Viewer role has read-only access' : 'Mark In Review'}
                       >
                         {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -1025,9 +1037,13 @@ export function AdminMentorsModeration({
                       <button
                         type="button"
                         onClick={() => handleResetToPending(mentor)}
-                        disabled={isActionLoading}
-                        className="p-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 transition cursor-pointer"
-                        title="Reset to Pending Review"
+                        disabled={isActionLoading || isViewer}
+                        className={`p-1.5 rounded-xl transition ${
+                          isViewer
+                            ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400'
+                            : 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 cursor-pointer'
+                        }`}
+                        title={isViewer ? 'Viewer role has read-only access' : 'Reset to Pending Review'}
                       >
                         {isActionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
                       </button>
@@ -1038,24 +1054,30 @@ export function AdminMentorsModeration({
                       <button
                         type="button"
                         onClick={() => setRejectModalMentor(mentor)}
-                        disabled={isActionLoading}
-                        className="p-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 transition cursor-pointer"
-                        title="Reject Application"
+                        disabled={isActionLoading || isViewer}
+                        className={`p-1.5 rounded-xl transition ${
+                          isViewer
+                            ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400'
+                            : 'bg-rose-50 hover:bg-rose-100 dark:bg-rose-500/10 dark:hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 cursor-pointer'
+                        }`}
+                        title={isViewer ? 'Viewer role has read-only access' : 'Reject Application'}
                       >
                         <X className="w-4 h-4" />
                       </button>
                     )}
 
                     {/* Delete button */}
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(mentor.id)}
-                      disabled={isActionLoading}
-                      className="p-1.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 transition cursor-pointer"
-                      title="Delete Application"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {canDelete && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(mentor.id)}
+                        disabled={isActionLoading}
+                        className="p-1.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 transition cursor-pointer"
+                        title="Delete Application"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1166,13 +1188,15 @@ export function AdminMentorsModeration({
                   <button
                     type="button"
                     onClick={() => handleResetToPending(selectedMentor)}
-                    disabled={actionLoadingId === selectedMentor.id || selectedMentor.status === 'PENDING'}
+                    disabled={actionLoadingId === selectedMentor.id || selectedMentor.status === 'PENDING' || isViewer}
                     className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
-                      selectedMentor.status === 'PENDING'
+                      isViewer
+                        ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400'
+                        : selectedMentor.status === 'PENDING'
                         ? 'bg-amber-500 text-white shadow-md shadow-amber-500/25 ring-2 ring-amber-400/50 cursor-default'
                         : 'bg-white dark:bg-white/[0.04] text-slate-600 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-amber-500/10 hover:text-amber-600 border border-slate-200 dark:border-white/[0.08] cursor-pointer'
                     }`}
-                    title={selectedMentor.status === 'PENDING' ? 'Currently in Pending' : 'Change status to Pending'}
+                    title={isViewer ? 'Viewer role has read-only access' : selectedMentor.status === 'PENDING' ? 'Currently in Pending' : 'Change status to Pending'}
                   >
                     {actionLoadingId === selectedMentor.id && selectedMentor.status !== 'PENDING' ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1186,13 +1210,15 @@ export function AdminMentorsModeration({
                   <button
                     type="button"
                     onClick={() => handleMarkInReview(selectedMentor)}
-                    disabled={actionLoadingId === selectedMentor.id || selectedMentor.status === 'IN_REVIEW'}
+                    disabled={actionLoadingId === selectedMentor.id || selectedMentor.status === 'IN_REVIEW' || isViewer}
                     className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
-                      selectedMentor.status === 'IN_REVIEW'
+                      isViewer
+                        ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400'
+                        : selectedMentor.status === 'IN_REVIEW'
                         ? 'bg-sky-500 text-white shadow-md shadow-sky-500/25 ring-2 ring-sky-400/50 cursor-default'
                         : 'bg-white dark:bg-white/[0.04] text-slate-600 dark:text-slate-300 hover:bg-sky-50 dark:hover:bg-sky-500/10 hover:text-sky-600 border border-slate-200 dark:border-white/[0.08] cursor-pointer'
                     }`}
-                    title={selectedMentor.status === 'IN_REVIEW' ? 'Currently In Review' : 'Change status to In Review'}
+                    title={isViewer ? 'Viewer role has read-only access' : selectedMentor.status === 'IN_REVIEW' ? 'Currently In Review' : 'Change status to In Review'}
                   >
                     {actionLoadingId === selectedMentor.id && selectedMentor.status !== 'IN_REVIEW' ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1206,13 +1232,15 @@ export function AdminMentorsModeration({
                   <button
                     type="button"
                     onClick={() => handleApprove(selectedMentor)}
-                    disabled={actionLoadingId === selectedMentor.id || selectedMentor.status === 'APPROVED'}
+                    disabled={actionLoadingId === selectedMentor.id || selectedMentor.status === 'APPROVED' || isViewer}
                     className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
-                      selectedMentor.status === 'APPROVED'
+                      isViewer
+                        ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400'
+                        : selectedMentor.status === 'APPROVED'
                         ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/25 ring-2 ring-emerald-400/50 cursor-default'
                         : 'bg-white dark:bg-white/[0.04] text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 hover:text-emerald-600 border border-slate-200 dark:border-white/[0.08] cursor-pointer'
                     }`}
-                    title={selectedMentor.status === 'APPROVED' ? 'Currently Approved' : 'Approve application'}
+                    title={isViewer ? 'Viewer role has read-only access' : selectedMentor.status === 'APPROVED' ? 'Currently Approved' : 'Approve application'}
                   >
                     {actionLoadingId === selectedMentor.id && selectedMentor.status !== 'APPROVED' ? (
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1226,13 +1254,15 @@ export function AdminMentorsModeration({
                   <button
                     type="button"
                     onClick={() => setRejectModalMentor(selectedMentor)}
-                    disabled={actionLoadingId === selectedMentor.id || selectedMentor.status === 'REJECTED'}
+                    disabled={actionLoadingId === selectedMentor.id || selectedMentor.status === 'REJECTED' || isViewer}
                     className={`flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${
-                      selectedMentor.status === 'REJECTED'
+                      isViewer
+                        ? 'opacity-40 cursor-not-allowed bg-slate-100 text-slate-400'
+                        : selectedMentor.status === 'REJECTED'
                         ? 'bg-rose-500 text-white shadow-md shadow-rose-500/25 ring-2 ring-rose-400/50 cursor-default'
                         : 'bg-white dark:bg-white/[0.04] text-slate-600 dark:text-slate-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-600 border border-slate-200 dark:border-white/[0.08] cursor-pointer'
                     }`}
-                    title={selectedMentor.status === 'REJECTED' ? 'Currently Rejected' : 'Reject application'}
+                    title={isViewer ? 'Viewer role has read-only access' : selectedMentor.status === 'REJECTED' ? 'Currently Rejected' : 'Reject application'}
                   >
                     <X className="w-3.5 h-3.5" />
                     <span>{selectedMentor.status === 'REJECTED' ? '✓ Rejected' : 'Reject'}</span>

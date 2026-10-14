@@ -211,12 +211,13 @@ function HackathonDetailContent({ params }: PageProps) {
      previewKeyParam.toLowerCase() === expectedToken.toLowerCase() ||
      previewKeyParam.startsWith('hu_prv_'))
   );
+  const adminEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || '').trim().toLowerCase();
   const isOrganizerOrAdmin = Boolean(
     user &&
     (event.organizerId === user.id ||
      event.organizerId === supabaseUser?.id ||
      (event as any)?.organizerEmail === user.email ||
-     user.email === 'chinmaybhatt26@gmail.com' ||
+     (adminEmail && user.email?.toLowerCase().trim() === adminEmail) ||
      user.role === 'ADMIN' ||
      (user as any)?.role === 'SUPER_ADMIN')
   );
@@ -321,7 +322,7 @@ function HackathonDetailContent({ params }: PageProps) {
             <Lock className="w-4 h-4 text-slate-900 shrink-0" />
             <span>This hackathon is pending admin approval and is not yet publicly visible.</span>
           </div>
-          {(user?.email === 'chinmaybhatt26@gmail.com' ||
+          {((adminEmail && user?.email?.toLowerCase().trim() === adminEmail) ||
             user?.role === 'ADMIN' ||
             (user as any)?.role === 'SUPER_ADMIN') && (
             <button
