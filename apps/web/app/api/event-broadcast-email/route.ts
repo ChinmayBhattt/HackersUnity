@@ -147,7 +147,7 @@ export async function POST(req: Request) {
                 <tr>
                   <td>
                     <div style="font-size: 22px; font-weight: 900; color: #ffffff; letter-spacing: -0.5px; display: inline-flex; align-items: center;">
-                      ⚡ Hacker&apos;s Unity
+                      Hacker&apos;s Unity
                     </div>
                     <div style="font-size: 12px; color: #94a3b8; margin-top: 4px; font-weight: 500;">
                       India&apos;s Fastest Growing Hackathon &amp; Builder Network

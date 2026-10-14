@@ -18,6 +18,9 @@ import {
   ShieldCheck,
   ChevronDown,
   ChevronUp,
+  Award,
+  XCircle,
+  Bell,
 } from 'lucide-react';
 import { EventRegistration } from '@/lib/storage';
 import { ExtendedEvent } from '@/lib/mock-data';
@@ -46,7 +49,6 @@ interface TemplatePreset {
   id: TemplateType;
   label: string;
   badge: string;
-  icon: string;
   subject: string;
   body: string;
   ctaText: string;
@@ -57,8 +59,7 @@ const TEMPLATES: TemplatePreset[] = [
     id: 'selection',
     label: 'Team Selected / Shortlisted',
     badge: 'Shortlisted',
-    icon: '🎉',
-    subject: '🎉 Congratulations! Your team {team_name} is shortlisted for {event_title}',
+    subject: 'Congratulations! Your team {team_name} is shortlisted for {event_title}',
     body: `We are thrilled to inform you that your team **{team_name}** has been shortlisted for **{event_title}**!
 
 Our evaluation panel reviewed hundreds of innovative project pitches, and your squad's proposal stood out with exceptional technical depth and vision.
@@ -72,8 +73,7 @@ Let's build something phenomenal together!`,
     id: 'approval',
     label: 'Application Approved',
     badge: 'Approved',
-    icon: '✅',
-    subject: '✅ Your Application for {event_title} has been Approved!',
+    subject: 'Your Application for {event_title} has been Approved!',
     body: `Congratulations! Your registration for **{event_title}** has been officially verified and approved by the organizing committee.
 
 You are now confirmed to participate in this hackathon. You will receive live access to the problem statements, project submission portals, and our developer community.
@@ -85,7 +85,6 @@ Please ensure you join our official Discord server to connect with mentors and f
     id: 'rejection',
     label: 'Application Update (Regret)',
     badge: 'Regret',
-    icon: '❌',
     subject: 'Update regarding your application for {event_title}',
     body: `Thank you for taking the time to submit your application for **{event_title}**.
 
@@ -100,8 +99,7 @@ Keep hacking, keep building, and we hope to see you in our next event!`,
     id: 'certificate',
     label: 'Certificate of Participation',
     badge: 'Certification',
-    icon: '🏆',
-    subject: '🏆 Your Official Certificate of Participation | {event_title}',
+    subject: 'Your Official Certificate of Participation | {event_title}',
     body: `Congratulations on completing **{event_title}**!
 
 On behalf of the organizing committee and Hacker's Unity, we would like to express our deepest gratitude for your hard work, creativity, and commitment throughout the hackathon.
@@ -113,21 +111,19 @@ Your Official Certificate of Participation is now ready. You can view, download,
     id: 'rsvp',
     label: 'RSVP Confirmation Required',
     badge: 'Action Required',
-    icon: '⚠️',
-    subject: '⚠️ Action Required: Please confirm your RSVP for {event_title}',
+    subject: 'Action Required: Please confirm your RSVP for {event_title}',
     body: `Your spot for **{event_title}** has been reserved!
 
 To finalize venue arrangements, mentor slots, and hardware kits, we require your immediate confirmation. Please confirm whether you and your team will be attending.
 
-⚠️ **Important:** If we do not receive your RSVP confirmation within 48 hours, your reserved spot will automatically be transferred to the waitlisted teams.`,
+**Important:** If we do not receive your RSVP confirmation within 48 hours, your reserved spot will automatically be transferred to the waitlisted teams.`,
     ctaText: 'Confirm Your RSVP Now →',
   },
   {
     id: 'general',
     label: 'General Announcement',
     badge: 'Announcement',
-    icon: '📢',
-    subject: '📢 Important Announcement regarding {event_title} | Hacker\'s Unity',
+    subject: 'Important Announcement regarding {event_title} | Hacker\'s Unity',
     body: `We have an important announcement regarding **{event_title}**!
 
 Please make sure you and your squad members check the latest schedule, submission guidelines, and judging rubrics available on the event page.
@@ -267,15 +263,15 @@ export function EventEmailModal({
 
       const data = await res.json();
       if (res.ok && data.success) {
-        setTestSuccessMsg(`✅ Test email delivered to ${testEmailAddress}! Check your inbox.`);
+        setTestSuccessMsg(`Test email delivered to ${testEmailAddress}! Check your inbox.`);
         if (data.warning) {
-          setTestSuccessMsg(`ℹ️ ${data.warning}`);
+          setTestSuccessMsg(data.warning);
         }
       } else {
-        setTestSuccessMsg(`❌ Failed: ${data.error || 'Check Resend credentials'}`);
+        setTestSuccessMsg(`Failed: ${data.error || 'Check Resend credentials'}`);
       }
     } catch (err: any) {
-      setTestSuccessMsg(`❌ Request error: ${err.message}`);
+      setTestSuccessMsg(`Request error: ${err.message}`);
     } finally {
       setSendingTest(false);
       setTimeout(() => setTestSuccessMsg(null), 6000);
@@ -574,24 +570,45 @@ export function EventEmailModal({
 
             {/* Template Selector Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {TEMPLATES.map((tmpl) => (
-                <button
-                  key={tmpl.id}
-                  type="button"
-                  onClick={() => handleSelectTemplate(tmpl.id)}
-                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1 ${
-                    selectedTemplate === tmpl.id
-                      ? 'bg-[#0099e6]/10 border-[#0099e6] text-slate-900 dark:text-white shadow-xs'
-                      : 'bg-white dark:bg-[#0c1017] border-slate-200 dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-white/20 text-slate-600 dark:text-slate-400'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-base">{tmpl.icon}</span>
-                    <span className="text-xs font-bold truncate">{tmpl.label}</span>
-                  </div>
-                  <span className="text-[10px] text-slate-500 truncate">{tmpl.badge}</span>
-                </button>
-              ))}
+              {TEMPLATES.map((tmpl) => {
+                const getTemplateIcon = (id: TemplateType) => {
+                  switch (id) {
+                    case 'selection':
+                      return <Users className="w-4 h-4 text-[#0099e6]" />;
+                    case 'approval':
+                      return <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />;
+                    case 'rejection':
+                      return <XCircle className="w-4 h-4 text-red-600 dark:text-red-400" />;
+                    case 'certificate':
+                      return <Award className="w-4 h-4 text-amber-600 dark:text-amber-400" />;
+                    case 'rsvp':
+                      return <Clock className="w-4 h-4 text-orange-600 dark:text-orange-400" />;
+                    case 'general':
+                      return <Bell className="w-4 h-4 text-sky-600 dark:text-sky-400" />;
+                    default:
+                      return <Mail className="w-4 h-4 text-slate-500" />;
+                  }
+                };
+
+                return (
+                  <button
+                    key={tmpl.id}
+                    type="button"
+                    onClick={() => handleSelectTemplate(tmpl.id)}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1 ${
+                      selectedTemplate === tmpl.id
+                        ? 'bg-[#0099e6]/10 border-[#0099e6] text-slate-900 dark:text-white shadow-xs'
+                        : 'bg-white dark:bg-[#0c1017] border-slate-200 dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-white/20 text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      {getTemplateIcon(tmpl.id)}
+                      <span className="text-xs font-bold truncate">{tmpl.label}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 truncate">{tmpl.badge}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Email Subject Field */}
@@ -622,9 +639,9 @@ export function EventEmailModal({
                       setBodyText(tmpl.body);
                       setActionButtonText(tmpl.ctaText);
                     }}
-                    className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 hover:bg-sky-50 dark:bg-white/[0.06] dark:hover:bg-sky-950/30 text-slate-600 hover:text-[#0099e6] dark:text-slate-300 transition-colors cursor-pointer border border-slate-200 dark:border-white/[0.08]"
+                    className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 hover:bg-sky-50 dark:bg-white/[0.06] dark:hover:bg-sky-950/30 text-slate-600 hover:text-[#0099e6] dark:text-slate-300 transition-colors cursor-pointer border border-slate-200 dark:border-white/[0.08]"
                   >
-                    {tmpl.icon} {tmpl.badge}
+                    {tmpl.badge}
                   </button>
                 ))}
               </div>
@@ -697,7 +714,7 @@ export function EventEmailModal({
                   {/* Email header inside preview */}
                   <div className="p-3 rounded-xl bg-slate-900 text-white flex items-center justify-between">
                     <div>
-                      <div className="text-xs font-black">⚡ Hacker&apos;s Unity</div>
+                      <div className="text-xs font-black">Hacker&apos;s Unity</div>
                       <div className="text-[10px] text-sky-400 font-medium">{event.title}</div>
                     </div>
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 font-bold">
