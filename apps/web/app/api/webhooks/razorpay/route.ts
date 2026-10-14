@@ -114,6 +114,37 @@ export async function POST(req: NextRequest) {
           .eq('user_id', updatedPayment.user_id);
       }
 
+      if (updatedPayment?.event_id && updatedPayment?.team_leader_email) {
+        await serverSupabase
+          .from('registrations')
+          .update({
+            payment_status: 'PAID',
+            payment_id: updatedPayment.id,
+          })
+          .eq('event_id', updatedPayment.event_id)
+          .ilike('user_email', updatedPayment.team_leader_email.trim());
+      }
+
+      // Mark earlier dangling orders as failed
+      if (updatedPayment?.event_id && updatedPayment?.id) {
+        try {
+          let danglingQuery = serverSupabase
+            .from('payments')
+            .update({ status: 'FAILED', updated_at: nowIso })
+            .eq('event_id', updatedPayment.event_id)
+            .in('status', ['CREATED', 'PENDING'])
+            .neq('id', updatedPayment.id);
+
+          if (updatedPayment.team_id) {
+            await danglingQuery.eq('team_id', updatedPayment.team_id);
+          } else if (updatedPayment.user_id) {
+            await danglingQuery.eq('user_id', updatedPayment.user_id);
+          } else if (updatedPayment.team_leader_email) {
+            await danglingQuery.ilike('team_leader_email', updatedPayment.team_leader_email.trim());
+          }
+        } catch {}
+      }
+
       // Sync to Google Sheet if not already synced
       if (updatedPayment) {
         try {

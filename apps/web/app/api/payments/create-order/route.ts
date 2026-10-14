@@ -98,20 +98,26 @@ export async function POST(req: Request) {
       .from('payments')
       .select('*')
       .eq('event_id', resolvedEventId)
-      .eq('status', 'PAID');
+      .eq('status', 'PAID')
+      .order('created_at', { ascending: false });
 
-    if (targetTeamId) {
-      existingPaidPaymentQuery = existingPaidPaymentQuery.eq('team_id', targetTeamId);
-    } else {
-      existingPaidPaymentQuery = existingPaidPaymentQuery.eq('user_id', auth.userId);
+    const orClauses: string[] = [];
+    if (targetTeamId && targetTeamId !== 'solo') orClauses.push(`team_id.eq.${targetTeamId}`);
+    if (auth.userId) orClauses.push(`user_id.eq.${auth.userId}`);
+    if (auth.email) orClauses.push(`team_leader_email.ilike.${auth.email.trim()}`);
+
+    if (orClauses.length > 0) {
+      existingPaidPaymentQuery = existingPaidPaymentQuery.or(orClauses.join(','));
     }
 
-    const { data: existingPaid } = await existingPaidPaymentQuery.maybeSingle();
+    const { data: existingPaidRows } = await existingPaidPaymentQuery.limit(1);
+    const existingPaid = existingPaidRows && existingPaidRows.length > 0 ? existingPaidRows[0] : null;
+
     if (existingPaid) {
       return NextResponse.json({
         alreadyPaid: true,
         payment: existingPaid,
-        message: 'This team has already completed payment for this event.',
+        message: 'This participant or squad has already completed payment for this event.',
       });
     }
 

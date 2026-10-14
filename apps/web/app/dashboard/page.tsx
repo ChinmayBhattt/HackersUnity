@@ -448,20 +448,136 @@ export default function DashboardPage() {
     return true;
   });
 
+  const isPlatformAdminOrOrganizer = Boolean(
+    (adminEmail && (
+      (user?.email && user.email.toLowerCase() === adminEmail) ||
+      (supabaseUser?.email && supabaseUser.email.toLowerCase() === adminEmail)
+    )) ||
+    user?.role === UserRole.ADMIN ||
+    user?.role === UserRole.SUPER_ADMIN ||
+    user?.role === UserRole.ORGANIZER ||
+    myHostedEvents.length > 0
+  );
+
   // Filtered Payments & Transaction Ledger
   const allPaymentsList = (() => {
-    const list: any[] = [...payments];
-    const paidEventIds = new Set(
-      payments
-        .filter((p) => p.status === 'PAID')
-        .map((p) => p.event_id || p.eventId)
-    );
+    const rawList: any[] = [...payments];
+
+    // Find all confirmed PAID payments
+    const paidPayments = rawList.filter((p) => p.status === 'PAID');
+
+    // Build lookup keys for who has paid for which event
+    const paidEventIds = new Set<string>();
+    const paidTeamKeys = new Set<string>(); // `${eventId}::${teamId}`
+    const paidUserKeys = new Set<string>(); // `${eventId}::${userId}`
+    const paidEmailKeys = new Set<string>(); // `${eventId}::${email}`
+    const paidTeamNameKeys = new Set<string>(); // `${eventId}::${teamName}`
+    const paidPaymentMap = new Map<string, any>();
+
+    paidPayments.forEach((p) => {
+      const eid = p.event_id || p.eventId || p.slug || p.events?.slug;
+      if (eid) {
+        paidEventIds.add(eid);
+        if (p.events?.slug) paidEventIds.add(p.events.slug);
+        if (p.slug) paidEventIds.add(p.slug);
+      }
+      const tid = p.team_id || p.teamId;
+      if (eid && tid && tid !== 'solo') {
+        const k = `${eid}::${tid}`;
+        paidTeamKeys.add(k);
+        paidPaymentMap.set(k, p);
+      }
+      const uid = p.user_id || p.userId;
+      if (eid && uid) {
+        const k = `${eid}::${uid}`;
+        paidUserKeys.add(k);
+        paidPaymentMap.set(k, p);
+      }
+      const email = (p.team_leader_email || p.email || '').toLowerCase().trim();
+      if (eid && email) {
+        const k = `${eid}::${email}`;
+        paidEmailKeys.add(k);
+        paidPaymentMap.set(k, p);
+      }
+      const tname = (p.team_name || p.teamName || '').toLowerCase().trim();
+      if (eid && tname && tname !== 'solo builder' && tname !== 'squad') {
+        const k = `${eid}::${tname}`;
+        paidTeamNameKeys.add(k);
+        paidPaymentMap.set(k, p);
+      }
+    });
+
+    // Also factor in registrations that are already confirmed PAID
+    registrations.forEach((reg) => {
+      if (reg.paymentStatus === 'PAID') {
+        if (reg.eventId) paidEventIds.add(reg.eventId);
+        if (reg.slug) paidEventIds.add(reg.slug);
+        if (reg.teamId) paidTeamKeys.add(`${reg.eventId}::${reg.teamId}`);
+        if (user?.email) paidEmailKeys.add(`${reg.eventId}::${user.email.toLowerCase().trim()}`);
+      }
+    });
+
+    // Determine if a non-PAID payment item has been superseded by a verified successful payment
+    const checkSuperseded = (item: any): { isSuperseded: boolean; matchingPaidPayment: any | null } => {
+      if (item.status === 'PAID') return { isSuperseded: false, matchingPaidPayment: null };
+      const eid = item.event_id || item.eventId || item.slug || item.events?.slug;
+      if (!eid) return { isSuperseded: false, matchingPaidPayment: null };
+
+      // Participant viewing their own payments: any confirmed paid payment for this event means this user has paid!
+      if (!isPlatformAdminOrOrganizer && (paidEventIds.has(eid) || (item.slug && paidEventIds.has(item.slug)))) {
+        const matchingPaid = paidPayments.find((p) => {
+          const peid = p.event_id || p.eventId || p.slug || p.events?.slug;
+          return peid === eid || (item.slug && peid === item.slug);
+        });
+        return { isSuperseded: true, matchingPaidPayment: matchingPaid || null };
+      }
+
+      // Admin or organizer view: match by team ID, user ID, email, or team name
+      const tid = item.team_id || item.teamId;
+      if (tid && tid !== 'solo' && paidTeamKeys.has(`${eid}::${tid}`)) {
+        return { isSuperseded: true, matchingPaidPayment: paidPaymentMap.get(`${eid}::${tid}`) || null };
+      }
+
+      const uid = item.user_id || item.userId;
+      if (uid && paidUserKeys.has(`${eid}::${uid}`)) {
+        return { isSuperseded: true, matchingPaidPayment: paidPaymentMap.get(`${eid}::${uid}`) || null };
+      }
+
+      const email = (item.team_leader_email || item.email || '').toLowerCase().trim();
+      if (email && paidEmailKeys.has(`${eid}::${email}`)) {
+        return { isSuperseded: true, matchingPaidPayment: paidPaymentMap.get(`${eid}::${email}`) || null };
+      }
+
+      const tname = (item.team_name || item.teamName || '').toLowerCase().trim();
+      if (tname && tname !== 'solo builder' && tname !== 'squad' && paidTeamNameKeys.has(`${eid}::${tname}`)) {
+        return { isSuperseded: true, matchingPaidPayment: paidPaymentMap.get(`${eid}::${tname}`) || null };
+      }
+
+      return { isSuperseded: false, matchingPaidPayment: null };
+    };
+
+    // Decorate raw payments with superseded flag and matching receipt
+    const list: any[] = rawList.map((item) => {
+      const { isSuperseded, matchingPaidPayment } = checkSuperseded(item);
+      return {
+        ...item,
+        isSuperseded,
+        matchingPaidPayment,
+      };
+    });
 
     // Complement with any registrations that are UNPAID on a paid hackathon
     registrations.forEach((reg) => {
-      const isPaid = reg.paymentStatus === 'PAID' || paidEventIds.has(reg.eventId);
+      const userEmail = (user?.email || '').toLowerCase().trim();
+      const isAlreadyPaid =
+        reg.paymentStatus === 'PAID' ||
+        paidEventIds.has(reg.eventId) ||
+        (reg.slug && paidEventIds.has(reg.slug)) ||
+        (reg.teamId && paidTeamKeys.has(`${reg.eventId}::${reg.teamId}`)) ||
+        (userEmail && paidEmailKeys.has(`${reg.eventId}::${userEmail}`));
+
       const isMember = Boolean(reg.isTeam && reg.role && !reg.role.toLowerCase().includes('lead'));
-      if (!isPaid && (reg.entryFee || 0) > 0) {
+      if (!isAlreadyPaid && (reg.entryFee || 0) > 0) {
         list.push({
           id: `pending_${reg.eventId}_${reg.teamId || 'reg'}`,
           event_id: reg.eventId,
@@ -484,6 +600,8 @@ export default function DashboardPage() {
           slug: reg.slug || reg.eventId,
           isPendingRegistration: true,
           isSquadMember: isMember,
+          isSuperseded: false,
+          matchingPaidPayment: null,
         });
       }
     });
@@ -491,32 +609,26 @@ export default function DashboardPage() {
     return list;
   })();
 
-  const pendingPaymentsCount = allPaymentsList.filter((p) => p.status === 'PENDING' || p.status === 'CREATED').length;
+  const pendingPaymentsCount = allPaymentsList.filter(
+    (p) => (p.status === 'PENDING' || p.status === 'CREATED') && !p.isSuperseded
+  ).length;
+
   const allPendingPaymentsList = useMemo(() => {
-    return allPaymentsList.filter((p) => p.status === 'PENDING' || p.status === 'CREATED');
+    return allPaymentsList.filter(
+      (p) => (p.status === 'PENDING' || p.status === 'CREATED') && !p.isSuperseded
+    );
   }, [allPaymentsList]);
 
-  const isPlatformAdminOrOrganizer = Boolean(
-    (adminEmail && (
-      (user?.email && user.email.toLowerCase() === adminEmail) ||
-      (supabaseUser?.email && supabaseUser.email.toLowerCase() === adminEmail)
-    )) ||
-    user?.role === UserRole.ADMIN ||
-    user?.role === UserRole.SUPER_ADMIN ||
-    user?.role === UserRole.ORGANIZER ||
-    myHostedEvents.length > 0
-  );
-
-  const paidPaymentsCount = allPaymentsList.filter((p) => p.status === 'PAID').length;
-  const failedPaymentsCount = allPaymentsList.filter((p) => p.status === 'FAILED').length;
+  const paidPaymentsCount = allPaymentsList.filter((p) => p.status === 'PAID' || p.isSuperseded).length;
+  const failedPaymentsCount = allPaymentsList.filter((p) => p.status === 'FAILED' && !p.isSuperseded).length;
   const totalAmountPaid = allPaymentsList
     .filter((p) => p.status === 'PAID')
     .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
   const filteredPayments = allPaymentsList.filter((p) => {
-    if (paymentFilter === 'PAID' && p.status !== 'PAID') return false;
-    if (paymentFilter === 'PENDING' && (p.status !== 'PENDING' && p.status !== 'CREATED')) return false;
-    if (paymentFilter === 'FAILED' && p.status !== 'FAILED') return false;
+    if (paymentFilter === 'PAID' && (p.status !== 'PAID' && !p.isSuperseded)) return false;
+    if (paymentFilter === 'PENDING' && ((p.status !== 'PENDING' && p.status !== 'CREATED') || p.isSuperseded)) return false;
+    if (paymentFilter === 'FAILED' && (p.status !== 'FAILED' || p.isSuperseded)) return false;
 
     if (paymentSearch.trim()) {
       const q = paymentSearch.toLowerCase();
@@ -2186,8 +2298,9 @@ export default function DashboardPage() {
                 <div className="space-y-3">
                   {filteredPayments.map((p) => {
                     const isPaid = p.status === 'PAID';
-                    const isPending = p.status === 'PENDING' || p.status === 'CREATED';
-                    const isFailed = p.status === 'FAILED';
+                    const isSuperseded = Boolean(p.isSuperseded);
+                    const isPending = (p.status === 'PENDING' || p.status === 'CREATED') && !isSuperseded;
+                    const isFailed = p.status === 'FAILED' && !isSuperseded;
                     const eventSlug = p.slug || p.events?.slug || p.event_id;
 
                     return (
@@ -2202,6 +2315,12 @@ export default function DashboardPage() {
                               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 flex items-center gap-1">
                                 <CheckCircle className="w-3 h-3 text-emerald-500" />
                                 <span>VERIFIED & PAID</span>
+                              </span>
+                            )}
+                            {isSuperseded && (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 flex items-center gap-1" title="Payment cleared via confirmed transaction">
+                                <CheckCircle className="w-3 h-3 text-emerald-500" />
+                                <span>PAID • RESOLVED</span>
                               </span>
                             )}
                             {isPending && (
@@ -2273,7 +2392,7 @@ export default function DashboardPage() {
                               <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Payment ID</div>
                               <div className="flex items-center gap-1">
                                 <span className="font-mono text-slate-800 dark:text-slate-200 truncate max-w-[110px]">
-                                  {p.razorpay_payment_id || (isPending ? 'Pending' : 'N/A')}
+                                  {p.razorpay_payment_id || (isSuperseded ? 'Cleared' : isPending ? 'Pending' : 'N/A')}
                                 </span>
                                 {p.razorpay_payment_id && (
                                   <button
@@ -2295,7 +2414,7 @@ export default function DashboardPage() {
                               <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Bank UTR / Ref</div>
                               <div className="flex items-center gap-1">
                                 <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 truncate max-w-[110px]">
-                                  {p.utr_number || (isPending ? 'Awaiting payment' : 'N/A')}
+                                  {p.utr_number || (isSuperseded ? 'Cleared via Paid Order' : isPending ? 'Awaiting payment' : 'N/A')}
                                 </span>
                                 {p.utr_number && (
                                   <button
@@ -2324,16 +2443,16 @@ export default function DashboardPage() {
                               </span>
                             )}
                             <span className="text-[11px] text-slate-400 font-medium">
-                              {isPaid ? '100% Secure via Razorpay Gateway' : 'Spot reserved on arena waitlist'}
+                              {(isPaid || isSuperseded) ? '100% Secure via Razorpay Gateway' : 'Spot reserved on arena waitlist'}
                             </span>
                           </div>
 
                           <div className="flex items-center gap-2">
-                            {isPaid && (
+                            {(isPaid || isSuperseded) && (
                               <button
                                 type="button"
                                 onClick={() => {
-                                  setSelectedReceiptPayment(p);
+                                  setSelectedReceiptPayment(p.matchingPaidPayment || p);
                                   setReceiptModalOpen(true);
                                 }}
                                 className="px-4 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 text-[#0099e6] border border-sky-200 dark:border-sky-800/40 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"

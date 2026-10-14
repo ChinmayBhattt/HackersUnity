@@ -10,12 +10,44 @@ export async function GET(req: NextRequest) {
     const eventId = searchParams.get('eventId');
     const teamId = searchParams.get('teamId');
     const userId = searchParams.get('userId');
+    const email = searchParams.get('email');
 
-    if (!orderId && !eventId && !teamId && !userId) {
+    if (!orderId && !eventId && !teamId && !userId && !email) {
       return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
     }
 
     const serverSupabase = createAdminClient();
+
+    // 0. High priority check: If any confirmed PAID payment exists for this event + team/user/email, return it immediately
+    if (eventId && (teamId || userId || email)) {
+      const orClauses: string[] = [];
+      if (teamId && teamId !== 'solo') orClauses.push(`team_id.eq.${teamId}`);
+      if (userId) orClauses.push(`user_id.eq.${userId}`);
+      if (email) orClauses.push(`team_leader_email.ilike.${email.trim()}`);
+
+      if (orClauses.length > 0) {
+        const { data: paidRows } = await serverSupabase
+          .from('payments')
+          .select('*')
+          .eq('event_id', eventId)
+          .eq('status', 'PAID')
+          .or(orClauses.join(','))
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (paidRows && paidRows.length > 0) {
+          const paidPayment = paidRows[0];
+          // Ensure team and registrations are linked
+          if (teamId && !paidPayment.team_id) {
+            try {
+              await serverSupabase.from('payments').update({ team_id: teamId }).eq('id', paidPayment.id);
+              await serverSupabase.from('teams').update({ payment_status: 'PAID', payment_id: paidPayment.id }).eq('id', teamId);
+            } catch {}
+          }
+          return NextResponse.json({ isPaid: true, payment: paidPayment });
+        }
+      }
+    }
 
     // 1. If teamId is specified, check team status and leader payment first
     if (teamId) {
@@ -138,7 +170,54 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 3. Check Supabase for existing payment by orderId or teamId
+    // 3. If email is specified, check direct payment by email
+    if (email && eventId) {
+      const { data: emailDirectPay } = await serverSupabase
+        .from('payments')
+        .select('*')
+        .eq('event_id', eventId)
+        .ilike('team_leader_email', email.trim())
+        .eq('status', 'PAID')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (emailDirectPay) {
+        return NextResponse.json({ isPaid: true, payment: emailDirectPay });
+      }
+    }
+
+    // 4. Check registrations table for verified PAID status
+    if (eventId) {
+      let regQuery = serverSupabase
+        .from('registrations')
+        .select('*')
+        .eq('event_id', eventId)
+        .eq('payment_status', 'PAID');
+
+      if (teamId && teamId !== 'solo') {
+        regQuery = regQuery.eq('team_id', teamId);
+      } else if (userId) {
+        regQuery = regQuery.eq('user_id', userId);
+      } else if (email) {
+        regQuery = regQuery.ilike('user_email', email.trim());
+      }
+
+      const { data: regRows } = await regQuery.limit(1);
+      if (regRows && regRows.length > 0) {
+        return NextResponse.json({
+          isPaid: true,
+          payment: {
+            id: regRows[0].payment_id || `reg_${regRows[0].id}`,
+            status: 'PAID',
+            event_id: eventId,
+            team_id: teamId || regRows[0].team_id || null,
+          },
+        });
+      }
+    }
+
+    // 5. Check Supabase for existing payment by orderId or teamId
     let query = serverSupabase.from('payments').select('*').order('created_at', { ascending: false });
     if (orderId) {
       query = query.eq('razorpay_order_id', orderId);
@@ -148,6 +227,8 @@ export async function GET(req: NextRequest) {
       query = query.eq('team_id', teamId);
     } else if (userId && eventId) {
       query = query.eq('event_id', eventId).eq('user_id', userId);
+    } else if (email && eventId) {
+      query = query.eq('event_id', eventId).ilike('team_leader_email', email.trim());
     }
 
     const { data: payments } = await query;
@@ -159,7 +240,26 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ isPaid: true, payment });
     }
 
+    // If payment is FAILED or REFUNDED, verify that no other payment for this user/email is PAID before returning false
     if (payment && (payment.status === 'REFUNDED' || payment.status === 'FAILED') && !orderId) {
+      if (eventId && (userId || email)) {
+        let doubleCheckQuery = serverSupabase
+          .from('payments')
+          .select('*')
+          .eq('event_id', eventId)
+          .eq('status', 'PAID');
+        if (userId && email) {
+          doubleCheckQuery = doubleCheckQuery.or(`user_id.eq.${userId},team_leader_email.ilike.${email.trim()}`);
+        } else if (userId) {
+          doubleCheckQuery = doubleCheckQuery.eq('user_id', userId);
+        } else if (email) {
+          doubleCheckQuery = doubleCheckQuery.ilike('team_leader_email', email.trim());
+        }
+        const { data: verifiedPaidRows } = await doubleCheckQuery.limit(1);
+        if (verifiedPaidRows && verifiedPaidRows.length > 0) {
+          return NextResponse.json({ isPaid: true, payment: verifiedPaidRows[0] });
+        }
+      }
       return NextResponse.json({ isPaid: false, payment });
     }
 

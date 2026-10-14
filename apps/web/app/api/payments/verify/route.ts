@@ -156,7 +156,7 @@ export async function POST(req: Request) {
         .eq('team_id', targetTeamId);
     }
 
-    // Also update individual registration for this user
+    // Also update individual registration for this user by userId or email
     await serverSupabase
       .from('registrations')
       .update({
@@ -165,6 +165,38 @@ export async function POST(req: Request) {
       })
       .eq('event_id', eventId)
       .eq('user_id', auth.userId);
+
+    const leaderEmail = updatedPayment?.team_leader_email || auth.email;
+    if (leaderEmail && eventId) {
+      await serverSupabase
+        .from('registrations')
+        .update({
+          payment_status: 'PAID',
+          payment_id: updatedPayment?.id || null,
+        })
+        .eq('event_id', eventId)
+        .ilike('user_email', leaderEmail.trim());
+    }
+
+    // Mark any earlier dangling CREATED / PENDING orders for this event + user/team as superseded/failed
+    try {
+      let danglingQuery = serverSupabase
+        .from('payments')
+        .update({ status: 'FAILED', updated_at: nowIso })
+        .eq('event_id', eventId)
+        .in('status', ['CREATED', 'PENDING'])
+        .neq('id', updatedPayment.id);
+
+      if (targetTeamId && targetTeamId !== 'solo') {
+        await danglingQuery.eq('team_id', targetTeamId);
+      } else if (auth.userId) {
+        await danglingQuery.eq('user_id', auth.userId);
+      } else if (leaderEmail) {
+        await danglingQuery.ilike('team_leader_email', leaderEmail.trim());
+      }
+    } catch (cleanErr) {
+      console.warn('[Verify Payment] Dangling orders cleanup warning:', cleanErr);
+    }
 
     // 5. Send Realtime Notification to user
     try {

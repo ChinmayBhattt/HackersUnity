@@ -183,8 +183,9 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
     const currentEventId = event.id;
     const targetTeamId = createdTeamId || createdTeamData?.id || selectedTeamId || null;
     const currentUserId = supabaseUser?.id || user?.id || null;
+    const currentUserEmail = user?.email || supabaseUser?.email || null;
 
-    if (!currentUserId && !targetTeamId) {
+    if (!currentUserId && !targetTeamId && !currentUserEmail) {
       setPaymentStatus('UNPAID');
       return;
     }
@@ -196,7 +197,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
     let isMounted = true;
     async function loadPayment() {
       try {
-        const res = await checkPaymentStatusSupabase(currentEventId, targetTeamId, currentUserId);
+        const res = await checkPaymentStatusSupabase(currentEventId, targetTeamId, currentUserId, currentUserEmail);
         if (isMounted) {
           if (res.isPaid && res.payment) {
             setPaymentStatus('PAID');
@@ -214,7 +215,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
     return () => {
       isMounted = false;
     };
-  }, [event?.id, isPaidEvent, createdTeamId, createdTeamData?.id, createdTeamData?.payment_status, selectedTeamId, supabaseUser?.id, user?.id]);
+  }, [event?.id, isPaidEvent, createdTeamId, createdTeamData?.id, createdTeamData?.payment_status, selectedTeamId, supabaseUser?.id, user?.id, user?.email, supabaseUser?.email]);
 
   // Squad role determination: Only squad leader (or solo registrant) can make payment
   const currentUserId = supabaseUser?.id || user?.id;
@@ -468,7 +469,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
           if (squad.payment_status === 'PAID') {
             setPaymentStatus('PAID');
           } else {
-            checkPaymentStatusSupabase(currentEvent.id, squad.id, userId).then((pRes) => {
+            checkPaymentStatusSupabase(currentEvent.id, squad.id, userId, userEmail).then((pRes) => {
               if (pRes.isPaid && pRes.payment) {
                 setPaymentStatus('PAID');
                 setPaymentData(pRes.payment);
@@ -542,6 +543,25 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
           setRegisteredRole(
             reg.registration.role || 'Solo Builder'
           );
+
+          if (reg.registration.payment_status === 'PAID') {
+            setPaymentStatus('PAID');
+            if (reg.registration.payment_id) {
+              setPaymentData({
+                id: reg.registration.payment_id,
+                status: 'PAID',
+                event_id: currentEvent.id,
+              });
+            }
+          } else {
+            checkPaymentStatusSupabase(currentEvent.id, null, userId, userEmail).then((pRes) => {
+              if (pRes.isPaid && pRes.payment) {
+                setPaymentStatus('PAID');
+                setPaymentData(pRes.payment);
+              }
+            });
+          }
+
           setCurrentStep(wantsStep4 ? 4 : 3);
           return;
         }

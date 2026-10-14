@@ -4207,7 +4207,8 @@ export async function fetchEventPaymentsSupabase(eventId: string): Promise<any[]
 export async function checkPaymentStatusSupabase(
   eventId: string,
   teamId?: string | null,
-  userId?: string | null
+  userId?: string | null,
+  email?: string | null
 ): Promise<{ isPaid: boolean; payment?: any }> {
   if (!eventId) return { isPaid: false };
   try {
@@ -4217,6 +4218,7 @@ export async function checkPaymentStatusSupabase(
       if (eventId) params.set('eventId', eventId);
       if (teamId) params.set('teamId', teamId);
       if (userId) params.set('userId', userId);
+      if (email) params.set('email', email);
 
       const res = await fetch(`/api/payments/status?${params.toString()}`, {
         method: 'GET',
@@ -4230,30 +4232,25 @@ export async function checkPaymentStatusSupabase(
       // Fallback to client query if API call fails
     }
 
-    let query = supabase
-      .from('payments')
-      .select('*')
-      .eq('event_id', eventId)
-      .eq('status', 'PAID')
-      .order('created_at', { ascending: false });
+    let paidPayment: any = null;
 
-    if (teamId) {
-      query = query.eq('team_id', teamId);
-    } else if (userId) {
-      query = query.eq('user_id', userId);
-    } else {
-      return { isPaid: false };
+    // 2. Direct client check by teamId
+    if (teamId && teamId !== 'solo') {
+      const { data: teamRows } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('event_id', eventId)
+        .eq('team_id', teamId)
+        .eq('status', 'PAID')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (teamRows && teamRows.length > 0) {
+        paidPayment = teamRows[0];
+      }
     }
 
-    const { data: rows, error } = await query.limit(1);
-
-    if (error) {
-      console.warn('[Supabase] checkPaymentStatusSupabase error:', error.message);
-    }
-
-    let paidPayment = rows && rows.length > 0 ? rows[0] : null;
-
-    // Fallback: If searched by teamId but nothing found, also check by userId
+    // 3. Direct client check by userId
     if (!paidPayment && userId) {
       const { data: userRows } = await supabase
         .from('payments')
@@ -4269,8 +4266,24 @@ export async function checkPaymentStatusSupabase(
       }
     }
 
-    // Fallback: Check if the team or registration record is marked PAID
-    if (!paidPayment && teamId) {
+    // 4. Direct client check by email
+    if (!paidPayment && email) {
+      const { data: emailRows } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('event_id', eventId)
+        .ilike('team_leader_email', email.trim())
+        .eq('status', 'PAID')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (emailRows && emailRows.length > 0) {
+        paidPayment = emailRows[0];
+      }
+    }
+
+    // 5. Fallback: Check if the team record is marked PAID
+    if (!paidPayment && teamId && teamId !== 'solo') {
       const { data: teamData } = await supabase
         .from('teams')
         .select('payment_status, payment_id')
@@ -4285,6 +4298,36 @@ export async function checkPaymentStatusSupabase(
             team_id: teamId,
             event_id: eventId,
             id: teamData.payment_id,
+          },
+        };
+      }
+    }
+
+    // 6. Fallback: Check if registrations table has verified PAID status
+    if (!paidPayment) {
+      let regQuery = supabase
+        .from('registrations')
+        .select('payment_status, payment_id')
+        .eq('event_id', eventId)
+        .eq('payment_status', 'PAID');
+
+      if (teamId && teamId !== 'solo') {
+        regQuery = regQuery.eq('team_id', teamId);
+      } else if (userId) {
+        regQuery = regQuery.eq('user_id', userId);
+      } else if (email) {
+        regQuery = regQuery.ilike('user_email', email.trim());
+      }
+
+      const { data: regRows } = await regQuery.limit(1);
+      if (regRows && regRows.length > 0) {
+        return {
+          isPaid: true,
+          payment: {
+            status: 'PAID',
+            id: regRows[0].payment_id || `reg_paid_${eventId}`,
+            event_id: eventId,
+            team_id: teamId || null,
           },
         };
       }
