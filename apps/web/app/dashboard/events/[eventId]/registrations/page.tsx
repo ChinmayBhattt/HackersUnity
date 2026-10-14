@@ -22,6 +22,7 @@ import {
   ShieldAlert,
   Eye,
   Mail,
+  Sparkles,
 } from 'lucide-react';
 import {
   getEventRegistrations,
@@ -38,6 +39,7 @@ import { ExtendedEvent } from '@/lib/mock-data';
 import { formatDate } from '@/lib/utils';
 import { BulkRegistrationModal } from '@/components/bulk-registration-modal';
 import { EventEmailModal } from '@/components/event-email-modal';
+import { EventLiveBroadcastModal } from '@/components/event-live-broadcast-modal';
 import { fetchEventBySlug } from '@/lib/supabase-service';
 import { useAuth } from '@/lib/auth-context';
 import { UserRole } from '@hackers-unity/shared-types';
@@ -63,6 +65,7 @@ export default function EventRegistrationsPage({ params }: PageProps) {
   const [emailTargetParticipant, setEmailTargetParticipant] = useState<EventRegistration | null>(null);
   const [emailInitialSelectedIds, setEmailInitialSelectedIds] = useState<string[]>([]);
   const [emailInitialFilter, setEmailInitialFilter] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL');
+  const [isLiveBroadcastModalOpen, setIsLiveBroadcastModalOpen] = useState(false);
 
   // Auth context for authorization checks
   const { user, supabaseUser, loading: authLoading } = useAuth();
@@ -532,10 +535,19 @@ export default function EventRegistrationsPage({ params }: PageProps) {
             onClick={() => handleOpenEmailAll(statusFilter)}
             disabled={registrations.length === 0}
             className="px-4 py-2.5 rounded-xl bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800/40 hover:bg-sky-100 dark:hover:bg-sky-900/40 text-[#0099e6] dark:text-sky-300 text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Send broadcast email to participants"
+            title="Send broadcast email to registered participants"
           >
             <Mail className="w-4 h-4 text-[#0099e6]" />
             <span>Email Participants</span>
+          </button>
+
+          <button
+            onClick={() => setIsLiveBroadcastModalOpen(true)}
+            className="px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+            title="Broadcast announcement email to all platform users (118+ users in public.profiles)"
+          >
+            <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            <span>Announce to Platform</span>
           </button>
 
           <button
@@ -1026,6 +1038,13 @@ export default function EventRegistrationsPage({ params }: PageProps) {
         singleRecipient={emailTargetParticipant}
         initialSelectedIds={emailInitialSelectedIds}
         initialFilter={emailInitialFilter}
+      />
+
+      {/* ─── Platform Live Announcement Modal ────────────────────── */}
+      <EventLiveBroadcastModal
+        isOpen={isLiveBroadcastModalOpen}
+        onClose={() => setIsLiveBroadcastModalOpen(false)}
+        event={event}
       />
 
       {/* ─── Applicant Details Modal ───────────────────────────── */}

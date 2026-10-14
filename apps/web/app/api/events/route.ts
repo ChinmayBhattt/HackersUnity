@@ -7,6 +7,7 @@ import {
   forbiddenResponse,
   verifyAdminCsapSession,
 } from '@/lib/api-auth';
+import { sendLiveEventAnnouncementToAllUsers } from '@/lib/live-event-email-service';
 
 function slugify(text: string): string {
   return text
@@ -202,6 +203,18 @@ export async function POST(req: Request) {
       });
     } catch (bcErr) {
       console.warn('Realtime broadcast warning on event creation:', bcErr);
+    }
+
+    // If event is created directly with LIVE/PUBLISHED status, announce to all platform users
+    if (
+      data &&
+      (data.status === 'PUBLISHED' || data.status === 'LIVE' || data.status === 'REGISTRATION_OPEN')
+    ) {
+      try {
+        await sendLiveEventAnnouncementToAllUsers(data);
+      } catch (bcErr) {
+        console.warn('[POST /api/events] Live announcement error:', bcErr);
+      }
     }
 
     return NextResponse.json({ success: true, data });
@@ -540,10 +553,34 @@ export async function PATCH(req: Request) {
         return NextResponse.json({ error: insertErr.message }, { status: 500 });
       }
 
+      if (
+        insertedData &&
+        (insertedData.status === 'PUBLISHED' || insertedData.status === 'LIVE' || insertedData.status === 'REGISTRATION_OPEN')
+      ) {
+        try {
+          await sendLiveEventAnnouncementToAllUsers(insertedData);
+        } catch (bcErr) {
+          console.warn('[PATCH /api/events upsert] Live announcement error:', bcErr);
+        }
+      }
+
       return NextResponse.json({ success: true, data: insertedData });
     }
 
-    return NextResponse.json({ success: true, data: updateResult?.data?.[0] });
+    const updatedEvt = updateResult?.data?.[0];
+    if (
+      updatedEvt &&
+      (updatedEvt.status === 'PUBLISHED' || updatedEvt.status === 'LIVE' || updatedEvt.status === 'REGISTRATION_OPEN') &&
+      existingEvent?.status !== 'PUBLISHED'
+    ) {
+      try {
+        await sendLiveEventAnnouncementToAllUsers(updatedEvt);
+      } catch (bcErr) {
+        console.warn('[PATCH /api/events] Live announcement error:', bcErr);
+      }
+    }
+
+    return NextResponse.json({ success: true, data: updatedEvt });
   } catch (err: any) {
     console.error('Server error updating event:', err);
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });

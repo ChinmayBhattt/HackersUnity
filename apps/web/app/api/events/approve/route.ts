@@ -7,10 +7,10 @@ import {
   unauthorizedResponse,
 } from '@/lib/api-auth';
 
+import { sendLiveEventAnnouncementToAllUsers } from '@/lib/live-event-email-service';
+
 export async function POST(req: Request) {
   try {
-
-    // SELINE: removed module-lvl supabase client and replaced with admin client for server-side auth
     const auth = await authenticateRequest(req);
     if (!auth) {
       return unauthorizedResponse('You must be signed in to approve events.');
@@ -18,7 +18,7 @@ export async function POST(req: Request) {
 
     const serverSupabase = createAdminClient();
 
-    // SELINE : check if the authenticated user has admin privileges. only allow SUPER_ADMIN or ADMIN roles to approve events
+    // Check if the authenticated user has admin privileges
     const { data: profile, error: profileError } = await serverSupabase
       .from('profiles')
       .select('role')
@@ -59,9 +59,86 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, event: data });
-  } catch (err: any) { // SELINE: flagged eslint error
+    // Trigger email announcement to ALL platform registered users
+    let broadcastResult: any = null;
+    try {
+      broadcastResult = await sendLiveEventAnnouncementToAllUsers(data);
+    } catch (broadcastErr) {
+      console.warn('[api/events/approve] Live event broadcast non-fatal error:', broadcastErr);
+    }
+
+    return NextResponse.json({
+      success: true,
+      event: data,
+      broadcastResult,
+    });
+  } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
+  }
+}
+
+/**
+ * GET Handler for 1-Click approval links sent in admin notification emails
+ */
+export async function GET(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const eventId = searchParams.get('id');
+    const slug = searchParams.get('slug');
+
+    if (!eventId && !slug) {
+      return new NextResponse(
+        renderResultHtml('Approval Failed', 'Missing event ID or slug in approval link.', false),
+        { status: 400, headers: { 'Content-Type': 'text/html' } }
+      );
+    }
+
+    const serverSupabase = createAdminClient();
+    const isUuid = Boolean(eventId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId));
+
+    let query = serverSupabase
+      .from('events')
+      .update({ status: 'PUBLISHED', updated_at: new Date().toISOString() });
+
+    if (isUuid) {
+      query = query.eq('id', eventId);
+    } else {
+      query = query.eq('slug', slug || eventId);
+    }
+
+    const { data, error } = await query.select('*').single();
+    if (error || !data) {
+      return new NextResponse(
+        renderResultHtml('Approval Failed', error?.message || 'Event not found in database.', false),
+        { status: 500, headers: { 'Content-Type': 'text/html' } }
+      );
+    }
+
+    // Trigger email announcement to all registered users
+    try {
+      await sendLiveEventAnnouncementToAllUsers(data);
+    } catch (broadcastErr) {
+      console.warn('[api/events/approve GET] Broadcast error:', broadcastErr);
+    }
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://hackersunity.com';
+    const liveUrl = `${baseUrl}/hackathons/${data.slug || data.id}`;
+
+    return new NextResponse(
+      renderResultHtml(
+        'Hackathon Approved & Published!',
+        `"<strong>${data.title}</strong>" is now officially LIVE on Hacker's Unity! Announcement emails have been dispatched to platform users.`,
+        true,
+        liveUrl,
+        data.title
+      ),
+      { status: 200, headers: { 'Content-Type': 'text/html' } }
+    );
+  } catch (err: any) {
+    return new NextResponse(
+      renderResultHtml('Error', err?.message || 'Internal server error while approving.', false),
+      { status: 500, headers: { 'Content-Type': 'text/html' } }
+    );
   }
 }
 
