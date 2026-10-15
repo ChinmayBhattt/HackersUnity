@@ -122,7 +122,7 @@ export function PaymentReminderSidebar({
   // Email form state
   const [subject, setSubject] = useState('');
   const [bodyText, setBodyText] = useState('');
-  const [actionButtonText, setActionButtonText] = useState('Complete Registration Payment (₹{amount}) →');
+  const [actionButtonText, setActionButtonText] = useState('Complete Registration Payment ({amount}) →');
 
   // Test email state
   const [testEmailAddress, setTestEmailAddress] = useState(user?.email || 'chinmaybhatt26@gmail.com');
@@ -179,13 +179,13 @@ export function PaymentReminderSidebar({
       setBodyText(
 `Thank you for registering for **{event_title}** with squad **{team_name}**!
 
-Your registration has been received and your spot is currently reserved on the arena waitlist awaiting payment verification. To complete your payment process for approval and confirm your squad's slot in the arena, please complete the registration fee of **₹{amount}**.
+Your registration has been received and your spot is currently reserved on the arena waitlist awaiting payment verification. To complete your payment process for approval and confirm your squad's slot in the arena, please complete the registration fee of **{amount}**.
 
 Once your payment is verified, your registration status will be confirmed and your entire team will receive full hackathon workspace and discord access.
 
 Please click the button below to complete your payment process:`
       );
-      setActionButtonText('Complete Registration Payment (₹{amount}) →');
+      setActionButtonText('Complete Registration Payment ({amount}) →');
     } else {
       // Bulk mode: select all by default
       const allIds = new Set(uniquePendingPayments.map((p) => p.id));
@@ -195,13 +195,13 @@ Please click the button below to complete your payment process:`
       setBodyText(
 `Thank you for registering for **{event_title}** with squad **{team_name}**!
 
-Your registration has been received and your spot is currently reserved on the arena waitlist awaiting payment verification. To complete your payment process for approval and confirm your squad's slot in the arena, please complete the registration fee of **₹{amount}**.
+Your registration has been received and your spot is currently reserved on the arena waitlist awaiting payment verification. To complete your payment process for approval and confirm your squad's slot in the arena, please complete the registration fee of **{amount}**.
 
 Once your payment is verified, your registration status will be confirmed and your entire team will receive full hackathon workspace access.
 
 Please click the button below to complete your payment process:`
       );
-      setActionButtonText('Complete Registration Payment (₹{amount}) →');
+      setActionButtonText('Complete Registration Payment ({amount}) →');
     }
   }, [isOpen, mode, targetPayment, uniquePendingPayments, user?.email]);
 
@@ -430,7 +430,11 @@ Please click the button below to complete your payment process:`
   const previewName = previewRecipient?.team_leader_name || 'Tanmay';
   const previewTeam = previewRecipient?.team_name || previewRecipient?.teamName || 'Solo Builder';
   const previewEvent = previewRecipient?.event_name || previewRecipient?.eventName || previewRecipient?.events?.title || 'SPHINX \'26';
-  const previewAmount = Number(previewRecipient?.amount) || 800;
+  const cleanedPreviewAmount = typeof previewRecipient?.amount === 'string'
+    ? Number(previewRecipient.amount.replace(/[^0-9.-]+/g, ''))
+    : Number(previewRecipient?.amount);
+  const previewAmount = !isNaN(cleanedPreviewAmount) && cleanedPreviewAmount > 0 ? cleanedPreviewAmount : 800;
+  const formattedPreviewAmount = `₹${previewAmount.toLocaleString('en-IN')}`;
   const previewSlug = resolveEventSlug(previewRecipient);
   const previewPaymentUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/hackathons/${previewSlug}/register?step=4`
@@ -442,7 +446,9 @@ Please click the button below to complete your payment process:`
     .replace(/\{team_name\}/gi, previewTeam)
     .replace(/\{team\}/gi, previewTeam)
     .replace(/\{event_title\}/gi, previewEvent)
-    .replace(/\{amount\}/gi, `₹${previewAmount.toLocaleString('en-IN')}`);
+    .replace(/₹\s*\{amount\}/gi, formattedPreviewAmount)
+    .replace(/\{amount\}/gi, formattedPreviewAmount)
+    .replace(/₹\s*₹+/g, '₹');
 
   // Strip duplicate greeting and premature sign-off for preview body
   const cleanPreviewBodyText = bodyText
@@ -456,11 +462,15 @@ Please click the button below to complete your payment process:`
     .replace(/\{team_name\}/gi, previewTeam)
     .replace(/\{team\}/gi, previewTeam)
     .replace(/\{event_title\}/gi, previewEvent)
-    .replace(/\{amount\}/gi, `₹${previewAmount.toLocaleString('en-IN')}`)
+    .replace(/₹\s*\{amount\}/gi, formattedPreviewAmount)
+    .replace(/\{amount\}/gi, formattedPreviewAmount)
+    .replace(/₹\s*₹+/g, '₹')
     .replace(/\{payment_url\}/gi, `<a href="${previewPaymentUrl}" target="_blank" class="text-[#0099e6] underline font-bold">${previewPaymentUrl}</a>`);
 
   const renderedPreviewButton = actionButtonText
-    .replace(/\{amount\}/gi, `₹${previewAmount.toLocaleString('en-IN')}`)
+    .replace(/₹\s*\{amount\}/gi, formattedPreviewAmount)
+    .replace(/\{amount\}/gi, formattedPreviewAmount)
+    .replace(/₹\s*₹+/g, '₹')
     .replace(/\{name\}/gi, previewName)
     .replace(/\{team_name\}/gi, previewTeam);
 
@@ -821,7 +831,7 @@ Please click the button below to complete your payment process:`
                     type="text"
                     value={actionButtonText}
                     onChange={(e) => setActionButtonText(e.target.value)}
-                    placeholder="e.g. Complete Registration Payment (₹{amount}) →"
+                    placeholder="e.g. Complete Registration Payment ({amount}) →"
                     className="flex-1 px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-hidden focus:border-[#ea580c]"
                   />
                   <div className="px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 text-[10px] font-mono text-amber-800 dark:text-amber-300 shrink-0">

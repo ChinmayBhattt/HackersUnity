@@ -108,7 +108,7 @@ export async function POST(req: Request) {
     }
 
     const ctaUrl = actionButtonUrl || `${baseUrl}/dashboard`;
-    const ctaText = actionButtonText || (templateType === 'payment_reminder' ? 'Complete Payment (₹{amount}) →' : 'Open Event Dashboard →');
+    const ctaText = actionButtonText || (templateType === 'payment_reminder' ? 'Complete Payment ({amount}) →' : 'Open Event Dashboard →');
 
     // Clean test payment URL with resolved slug
     const defaultTestSlug = resolvedEventSlug || 'sphinx-26';
@@ -146,7 +146,11 @@ export async function POST(req: Request) {
       const recipientName = r.name || 'Hacker';
       const teamName = r.teamName || recipientName;
       const recEventTitle = r.eventTitle || eventTitle;
-      const formattedAmount = r.amount ? `₹${Number(r.amount).toLocaleString('en-IN')}` : '₹800';
+      const cleanedAmount = typeof r.amount === 'string'
+        ? Number(r.amount.replace(/[^0-9.-]+/g, ''))
+        : Number(r.amount);
+      const validAmount = !isNaN(cleanedAmount) && cleanedAmount > 0 ? cleanedAmount : 800;
+      const formattedAmount = `₹${validAmount.toLocaleString('en-IN')}`;
 
       // Generate recipient CTA link (supports recipient-specific paymentUrl)
       let recipientCtaUrl = r.paymentUrl || r.ctaUrl || ctaUrl;
@@ -183,7 +187,9 @@ export async function POST(req: Request) {
         .replace(/\{team\}/gi, teamName)
         .replace(/\{event_title\}/gi, recEventTitle)
         .replace(/\{college\}/gi, r.college || 'Participant')
+        .replace(/₹\s*\{amount\}/gi, formattedAmount)
         .replace(/\{amount\}/gi, formattedAmount)
+        .replace(/₹\s*₹+/g, '₹')
         .replace(/\{payment_url\}/gi, styledPaymentLink)
         .replace(/\{rsvp_url\}/gi, styledPaymentLink)
         .replace(/\{status\}/gi, r.status || 'Registered');
@@ -248,11 +254,13 @@ export async function POST(req: Request) {
       }
 
       const personalCtaText = (ctaText || 'Complete Payment →')
+        .replace(/₹\s*\{amount\}/gi, formattedAmount)
         .replace(/\{amount\}/gi, formattedAmount)
+        .replace(/₹\s*₹+/g, '₹')
         .replace(/\{name\}/gi, recipientName)
         .replace(/\{team_name\}/gi, teamName);
 
-      return `
+      const htmlOutput = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -380,6 +388,7 @@ export async function POST(req: Request) {
 </body>
 </html>
       `;
+      return htmlOutput.replace(/₹\s*₹+/g, '₹');
     };
 
     // Personalized Subject line helper
@@ -387,14 +396,20 @@ export async function POST(req: Request) {
       const recipientName = r.name || 'Hacker';
       const teamName = r.teamName || recipientName;
       const recEventTitle = r.eventTitle || eventTitle;
-      const formattedAmount = r.amount ? `₹${Number(r.amount).toLocaleString('en-IN')}` : '₹800';
+      const cleanedAmount = typeof r.amount === 'string'
+        ? Number(r.amount.replace(/[^0-9.-]+/g, ''))
+        : Number(r.amount);
+      const validAmount = !isNaN(cleanedAmount) && cleanedAmount > 0 ? cleanedAmount : 800;
+      const formattedAmount = `₹${validAmount.toLocaleString('en-IN')}`;
       return subject
         .replace(/\{name\}/gi, recipientName)
         .replace(/\{user\}/gi, recipientName)
         .replace(/\{team_name\}/gi, teamName)
         .replace(/\{team\}/gi, teamName)
         .replace(/\{event_title\}/gi, recEventTitle)
-        .replace(/\{amount\}/gi, formattedAmount);
+        .replace(/₹\s*\{amount\}/gi, formattedAmount)
+        .replace(/\{amount\}/gi, formattedAmount)
+        .replace(/₹\s*₹+/g, '₹');
     };
 
     // 1. Send via Resend if RESEND_API_KEY is configured
