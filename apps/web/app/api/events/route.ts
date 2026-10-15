@@ -49,6 +49,80 @@ async function generateUniqueSlug(title: string): Promise<string> {
   }
 }
 
+export async function GET(req: Request) {
+  try {
+    const url = new URL(req.url);
+    const type = url.searchParams.get('type');
+    const slug = url.searchParams.get('slug');
+    const serverSupabase = createAdminClient();
+
+    // 1. If query is specifically for hidden/rejected/draft events
+    if (type === 'hidden' || type === 'rejected') {
+      const { data, error } = await serverSupabase
+        .from('events')
+        .select('id, slug, status, title')
+        .in('status', ['REJECTED', 'DRAFT', 'PENDING_APPROVAL']);
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      const hiddenIds = (data || []).map((row: any) => String(row.id || '').toLowerCase()).filter(Boolean);
+      const hiddenSlugs = (data || []).map((row: any) => String(row.slug || '').toLowerCase()).filter(Boolean);
+
+      return NextResponse.json(
+        { hiddenIds, hiddenSlugs, items: data || [] },
+        { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      );
+    }
+
+    // 2. If query is for a specific event by slug or UUID
+    if (slug) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+      let query = serverSupabase.from('events').select('*');
+      if (isUuid) {
+        query = query.or(`id.eq.${slug},slug.eq.${slug}`);
+      } else {
+        query = query.eq('slug', slug);
+      }
+      const { data, error } = await query.maybeSingle();
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      return NextResponse.json(
+        { event: data },
+        { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      );
+    }
+
+    // 3. Default: return published events and hidden IDs so caller has authoritative state
+    const { data: publishedEvents } = await serverSupabase
+      .from('events')
+      .select('*')
+      .in('status', ['PUBLISHED', 'REGISTRATION_OPEN', 'LIVE', 'JUDGING', 'COMPLETED', 'ARCHIVED'])
+      .order('created_at', { ascending: false });
+
+    const { data: hiddenEvents } = await serverSupabase
+      .from('events')
+      .select('id, slug, status')
+      .in('status', ['REJECTED', 'DRAFT', 'PENDING_APPROVAL']);
+
+    const hiddenIds = (hiddenEvents || []).map((row: any) => String(row.id || '').toLowerCase()).filter(Boolean);
+    const hiddenSlugs = (hiddenEvents || []).map((row: any) => String(row.slug || '').toLowerCase()).filter(Boolean);
+
+    return NextResponse.json(
+      {
+        events: publishedEvents || [],
+        hiddenIds,
+        hiddenSlugs,
+      },
+      { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+    );
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const auth = await authenticateRequest();

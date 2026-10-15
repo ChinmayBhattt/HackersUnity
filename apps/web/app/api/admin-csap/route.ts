@@ -1436,6 +1436,7 @@ export async function PATCH(req: NextRequest) {
       // Transition to REJECTED (with graceful fallback to DRAFT + rejected tag if constraint pending)
       const updateData: any = {
         status: 'REJECTED',
+        featured: false,
         updated_at: new Date().toISOString(),
       };
 
@@ -1451,6 +1452,7 @@ export async function PATCH(req: NextRequest) {
       if (error && (error.code === '42703' || error.code === '23514' || error.code === 'PGRST204' || error.message?.includes('column'))) {
         let retry = supabase.from('events').update({
           status: 'DRAFT',
+          featured: false,
           updated_at: new Date().toISOString(),
         });
         retry = isUuid ? retry.eq('id', eventId) : retry.eq('slug', eventId);

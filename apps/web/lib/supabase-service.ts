@@ -308,6 +308,26 @@ export async function fetchPublishedEvents(): Promise<ExtendedEvent[]> {
 
     const custom = typeof window !== 'undefined' ? getCustomEvents() : [];
 
+    const hiddenIdSet = new Set<string>();
+
+    // 1. Fetch authoritative hidden/rejected/draft events via server endpoint (bypasses Supabase RLS)
+    try {
+      if (typeof window !== 'undefined') {
+        const hiddenRes = await fetch('/api/events?type=hidden', { cache: 'no-store' });
+        if (hiddenRes.ok) {
+          const hiddenData = await hiddenRes.json();
+          if (Array.isArray(hiddenData.hiddenIds)) {
+            hiddenData.hiddenIds.forEach((id: string) => hiddenIdSet.add(String(id).toLowerCase()));
+          }
+          if (Array.isArray(hiddenData.hiddenSlugs)) {
+            hiddenData.hiddenSlugs.forEach((slug: string) => hiddenIdSet.add(String(slug).toLowerCase()));
+          }
+        }
+      }
+    } catch {
+      // Fallback if network fails
+    }
+
     // Query published/active events from Supabase
     const { data, error } = await supabase
       .from('events')
@@ -315,22 +335,28 @@ export async function fetchPublishedEvents(): Promise<ExtendedEvent[]> {
       .in('status', ['PUBLISHED', 'REGISTRATION_OPEN', 'LIVE', 'JUDGING', 'COMPLETED', 'ARCHIVED'])
       .order('created_at', { ascending: false });
 
-    // Also query all REJECTED, DRAFT, and PENDING_APPROVAL IDs & slugs to ensure NO local or mock cache can ever resurrect them
-    const { data: rejectedOrHiddenData } = await supabase
-      .from('events')
-      .select('id, slug, status')
-      .in('status', ['REJECTED', 'DRAFT', 'PENDING_APPROVAL']);
+    // Also attempt anonymous query as secondary check
+    try {
+      const { data: rejectedOrHiddenData } = await supabase
+        .from('events')
+        .select('id, slug, status')
+        .in('status', ['REJECTED', 'DRAFT', 'PENDING_APPROVAL']);
 
-    const hiddenIdSet = new Set<string>();
-    if (rejectedOrHiddenData && rejectedOrHiddenData.length > 0) {
-      rejectedOrHiddenData.forEach((row: any) => {
-        if (row.id) hiddenIdSet.add(String(row.id).toLowerCase());
-        if (row.slug) hiddenIdSet.add(String(row.slug).toLowerCase());
-      });
+      if (rejectedOrHiddenData && rejectedOrHiddenData.length > 0) {
+        rejectedOrHiddenData.forEach((row: any) => {
+          if (row.id) hiddenIdSet.add(String(row.id).toLowerCase());
+          if (row.slug) hiddenIdSet.add(String(row.slug).toLowerCase());
+        });
+      }
+    } catch {}
+
+    let list: ExtendedEvent[] = [];
+    if (!error && data && data.length > 0) {
+      list = data.map(mapDbEventToExtended);
     }
 
-    // Auto-clean stale rejected events from browser localStorage so they do not linger
-    if (typeof window !== 'undefined' && hiddenIdSet.size > 0) {
+    // Auto-clean stale rejected events from browser localStorage so they NEVER linger
+    if (typeof window !== 'undefined') {
       try {
         const rawCustom = localStorage.getItem('hackers_unity_hosted_events');
         if (rawCustom) {
@@ -340,19 +366,45 @@ export async function fetchPublishedEvents(): Promise<ExtendedEvent[]> {
               const id = String(evt.id || '').toLowerCase();
               const slug = String(evt.slug || '').toLowerCase();
               const s = String(evt.status || '').toUpperCase();
-              return s !== 'REJECTED' && !hiddenIdSet.has(id) && !hiddenIdSet.has(slug);
+              if (s === 'REJECTED' || hiddenIdSet.has(id) || hiddenIdSet.has(slug)) {
+                return false;
+              }
+              // If remote published list is available, any database UUID/evt_ not in the published list was rejected/revoked!
+              if (
+                list.length > 0 &&
+                (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(evt.id) ||
+                  String(evt.id).startsWith('evt_'))
+              ) {
+                const inRemote = list.some(
+                  (r) => r.id.toLowerCase() === id || (r.slug && r.slug.toLowerCase() === slug)
+                );
+                if (!inRemote) return false;
+              }
+              return true;
             });
             if (cleaned.length !== parsed.length) {
               localStorage.setItem('hackers_unity_hosted_events', JSON.stringify(cleaned));
             }
           }
         }
-      } catch {}
-    }
 
-    let list: ExtendedEvent[] = [];
-    if (!error && data && data.length > 0) {
-      list = data.map(mapDbEventToExtended);
+        // Clean stale overrides
+        const rawOverrides = localStorage.getItem('hackers_unity_events_overrides');
+        if (rawOverrides) {
+          const parsedOverrides = JSON.parse(rawOverrides);
+          let changed = false;
+          Object.keys(parsedOverrides).forEach((k) => {
+            const kLower = k.toLowerCase();
+            if (hiddenIdSet.has(kLower)) {
+              delete parsedOverrides[k];
+              changed = true;
+            }
+          });
+          if (changed) {
+            localStorage.setItem('hackers_unity_events_overrides', JSON.stringify(parsedOverrides));
+          }
+        }
+      } catch {}
     }
 
     // Merge remote list, curated platform MOCK_EVENTS, and custom events (avoiding duplicate slugs/ids)
@@ -376,11 +428,25 @@ export async function fetchPublishedEvents(): Promise<ExtendedEvent[]> {
       }
     });
 
-    // 2. Local custom events complement (only if published/active, never if rejected or revoked)
+    // 2. Local custom events complement (only if verified published/active, never if rejected or revoked)
     custom.forEach((e) => {
       const eId = String(e.id || '').toLowerCase();
       const eSlug = String(e.slug || '').toLowerCase();
       const eStatus = String(e.status || '').toUpperCase();
+      const isDbEvent =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(e.id) ||
+        String(e.id || '').startsWith('evt_');
+
+      // If remote database events are loaded, NEVER inject an unverified or revoked DB event from localStorage
+      if (list.length > 0 && isDbEvent) {
+        const inRemote = list.some(
+          (rem) => rem.id.toLowerCase() === eId || (rem.slug && rem.slug.toLowerCase() === eSlug)
+        );
+        if (!inRemote) {
+          return;
+        }
+      }
+
       if (
         !deletedIds.includes(e.id) &&
         !deletedIds.includes(e.slug) &&
@@ -582,7 +648,7 @@ export async function fetchPublishedEvents(): Promise<ExtendedEvent[]> {
 
     return Array.from(map.values())
       .filter((e) => {
-        if (isManipal(e)) return true;
+        if (isManipal(e)) return false;
         const s = String(e.status || '').toUpperCase();
         if (s === 'REJECTED' || s === 'DRAFT' || s === 'PENDING_APPROVAL') return false;
         if (deletedIds.includes(e.id) || (e.slug && deletedIds.includes(e.slug))) return false;
@@ -672,6 +738,19 @@ export async function fetchEventBySlug(slugOrId: string): Promise<ExtendedEvent 
       }
     }
 
+    // Authoritative server fallback if anonymous query blocked or yielded no rows
+    if (!data && typeof window !== 'undefined') {
+      try {
+        const verifyRes = await fetch(`/api/events?slug=${encodeURIComponent(decoded)}`, { cache: 'no-store' });
+        if (verifyRes.ok) {
+          const verifyData = await verifyRes.json();
+          if (verifyData?.event) {
+            data = verifyData.event;
+          }
+        }
+      } catch {}
+    }
+
     if (data) {
       const mapped = mapDbEventToExtended(data);
       if (typeof window !== 'undefined') {
@@ -701,13 +780,18 @@ export async function fetchEventBySlug(slugOrId: string): Promise<ExtendedEvent 
       return mapped;
     }
 
-    // Check custom events in local storage
+    // Check custom events in local storage (never resurrect rejected or deleted events)
     if (typeof window !== 'undefined') {
       const custom = getCustomEvents();
       const customFound = custom.find(
         (e) => e.slug === decoded || e.id === decoded || e.slug.toLowerCase() === decoded.toLowerCase()
       );
-      if (customFound) return customFound;
+      if (customFound) {
+        const s = String(customFound.status || '').toUpperCase();
+        if (s !== 'REJECTED' && s !== 'DRAFT' && s !== 'PENDING_APPROVAL') {
+          return customFound;
+        }
+      }
     }
 
     // Fallback to mock search

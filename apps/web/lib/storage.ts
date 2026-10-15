@@ -151,13 +151,20 @@ export function getCustomEvents(): ExtendedEvent[] {
     const raw = localStorage.getItem(STORAGE_KEYS.HOSTED_EVENTS);
     if (!raw) return [];
     const parsed: ExtendedEvent[] = JSON.parse(raw);
+    const rawDeleted = localStorage.getItem(STORAGE_KEYS_DELETED_EVENTS);
+    const deletedList: string[] = rawDeleted ? JSON.parse(rawDeleted) : [];
+
     return parsed
       .filter(
-        (e) =>
-          e &&
-          e.title &&
-          !e.title.toLowerCase().includes('global autonomous ai sprint') &&
-          !e.id?.includes('global-autonomous')
+        (e) => {
+          if (!e || !e.title) return false;
+          const s = String(e.status || '').toUpperCase();
+          if (s === 'REJECTED') return false;
+          if (e.id && deletedList.includes(e.id)) return false;
+          if (e.slug && deletedList.includes(e.slug)) return false;
+          if (e.title.toLowerCase().includes('global autonomous ai sprint') || e.id?.includes('global-autonomous')) return false;
+          return true;
+        }
       );
   } catch {
     return [];
