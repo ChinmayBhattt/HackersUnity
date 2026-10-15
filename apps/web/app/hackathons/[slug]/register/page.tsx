@@ -534,12 +534,43 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
             return;
           }
 
-          // If the registration was marked as a team, but the team no longer exists (squad was deleted):
+          // If the registration was marked as a team:
           if (reg.registration.is_team) {
-            // Delete orphaned registration record so it never continues showing deleted team!
-            try {
-              await supabase.from('registrations').delete().eq('id', reg.registration.id);
-            } catch {}
+            // If team_name exists or payment was completed, preserve team registration!
+            if (reg.registration.team_name || reg.registration.payment_status === 'PAID') {
+              setIsAlreadyRegistered(true);
+              setApplicantPendingRequest(null);
+              setCreatedTeamId(reg.registration.team_id || null);
+              setTeamName(reg.registration.team_name || 'Squad');
+              setMode('CREATE_TEAM');
+              if (reg.registration.user_name) setFullName(reg.registration.user_name);
+              setRegisteredRole(
+                reg.registration.role || `Squad Leader (${reg.registration.team_name || 'Squad'})`
+              );
+
+              if (reg.registration.payment_status === 'PAID') {
+                setPaymentStatus('PAID');
+                if (reg.registration.payment_id) {
+                  setPaymentData({
+                    id: reg.registration.payment_id,
+                    status: 'PAID',
+                    event_id: currentEvent.id,
+                  });
+                }
+              } else {
+                checkPaymentStatusSupabase(currentEvent.id, reg.registration.team_id, userId, userEmail).then((pRes) => {
+                  if (pRes.isPaid && pRes.payment) {
+                    setPaymentStatus('PAID');
+                    setPaymentData(pRes.payment);
+                  }
+                });
+              }
+
+              setCurrentStep(wantsStep4 ? 4 : 3);
+              return;
+            }
+
+            // Only clear local storage if squad was explicitly deleted without payment
             removeRegistrationForEvent(currentEvent.id);
             setIsAlreadyRegistered(false);
             setCreatedTeamId(null);
@@ -604,7 +635,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
     if (event && !isAlreadyRegistered) {
       const minTeamSize = event.minTeamSize || 1;
       const isSoloAllowed = minTeamSize <= 1 && (!event.isTeamEvent || minTeamSize === 1);
-      if (!isSoloAllowed) {
+      if (!isSoloAllowed || event.isTeamEvent) {
         setMode('CREATE_TEAM');
       } else {
         setMode('SOLO');

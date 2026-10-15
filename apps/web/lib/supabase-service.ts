@@ -3289,19 +3289,31 @@ export async function fetchUserTeamForEvent(eventId: string, userId: string): Pr
   );
   if (foundLocal) return foundLocal;
 
+  if (!eventId || !userId) return null;
+  if (eventId.startsWith('evt_custom_')) return null;
+
+  let resolvedEventId = eventId;
   const isEventUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
-  if (!isEventUuid || eventId.startsWith('evt_custom_')) {
-    return null;
+  if (!isEventUuid) {
+    const { data: ev } = await supabase
+      .from('events')
+      .select('id')
+      .eq('slug', eventId)
+      .maybeSingle();
+    if (ev?.id) {
+      resolvedEventId = ev.id;
+    } else {
+      return null;
+    }
   }
 
   try {
-    if (!eventId || !userId) return null;
 
     // Check if leader
     const { data: leaderTeam } = await supabase
       .from('teams')
       .select('*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url)), events(id, title, slug, start_date, end_date), team_invitations(id, invited_email, status, created_at, invite_token)')
-      .eq('event_id', eventId)
+      .eq('event_id', resolvedEventId)
       .eq('leader_id', userId)
       .maybeSingle();
 
@@ -3323,7 +3335,7 @@ export async function fetchUserTeamForEvent(eventId: string, userId: string): Pr
       const { data: memberTeam } = await supabase
         .from('teams')
         .select('*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url)), events(id, title, slug, start_date, end_date), team_invitations(id, invited_email, status, created_at, invite_token)')
-        .eq('event_id', eventId)
+        .eq('event_id', resolvedEventId)
         .in('id', teamIds)
         .maybeSingle();
 
