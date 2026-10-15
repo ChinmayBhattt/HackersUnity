@@ -28,6 +28,19 @@ export interface UserPublic {
   jobTitle?: string | null;
   experienceYears?: string | null;
   industry?: string | null;
+  // Bank & Payout Details for Event Hosts
+  bankDetails?: BankDetails | null;
+}
+
+export interface BankDetails {
+  accountHolderName?: string | null;
+  bankName?: string | null;
+  accountNumber?: string | null;
+  ifscCode?: string | null;
+  accountType?: 'SAVINGS' | 'CURRENT' | string | null;
+  upiId?: string | null;
+  verified?: boolean;
+  updatedAt?: string;
 }
 
 export interface SocialLinks {
@@ -57,6 +70,8 @@ export interface UpdateProfileDto {
   jobTitle?: string;
   experienceYears?: string;
   industry?: string;
+  // Bank & Payout Details
+  bankDetails?: BankDetails | null;
 }
 
 // ─── Organizer Profile ───────────────────────────────────

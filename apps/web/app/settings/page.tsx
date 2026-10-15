@@ -38,6 +38,7 @@ import {
   Share2,
   ChevronDown,
   Search,
+  Landmark,
 } from 'lucide-react';
 import { validatePassword } from '@/lib/password-validation';
 import { useAuth } from '@/lib/auth-context';
@@ -166,7 +167,7 @@ export default function SettingsPage() {
   const [authOpen, setAuthOpen] = useState(false);
 
   // Settings Tabs
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'socials' | 'notifications' | 'danger'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'socials' | 'notifications' | 'bank' | 'danger'>('profile');
   const [showPublicPreview, setShowPublicPreview] = useState(false);
 
   // Profile Form States
@@ -223,6 +224,19 @@ export default function SettingsPage() {
   const [notifyHackathons, setNotifyHackathons] = useState(true);
   const [notifyInvites, setNotifyInvites] = useState(true);
   const [notifyDigest, setNotifyDigest] = useState(false);
+
+  // Bank & Payout Details States
+  const [accountHolderName, setAccountHolderName] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [confirmAccountNumber, setConfirmAccountNumber] = useState('');
+  const [ifscCode, setIfscCode] = useState('');
+  const [accountType, setAccountType] = useState<'SAVINGS' | 'CURRENT'>('SAVINGS');
+  const [upiId, setUpiId] = useState('');
+  const [showAccountNumber, setShowAccountNumber] = useState(false);
+  const [isSavingBank, setIsSavingBank] = useState(false);
+  const [bankSaved, setBankSaved] = useState(false);
+  const [bankError, setBankError] = useState<string | null>(null);
 
   // Status & Feedback
   const [profileSaved, setProfileSaved] = useState(false);
@@ -288,6 +302,19 @@ export default function SettingsPage() {
       } else {
         setIndustry('Other');
         setCustomIndustry(userIndustry);
+      }
+
+      // Hydrate Bank Details
+      if (user.bankDetails) {
+        setAccountHolderName(user.bankDetails.accountHolderName || '');
+        setBankName(user.bankDetails.bankName || '');
+        setAccountNumber(user.bankDetails.accountNumber || '');
+        setConfirmAccountNumber(user.bankDetails.accountNumber || '');
+        setIfscCode(user.bankDetails.ifscCode || '');
+        setAccountType((user.bankDetails.accountType as any) || 'SAVINGS');
+        setUpiId(user.bankDetails.upiId || '');
+      } else if (user.name) {
+        setAccountHolderName((prev) => prev || user.name);
       }
     }
   }, [user]);
@@ -420,6 +447,82 @@ export default function SettingsPage() {
       setNewPassword('');
       setConfirmPassword('');
       setTimeout(() => setPasswordMsg(null), 3000);
+    }
+  };
+
+  const handleSaveBankDetails = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingBank(true);
+    setBankError(null);
+    setBankSaved(false);
+
+    const cleanHolder = accountHolderName.trim();
+    const cleanBank = bankName.trim();
+    const cleanAcc = accountNumber.trim();
+    const cleanConfirm = confirmAccountNumber.trim();
+    const cleanIfsc = ifscCode.trim().toUpperCase();
+    const cleanUpi = upiId.trim().toLowerCase();
+
+    // Validation
+    if (!cleanAcc && !cleanUpi) {
+      setBankError('Please enter at least Bank Account details or a valid UPI ID for receiving payouts.');
+      setIsSavingBank(false);
+      return;
+    }
+
+    if (cleanAcc) {
+      if (!cleanHolder) {
+        setBankError('Account holder name is required for bank payouts.');
+        setIsSavingBank(false);
+        return;
+      }
+      if (cleanAcc !== cleanConfirm) {
+        setBankError('Account number and Confirm Account number do not match.');
+        setIsSavingBank(false);
+        return;
+      }
+      if (cleanAcc.length < 8 || cleanAcc.length > 20) {
+        setBankError('Please enter a valid bank account number (8 to 20 digits).');
+        setIsSavingBank(false);
+        return;
+      }
+      if (!cleanIfsc || cleanIfsc.length !== 11) {
+        setBankError('IFSC code must be exactly 11 characters (e.g. HDFC0001234).');
+        setIsSavingBank(false);
+        return;
+      }
+    }
+
+    if (cleanUpi && !cleanUpi.includes('@')) {
+      setBankError('Please enter a valid UPI ID format (e.g. username@okhdfcbank or 9876543210@upi).');
+      setIsSavingBank(false);
+      return;
+    }
+
+    try {
+      const res = await updateUserProfile({
+        bankDetails: {
+          accountHolderName: cleanHolder || null,
+          bankName: cleanBank || null,
+          accountNumber: cleanAcc || null,
+          ifscCode: cleanIfsc || null,
+          accountType: accountType,
+          upiId: cleanUpi || null,
+          verified: false,
+          updatedAt: new Date().toISOString(),
+        },
+      });
+
+      if (res?.error) {
+        setBankError(res.error);
+      } else {
+        setBankSaved(true);
+        setTimeout(() => setBankSaved(false), 4000);
+      }
+    } catch (err: any) {
+      setBankError(err.message || 'Failed to save bank details.');
+    } finally {
+      setIsSavingBank(false);
     }
   };
 
@@ -595,6 +698,22 @@ export default function SettingsPage() {
                 <div>Notification Alerts</div>
                 <div className={`text-[10px] font-normal ${activeTab === 'notifications' ? 'text-white/80' : 'text-slate-400 dark:text-slate-500'}`}>
                   Email & team invite updates
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('bank')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer text-left ${activeTab === 'bank'
+                ? 'bg-[#0099e6] text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-white'
+                }`}
+            >
+              <Landmark className="w-4 h-4 shrink-0" />
+              <div className="flex-1">
+                <div>Add Bank Details</div>
+                <div className={`text-[10px] font-normal ${activeTab === 'bank' ? 'text-white/80' : 'text-slate-400 dark:text-slate-500'}`}>
+                  Host revenue & payouts
                 </div>
               </div>
             </button>
@@ -1477,6 +1596,211 @@ export default function SettingsPage() {
                   Save Notification Preferences
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* 5. Tab: Add Bank Details */}
+          {activeTab === 'bank' && (
+            <div className="p-7 rounded-3xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] shadow-sm space-y-6 animate-in fade-in">
+              <div className="border-b border-slate-100 dark:border-white/[0.06] pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                    <Landmark className="w-5 h-5 text-[#0099e6]" />
+                    <span>Host Bank &amp; Payout Details</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Add your bank account or UPI ID to receive payouts when you host paid hackathons or events.
+                  </p>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 text-[11px] font-bold text-emerald-700 dark:text-emerald-400 self-start sm:self-auto">
+                  <Shield className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Razorpay Payouts Protected</span>
+                </div>
+              </div>
+
+              {/* Information Banner Explaining the 0.5% cut & Payouts */}
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-sky-50/80 via-blue-50/50 to-indigo-50/80 dark:from-sky-950/20 dark:via-blue-950/10 dark:to-indigo-950/20 border border-sky-200/80 dark:border-sky-500/20 space-y-2">
+                <div className="flex items-center gap-2 font-bold text-xs text-sky-900 dark:text-sky-300">
+                  <Sparkles className="w-4 h-4 text-[#0099e6]" />
+                  <span>How Paid Event Payouts Work on Hacker&apos;s Unity</span>
+                </div>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                  When you host an event with a registration fee (e.g. ₹500/participant), hackers pay securely through Hacker&apos;s Unity Razorpay gateway. Hacker&apos;s Unity deducts a nominal <strong className="text-slate-900 dark:text-white">0.5% platform fee</strong>, and the remaining <strong className="text-emerald-600 dark:text-emerald-400">99.5% event revenue</strong> is automatically disbursed directly into this bank account upon event verification.
+                </p>
+              </div>
+
+              {bankSaved && (
+                <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Bank details saved securely! Payouts for your hosted hackathons will be credited to this account.</span>
+                </div>
+              )}
+
+              {bankError && (
+                <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{bankError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSaveBankDetails} className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Account Holder Name */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Account Holder Name (as per Bank / PAN) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={accountHolderName}
+                      onChange={(e) => setAccountHolderName(e.target.value)}
+                      placeholder="e.g. Chinmay Bhatt"
+                      className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-hidden focus:border-[#0099e6] transition-colors"
+                    />
+                  </div>
+
+                  {/* Bank Name */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Bank Name <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={bankName}
+                      onChange={(e) => setBankName(e.target.value)}
+                      placeholder="e.g. HDFC Bank / State Bank of India / ICICI"
+                      className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-hidden focus:border-[#0099e6] transition-colors"
+                    />
+                  </div>
+
+                  {/* Account Number */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        Bank Account Number <span className="text-rose-500">*</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowAccountNumber(!showAccountNumber)}
+                        className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Eye className="w-3 h-3" />
+                        <span>{showAccountNumber ? 'Hide' : 'Show'}</span>
+                      </button>
+                    </div>
+                    <input
+                      type={showAccountNumber ? 'text' : 'password'}
+                      value={accountNumber}
+                      onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ''))}
+                      placeholder="e.g. 50100458923145"
+                      className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 font-mono tracking-wider focus:outline-hidden focus:border-[#0099e6] transition-colors"
+                    />
+                  </div>
+
+                  {/* Confirm Account Number */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Confirm Account Number <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={confirmAccountNumber}
+                      onChange={(e) => setConfirmAccountNumber(e.target.value.replace(/\D/g, ''))}
+                      placeholder="Re-enter bank account number"
+                      className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 font-mono tracking-wider focus:outline-hidden focus:border-[#0099e6] transition-colors"
+                    />
+                  </div>
+
+                  {/* IFSC Code */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      IFSC Code <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={11}
+                      value={ifscCode}
+                      onChange={(e) => setIfscCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                      placeholder="e.g. HDFC0001234"
+                      className="w-full px-3.5 py-2.5 rounded-2xl bg-slate-50 dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 font-mono uppercase tracking-wider focus:outline-hidden focus:border-[#0099e6] transition-colors"
+                    />
+                  </div>
+
+                  {/* Account Type */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Account Type
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setAccountType('SAVINGS')}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer ${accountType === 'SAVINGS'
+                          ? 'bg-[#0099e6]/10 border-[#0099e6] text-[#0099e6]'
+                          : 'border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5'
+                          }`}
+                      >
+                        Savings Account
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAccountType('CURRENT')}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer ${accountType === 'CURRENT'
+                          ? 'bg-[#0099e6]/10 border-[#0099e6] text-[#0099e6]'
+                          : 'border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5'
+                          }`}
+                      >
+                        Current Account
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Instant UPI ID (Optional fallback) */}
+                <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-white/[0.02] border border-slate-200 dark:border-white/[0.08] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                      <Smartphone className="w-3.5 h-3.5 text-[#0099e6]" />
+                      <span>Instant UPI ID / VPA (Optional Backup)</span>
+                    </label>
+                    <span className="text-[10px] text-slate-400">IMPS / UPI instant payouts</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={upiId}
+                    onChange={(e) => setUpiId(e.target.value.trim().toLowerCase())}
+                    placeholder="e.g. username@okhdfcbank or 9876543210@upi"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] text-xs text-slate-900 dark:text-white placeholder:text-slate-400 font-mono focus:outline-hidden focus:border-[#0099e6] transition-colors"
+                  />
+                  <p className="text-[10px] text-slate-400 leading-normal">
+                    If bank transfer is delayed during bank holidays, secondary prize pool and fast disbursements can be settled via UPI VPA.
+                  </p>
+                </div>
+
+                <div className="pt-2 flex items-center justify-between">
+                  <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-emerald-500" />
+                    <span>256-bit encrypted &amp; stored strictly for host settlements</span>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={isSavingBank}
+                    className="px-6 py-2.5 rounded-2xl bg-[#0099e6] hover:bg-[#0284c7] disabled:opacity-50 text-white font-extrabold text-xs shadow-md shadow-sky-500/20 transition-all cursor-pointer flex items-center gap-2"
+                  >
+                    {isSavingBank ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Saving Details...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Save Bank &amp; Payout Details</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           )}
 

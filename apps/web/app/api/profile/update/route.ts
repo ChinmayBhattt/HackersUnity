@@ -37,6 +37,7 @@ export async function POST(req: Request) {
       avatarUrl,
       bannerUrl,
       socialLinks,
+      bankDetails,
     } = body;
 
     // 2. Prevent IDOR: ensure user can only modify their own profile
@@ -159,6 +160,17 @@ export async function POST(req: Request) {
     const cleanLinkedin = socialLinks?.linkedin ? String(socialLinks.linkedin).trim() : null;
     const cleanPortfolio = socialLinks?.portfolio ? String(socialLinks.portfolio).trim() : null;
 
+    const cleanBankDetails = bankDetails !== undefined ? (bankDetails ? {
+      accountHolderName: bankDetails.accountHolderName ? String(bankDetails.accountHolderName).trim() : null,
+      bankName: bankDetails.bankName ? String(bankDetails.bankName).trim() : null,
+      accountNumber: bankDetails.accountNumber ? String(bankDetails.accountNumber).trim() : null,
+      ifscCode: bankDetails.ifscCode ? String(bankDetails.ifscCode).trim().toUpperCase() : null,
+      accountType: bankDetails.accountType || 'SAVINGS',
+      upiId: bankDetails.upiId ? String(bankDetails.upiId).trim().toLowerCase() : null,
+      verified: Boolean(bankDetails.verified),
+      updatedAt: new Date().toISOString(),
+    } : null) : undefined;
+
     // 5. Fetch existing user info from Supabase Auth
     let userEmail = auth.email;
     let existingMeta: Record<string, any> = auth.user.user_metadata || {};
@@ -190,6 +202,7 @@ export async function POST(req: Request) {
     if (cleanGithub !== undefined) profileUpdateData.github_url = cleanGithub;
     if (cleanLinkedin !== undefined) profileUpdateData.linkedin_url = cleanLinkedin;
     if (cleanPortfolio !== undefined) profileUpdateData.portfolio_url = cleanPortfolio;
+    if (cleanBankDetails !== undefined) profileUpdateData.bank_details = cleanBankDetails;
 
     try {
       const { error: profileDbError } = await supabaseAdmin
@@ -198,10 +211,11 @@ export async function POST(req: Request) {
 
       if (profileDbError) {
         console.warn('[Profile Update] Database profiles upsert warning:', profileDbError);
-        // Fallback: If username column does not exist yet in Postgres, retry without username column
-        if ((profileDbError as any).code === '42703' && profileUpdateData.username) {
+        // Fallback: If unknown column error occurs in Postgres, retry without unmigrated columns
+        if ((profileDbError as any).code === '42703') {
           const fallbackData = { ...profileUpdateData };
           delete fallbackData.username;
+          delete fallbackData.bank_details;
           await supabaseAdmin.from('profiles').upsert(fallbackData, { onConflict: 'id' });
         }
       }
@@ -235,6 +249,7 @@ export async function POST(req: Request) {
           github_url: cleanGithub !== null ? cleanGithub : existingMeta.github_url,
           linkedin_url: cleanLinkedin !== null ? cleanLinkedin : existingMeta.linkedin_url,
           portfolio_url: cleanPortfolio !== null ? cleanPortfolio : existingMeta.portfolio_url,
+          bank_details: cleanBankDetails !== undefined ? cleanBankDetails : existingMeta.bank_details,
         },
       });
     } catch (authMetaErr) {

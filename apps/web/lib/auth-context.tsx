@@ -78,6 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       jobTitle: meta.job_title || saved?.jobTitle || 'Software Engineer',
       experienceYears: meta.experience_years || saved?.experienceYears || '1-3 years',
       industry: meta.industry || saved?.industry || 'AI/ML, GenAI & Autonomous Systems',
+      bankDetails: meta.bank_details || saved?.bankDetails || null,
       emailVerified: !!sbUser.email_confirmed_at,
       createdAt: sbUser.created_at || saved?.createdAt || new Date().toISOString(),
     };
@@ -215,6 +216,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         jobTitle: meta.job_title || saved?.jobTitle || 'Software Engineer',
         experienceYears: meta.experience_years || saved?.experienceYears || '1-3 years',
         industry: meta.industry || saved?.industry || 'AI/ML, GenAI & Autonomous Systems',
+        bankDetails: (profile as any)?.bank_details || meta.bank_details || saved?.bankDetails || null,
         emailVerified: !!sbUser.email_confirmed_at,
         createdAt: profile?.created_at || sbUser.created_at || saved?.createdAt || new Date().toISOString(),
       };
@@ -470,6 +472,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const updatedUser: UserPublic = {
         ...user,
         ...updates,
+        bankDetails: updates.bankDetails !== undefined ? updates.bankDetails : user.bankDetails || null,
         socialLinks: {
           github: updates.socialLinks?.github !== undefined ? updates.socialLinks.github : user.socialLinks?.github || '',
           linkedin: updates.socialLinks?.linkedin !== undefined ? updates.socialLinks.linkedin : user.socialLinks?.linkedin || '',
@@ -506,6 +509,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             github_url: updatedUser.socialLinks?.github,
             linkedin_url: updatedUser.socialLinks?.linkedin,
             portfolio_url: updatedUser.socialLinks?.portfolio,
+            bank_details: updatedUser.bankDetails,
           },
         });
       } catch (clientMetaErr) {
@@ -538,6 +542,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             avatarUrl: updatedUser.avatarUrl,
             bannerUrl: updatedUser.bannerUrl,
             socialLinks: updatedUser.socialLinks,
+            bankDetails: updatedUser.bankDetails,
           }),
         });
 
