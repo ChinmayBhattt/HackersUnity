@@ -128,16 +128,31 @@ export async function fetchPublicAnnouncementsAndEvents(): Promise<UserNotificat
 
   // 2. Fetch live & recent events from 'events' table
   try {
-    const { data: dbEvents } = await supabase
-      .from('events')
-      .select('id, slug, title, tagline, short_description, status, total_prize_value, created_at')
-      .order('created_at', { ascending: false })
-      .limit(10);
+    let optOutNewEvents = false;
+    if (typeof window !== 'undefined') {
+      try {
+        const rawPrefs = localStorage.getItem('hackers_unity_notification_prefs');
+        if (rawPrefs) {
+          const parsed = JSON.parse(rawPrefs);
+          if (parsed.notifyNewEvents === false) optOutNewEvents = true;
+        }
+      } catch {}
+    }
 
-    if (dbEvents && dbEvents.length > 0) {
-      for (const ev of dbEvents) {
-        const notifId = `event-notif-${ev.id}`;
-        list.push({
+    if (!optOutNewEvents) {
+      const { data: dbEvents } = await supabase
+        .from('events')
+        .select('id, slug, title, tagline, short_description, status, total_prize_value, created_at')
+        .in('status', ['PUBLISHED', 'REGISTRATION_OPEN', 'LIVE', 'JUDGING', 'COMPLETED', 'ARCHIVED'])
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (dbEvents && dbEvents.length > 0) {
+        for (const ev of dbEvents) {
+          const s = String(ev.status || '').toUpperCase();
+          if (s === 'REJECTED' || s === 'DRAFT' || s === 'PENDING_APPROVAL') continue;
+          const notifId = `event-notif-${ev.id}`;
+          list.push({
           id: notifId,
           userId: 'public',
           notificationId: ev.id,
@@ -159,6 +174,7 @@ export async function fetchPublicAnnouncementsAndEvents(): Promise<UserNotificat
             createdAt: ev.created_at || new Date().toISOString(),
           },
         });
+        }
       }
     }
   } catch (e) {

@@ -1205,7 +1205,22 @@ ${organizerName || 'Organizer'}`;
     const targetStatus = isAlreadyApproved
       ? ((existingEventStatus as EventStatus) || EventStatus.PUBLISHED)
       : EventStatus.PENDING_APPROVAL;
-    const event: ExtendedEvent = { ...previewEvent, status: targetStatus };
+
+    // Check if host has disabled community broadcast in user_metadata or localStorage
+    const rawStoredPrefs = typeof window !== 'undefined' ? localStorage.getItem('hackers_unity_notification_prefs') : null;
+    let storedPrefs: any = null;
+    if (rawStoredPrefs) {
+      try { storedPrefs = JSON.parse(rawStoredPrefs); } catch {}
+    }
+    const hostBroadcastEnabled = (supabaseUser as any)?.user_metadata?.notification_preferences?.notifyHostBroadcast !== false &&
+      storedPrefs?.notifyHostBroadcast !== false;
+
+    const baseTags: string[] = Array.isArray(previewEvent.tags) ? [...previewEvent.tags] : [];
+    if (!hostBroadcastEnabled && !baseTags.includes('hu_no_broadcast:true')) {
+      baseTags.push('hu_no_broadcast:true');
+    }
+
+    const event: ExtendedEvent = { ...previewEvent, status: targetStatus, tags: baseTags };
     const organizerId = supabaseUser?.id || user?.id;
 
     const isCustomLocal = Boolean(

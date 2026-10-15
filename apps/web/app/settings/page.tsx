@@ -26,6 +26,7 @@ import {
   Loader2,
   LogOut,
   Bell,
+  Radio,
   Sliders,
   ExternalLink,
   Sparkles,
@@ -163,7 +164,7 @@ const POPULAR_SKILLS = [
 ];
 
 export default function SettingsPage() {
-  const { user, updateUserProfile, updateUserPassword, signOut, loading } = useAuth();
+  const { user, supabaseUser, updateUserProfile, updateUserPassword, signOut, loading } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
 
   // Settings Tabs
@@ -221,9 +222,14 @@ export default function SettingsPage() {
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
   // Notification Preferences
+  const [notifyHostBroadcast, setNotifyHostBroadcast] = useState(true);
+  const [notifyNewEvents, setNotifyNewEvents] = useState(true);
   const [notifyHackathons, setNotifyHackathons] = useState(true);
   const [notifyInvites, setNotifyInvites] = useState(true);
   const [notifyDigest, setNotifyDigest] = useState(false);
+  const [isSavingNotifications, setIsSavingNotifications] = useState(false);
+  const [notificationSaved, setNotificationSaved] = useState(false);
+  const [notificationError, setNotificationError] = useState<string | null>(null);
 
   // Bank & Payout Details States
   const [accountHolderName, setAccountHolderName] = useState('');
@@ -316,8 +322,71 @@ export default function SettingsPage() {
       } else if (user.name) {
         setAccountHolderName((prev) => prev || user.name);
       }
+
+      // Hydrate Notification Preferences
+      const rawStoredPrefs = typeof window !== 'undefined' ? localStorage.getItem('hackers_unity_notification_prefs') : null;
+      let storedPrefs: any = null;
+      if (rawStoredPrefs) {
+        try { storedPrefs = JSON.parse(rawStoredPrefs); } catch {}
+      }
+      const authPrefs = (user as any)?.notificationPreferences || (user as any)?.notification_preferences || (supabaseUser as any)?.user_metadata?.notification_preferences;
+      const effectivePrefs = authPrefs || storedPrefs || {};
+
+      if (effectivePrefs.notifyHostBroadcast !== undefined) {
+        setNotifyHostBroadcast(Boolean(effectivePrefs.notifyHostBroadcast));
+      }
+      if (effectivePrefs.notifyNewEvents !== undefined) {
+        setNotifyNewEvents(Boolean(effectivePrefs.notifyNewEvents));
+      }
+      if (effectivePrefs.notifyHackathons !== undefined) {
+        setNotifyHackathons(Boolean(effectivePrefs.notifyHackathons));
+      }
+      if (effectivePrefs.notifyInvites !== undefined) {
+        setNotifyInvites(Boolean(effectivePrefs.notifyInvites));
+      }
+      if (effectivePrefs.notifyDigest !== undefined) {
+        setNotifyDigest(Boolean(effectivePrefs.notifyDigest));
+      }
     }
-  }, [user]);
+  }, [user, supabaseUser]);
+
+  const handleSaveNotifications = async () => {
+    setIsSavingNotifications(true);
+    setNotificationError(null);
+    try {
+      const prefs = {
+        notifyHostBroadcast,
+        notifyNewEvents,
+        notifyHackathons,
+        notifyInvites,
+        notifyDigest,
+      };
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('hackers_unity_notification_prefs', JSON.stringify(prefs));
+      }
+
+      const res = await fetch('/api/profile/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          notificationPreferences: prefs,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to save notification preferences');
+      }
+
+      setNotificationSaved(true);
+      setTimeout(() => setNotificationSaved(false), 3500);
+    } catch (err: any) {
+      setNotificationError(err.message || 'Network error');
+    } finally {
+      setIsSavingNotifications(false);
+    }
+  };
 
   // Close skills dropdown on click outside
   useEffect(() => {
@@ -1536,64 +1605,147 @@ export default function SettingsPage() {
               <div className="border-b border-slate-100 dark:border-white/[0.06] pb-4">
                 <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
                   <Bell className="w-5 h-5 text-[#ea580c]" />
-                  <span>Notification Preferences</span>
+                  <span>Notification &amp; Broadcast Preferences</span>
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Control the communications and alerts you receive from Hacker’s Unity.
+                  Control the communications and alerts you receive, and manage whether your hosted events notify the community.
                 </p>
               </div>
 
-              <div className="space-y-4">
-                <label className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 flex items-center justify-between cursor-pointer hover:bg-slate-100/70 dark:hover:bg-white/[0.06] transition-colors">
-                  <div className="space-y-0.5">
-                    <div className="text-xs font-bold text-slate-900 dark:text-white">Hackathon Deadlines & Milestones</div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Get reminders before registration and submission deadlines end.</div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={notifyHackathons}
-                    onChange={(e) => setNotifyHackathons(e.target.checked)}
-                    className="w-4 h-4 text-[#0099e6] rounded border-slate-300 dark:border-white/20 dark:bg-white/10 focus:ring-[#0099e6]"
-                  />
-                </label>
+              {/* Feedback messages */}
+              {notificationSaved && (
+                <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 flex items-center gap-2.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span>Notification preferences saved and applied successfully!</span>
+                </div>
+              )}
+              {notificationError && (
+                <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/40 flex items-center gap-2.5 text-xs font-bold text-rose-700 dark:text-rose-300 animate-in fade-in">
+                  <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                  <span>{notificationError}</span>
+                </div>
+              )}
 
-                <label className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 flex items-center justify-between cursor-pointer hover:bg-slate-100/70 dark:hover:bg-white/[0.06] transition-colors">
-                  <div className="space-y-0.5">
-                    <div className="text-xs font-bold text-slate-900 dark:text-white">Team Invites & Squad Requests</div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">Receive alerts when builders invite you to form hackathon squads.</div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={notifyInvites}
-                    onChange={(e) => setNotifyInvites(e.target.checked)}
-                    className="w-4 h-4 text-[#0099e6] rounded border-slate-300 dark:border-white/20 dark:bg-white/10 focus:ring-[#0099e6]"
-                  />
-                </label>
+              {/* Section 1: Host Broadcast Setting */}
+              <div className="space-y-3">
+                <div className="text-xs font-black uppercase tracking-wider text-[#ea580c] flex items-center gap-1.5">
+                  <Radio className="w-3.5 h-3.5" />
+                  <span>Event Host &amp; Community Broadcast Control</span>
+                </div>
 
-                <label className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 flex items-center justify-between cursor-pointer hover:bg-slate-100/70 dark:hover:bg-white/[0.06] transition-colors">
-                  <div className="space-y-0.5">
-                    <div className="text-xs font-bold text-slate-900 dark:text-white">Weekly Builder Digest</div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">A weekly summary of top upcoming hackathons, prizes, and leaderboards.</div>
+                <div className="p-5 rounded-2xl bg-gradient-to-r from-orange-500/[0.04] via-amber-500/[0.02] to-transparent border border-orange-500/20 space-y-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>Broadcast My Hosted Events to Community</span>
+                        {notifyHostBroadcast ? (
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-[10px] font-bold">
+                            Silent Mode
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                        Automatically dispatch email notifications and in-app alerts to all registered members on Hacker’s Unity when you publish a new hackathon or event.
+                      </p>
+                      <p className="text-[11px] text-amber-700 dark:text-amber-400/90 font-semibold pt-1">
+                        ⚠️ If you turn this OFF, <strong>NO user on the platform will receive email blasts or notifications</strong> when your events go live.
+                      </p>
+                    </div>
+
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+                      <input
+                        type="checkbox"
+                        checked={notifyHostBroadcast}
+                        onChange={(e) => setNotifyHostBroadcast(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-white/10 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-white/20 peer-checked:bg-[#ea580c]" />
+                    </label>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={notifyDigest}
-                    onChange={(e) => setNotifyDigest(e.target.checked)}
-                    className="w-4 h-4 text-[#0099e6] rounded border-slate-300 dark:border-white/20 dark:bg-white/10 focus:ring-[#0099e6]"
-                  />
-                </label>
+                </div>
+              </div>
+
+              {/* Section 2: Incoming Alerts for User */}
+              <div className="space-y-3 pt-2">
+                <div className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <Bell className="w-3.5 h-3.5" />
+                  <span>Incoming Alerts &amp; Subscriptions</span>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 flex items-center justify-between cursor-pointer hover:bg-slate-100/70 dark:hover:bg-white/[0.06] transition-colors">
+                    <div className="space-y-0.5 pr-4">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">New Hackathon &amp; Event Announcements</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">Receive email alerts and push notifications when new events and hackathons are published.</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifyNewEvents}
+                      onChange={(e) => setNotifyNewEvents(e.target.checked)}
+                      className="w-4 h-4 text-[#0099e6] rounded border-slate-300 dark:border-white/20 dark:bg-white/10 focus:ring-[#0099e6]"
+                    />
+                  </label>
+
+                  <label className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 flex items-center justify-between cursor-pointer hover:bg-slate-100/70 dark:hover:bg-white/[0.06] transition-colors">
+                    <div className="space-y-0.5 pr-4">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">Hackathon Deadlines &amp; Milestones</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">Get reminders before registration and submission deadlines end.</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifyHackathons}
+                      onChange={(e) => setNotifyHackathons(e.target.checked)}
+                      className="w-4 h-4 text-[#0099e6] rounded border-slate-300 dark:border-white/20 dark:bg-white/10 focus:ring-[#0099e6]"
+                    />
+                  </label>
+
+                  <label className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 flex items-center justify-between cursor-pointer hover:bg-slate-100/70 dark:hover:bg-white/[0.06] transition-colors">
+                    <div className="space-y-0.5 pr-4">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">Team Invites &amp; Squad Requests</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">Receive alerts when builders invite you to form hackathon squads.</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifyInvites}
+                      onChange={(e) => setNotifyInvites(e.target.checked)}
+                      className="w-4 h-4 text-[#0099e6] rounded border-slate-300 dark:border-white/20 dark:bg-white/10 focus:ring-[#0099e6]"
+                    />
+                  </label>
+
+                  <label className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 flex items-center justify-between cursor-pointer hover:bg-slate-100/70 dark:hover:bg-white/[0.06] transition-colors">
+                    <div className="space-y-0.5 pr-4">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">Weekly Builder Digest</div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">A weekly summary of top upcoming hackathons, prizes, and leaderboards.</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifyDigest}
+                      onChange={(e) => setNotifyDigest(e.target.checked)}
+                      className="w-4 h-4 text-[#0099e6] rounded border-slate-300 dark:border-white/20 dark:bg-white/10 focus:ring-[#0099e6]"
+                    />
+                  </label>
+                </div>
               </div>
 
               <div className="pt-2 flex justify-end">
                 <button
                   type="button"
-                  onClick={() => {
-                    setProfileSaved(true);
-                    setTimeout(() => setProfileSaved(false), 3000);
-                  }}
-                  className="px-6 py-2.5 rounded-2xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-extrabold text-xs shadow-md shadow-sky-500/20 transition-all cursor-pointer"
+                  disabled={isSavingNotifications}
+                  onClick={handleSaveNotifications}
+                  className="px-6 py-2.5 rounded-2xl bg-[#ea580c] hover:bg-[#c2410c] text-white font-extrabold text-xs shadow-md shadow-orange-500/20 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
                 >
-                  Save Notification Preferences
+                  {isSavingNotifications ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Saving Preferences...</span>
+                    </>
+                  ) : (
+                    <span>Save Notification Preferences</span>
+                  )}
                 </button>
               </div>
             </div>

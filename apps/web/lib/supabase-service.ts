@@ -90,9 +90,11 @@ export function mapDbEventToExtended(item: any): ExtendedEvent {
     ),
     status: (() => {
       const rawStatus = (item.status as EventStatus) || EventStatus.PUBLISHED;
+      const statusUpper = String(rawStatus || '').toUpperCase();
       if (
-        rawStatus !== EventStatus.DRAFT &&
-        rawStatus !== EventStatus.PENDING_APPROVAL &&
+        statusUpper !== 'DRAFT' &&
+        statusUpper !== 'PENDING_APPROVAL' &&
+        statusUpper !== 'REJECTED' &&
         isEventRegistrationClosed(item.registration_deadline, item.end_date)
       ) {
         return EventStatus.COMPLETED;
@@ -305,11 +307,48 @@ export async function fetchPublishedEvents(): Promise<ExtendedEvent[]> {
         : [];
 
     const custom = typeof window !== 'undefined' ? getCustomEvents() : [];
+
+    // Query published/active events from Supabase
     const { data, error } = await supabase
       .from('events')
       .select('*')
       .in('status', ['PUBLISHED', 'REGISTRATION_OPEN', 'LIVE', 'JUDGING', 'COMPLETED', 'ARCHIVED'])
       .order('created_at', { ascending: false });
+
+    // Also query all REJECTED, DRAFT, and PENDING_APPROVAL IDs & slugs to ensure NO local or mock cache can ever resurrect them
+    const { data: rejectedOrHiddenData } = await supabase
+      .from('events')
+      .select('id, slug, status')
+      .in('status', ['REJECTED', 'DRAFT', 'PENDING_APPROVAL']);
+
+    const hiddenIdSet = new Set<string>();
+    if (rejectedOrHiddenData && rejectedOrHiddenData.length > 0) {
+      rejectedOrHiddenData.forEach((row: any) => {
+        if (row.id) hiddenIdSet.add(String(row.id).toLowerCase());
+        if (row.slug) hiddenIdSet.add(String(row.slug).toLowerCase());
+      });
+    }
+
+    // Auto-clean stale rejected events from browser localStorage so they do not linger
+    if (typeof window !== 'undefined' && hiddenIdSet.size > 0) {
+      try {
+        const rawCustom = localStorage.getItem('hackers_unity_hosted_events');
+        if (rawCustom) {
+          const parsed = JSON.parse(rawCustom);
+          if (Array.isArray(parsed)) {
+            const cleaned = parsed.filter((evt: any) => {
+              const id = String(evt.id || '').toLowerCase();
+              const slug = String(evt.slug || '').toLowerCase();
+              const s = String(evt.status || '').toUpperCase();
+              return s !== 'REJECTED' && !hiddenIdSet.has(id) && !hiddenIdSet.has(slug);
+            });
+            if (cleaned.length !== parsed.length) {
+              localStorage.setItem('hackers_unity_hosted_events', JSON.stringify(cleaned));
+            }
+          }
+        }
+      } catch {}
+    }
 
     let list: ExtendedEvent[] = [];
     if (!error && data && data.length > 0) {
@@ -321,16 +360,35 @@ export async function fetchPublishedEvents(): Promise<ExtendedEvent[]> {
     
     // 1. Seed with curated mock events (Code-ए-Manipal #1, etc.)
     MOCK_EVENTS.forEach((e) => {
-      if (!deletedIds.includes(e.id) && !deletedIds.includes(e.slug)) {
+      const eId = String(e.id || '').toLowerCase();
+      const eSlug = String(e.slug || '').toLowerCase();
+      const eStatus = String(e.status || '').toUpperCase();
+      if (
+        !deletedIds.includes(e.id) &&
+        !deletedIds.includes(e.slug) &&
+        !hiddenIdSet.has(eId) &&
+        !hiddenIdSet.has(eSlug) &&
+        eStatus !== 'REJECTED' &&
+        eStatus !== 'DRAFT' &&
+        eStatus !== 'PENDING_APPROVAL'
+      ) {
         map.set(e.id || e.slug, e);
       }
     });
 
-    // 2. Local custom events complement (only if published/active)
+    // 2. Local custom events complement (only if published/active, never if rejected or revoked)
     custom.forEach((e) => {
+      const eId = String(e.id || '').toLowerCase();
+      const eSlug = String(e.slug || '').toLowerCase();
+      const eStatus = String(e.status || '').toUpperCase();
       if (
         !deletedIds.includes(e.id) &&
         !deletedIds.includes(e.slug) &&
+        !hiddenIdSet.has(eId) &&
+        !hiddenIdSet.has(eSlug) &&
+        eStatus !== 'REJECTED' &&
+        eStatus !== 'DRAFT' &&
+        eStatus !== 'PENDING_APPROVAL' &&
         e.status !== EventStatus.PENDING_APPROVAL &&
         e.status !== EventStatus.DRAFT
       ) {
@@ -351,7 +409,18 @@ export async function fetchPublishedEvents(): Promise<ExtendedEvent[]> {
 
     // 3. Remote Supabase events overwrite everything! (True source of truth)
     list.forEach((e) => {
-      if (!deletedIds.includes(e.id) && !deletedIds.includes(e.slug)) {
+      const eId = String(e.id || '').toLowerCase();
+      const eSlug = String(e.slug || '').toLowerCase();
+      const eStatus = String(e.status || '').toUpperCase();
+      if (
+        !deletedIds.includes(e.id) &&
+        !deletedIds.includes(e.slug) &&
+        !hiddenIdSet.has(eId) &&
+        !hiddenIdSet.has(eSlug) &&
+        eStatus !== 'REJECTED' &&
+        eStatus !== 'DRAFT' &&
+        eStatus !== 'PENDING_APPROVAL'
+      ) {
         let matchedKey: string | null = null;
         for (const [k, val] of map.entries()) {
           if (
@@ -427,7 +496,30 @@ export async function fetchPublishedEvents(): Promise<ExtendedEvent[]> {
       );
     };
 
-    return sortEventsList(Array.from(map.values()).filter((e) => !isManipal(e)));
+    const isExcluded = (e: ExtendedEvent) => {
+      if (isManipal(e)) return true;
+      const statusUpper = String(e.status || '').toUpperCase();
+      if (
+        statusUpper === 'REJECTED' ||
+        statusUpper === 'DRAFT' ||
+        statusUpper === 'PENDING_APPROVAL' ||
+        e.status === EventStatus.PENDING_APPROVAL ||
+        e.status === EventStatus.DRAFT
+      ) {
+        return true;
+      }
+      const eId = String(e.id || '').toLowerCase();
+      const eSlug = String(e.slug || '').toLowerCase();
+      if (hiddenIdSet.has(eId) || (eSlug && hiddenIdSet.has(eSlug))) {
+        return true;
+      }
+      if (deletedIds.includes(e.id) || (e.slug && deletedIds.includes(e.slug))) {
+        return true;
+      }
+      return false;
+    };
+
+    return sortEventsList(Array.from(map.values()).filter((e) => !isExcluded(e)));
   } catch (err) {
     console.warn('Supabase fetchPublishedEvents exception:', err);
     const deletedIds: string[] =
@@ -437,14 +529,25 @@ export async function fetchPublishedEvents(): Promise<ExtendedEvent[]> {
     const custom = typeof window !== 'undefined' ? getCustomEvents() : [];
     const map = new Map<string, ExtendedEvent>();
     MOCK_EVENTS.forEach((e) => {
-      if (!deletedIds.includes(e.id) && !deletedIds.includes(e.slug)) {
+      const s = String(e.status || '').toUpperCase();
+      if (
+        !deletedIds.includes(e.id) &&
+        !deletedIds.includes(e.slug) &&
+        s !== 'REJECTED' &&
+        s !== 'DRAFT' &&
+        s !== 'PENDING_APPROVAL'
+      ) {
         map.set(e.id, e);
       }
     });
     custom.forEach((e) => {
+      const s = String(e.status || '').toUpperCase();
       if (
         !deletedIds.includes(e.id) &&
         !deletedIds.includes(e.slug) &&
+        s !== 'REJECTED' &&
+        s !== 'DRAFT' &&
+        s !== 'PENDING_APPROVAL' &&
         e.status !== EventStatus.PENDING_APPROVAL &&
         e.status !== EventStatus.DRAFT
       ) {
@@ -478,7 +581,13 @@ export async function fetchPublishedEvents(): Promise<ExtendedEvent[]> {
     };
 
     return Array.from(map.values())
-      .filter((e) => !isManipal(e))
+      .filter((e) => {
+        if (isManipal(e)) return true;
+        const s = String(e.status || '').toUpperCase();
+        if (s === 'REJECTED' || s === 'DRAFT' || s === 'PENDING_APPROVAL') return false;
+        if (deletedIds.includes(e.id) || (e.slug && deletedIds.includes(e.slug))) return false;
+        return true;
+      })
       .sort((a, b) => {
         let orderA = typeof a.displayOrder === 'number' ? a.displayOrder : 999999;
         let orderB = typeof b.displayOrder === 'number' ? b.displayOrder : 999999;
@@ -885,8 +994,14 @@ export async function createEventInSupabase(
     } catch (e) {
       console.warn('Broadcast send error:', e);
     }
-    // Automatically broadcast notification ONLY when event is approved/live, not while pending
-    if (createdEvent.status === EventStatus.PUBLISHED || (createdEvent.status as any) === 'REGISTRATION_OPEN') {
+    // Automatically broadcast notification ONLY when event is approved/live, not while pending, and NOT if host disabled broadcast
+    const tagsList = Array.isArray(createdEvent.tags) ? createdEvent.tags : [];
+    const isBroadcastDisabled = tagsList.includes('hu_no_broadcast:true') || (createdEvent as any).broadcastToCommunity === false;
+
+    if (
+      !isBroadcastDisabled &&
+      (createdEvent.status === EventStatus.PUBLISHED || (createdEvent.status as any) === 'REGISTRATION_OPEN')
+    ) {
       createNotification(
         {
           title: `🚀 New Hackathon Live: ${createdEvent.title}`,

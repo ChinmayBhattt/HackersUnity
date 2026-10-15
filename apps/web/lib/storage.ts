@@ -288,7 +288,11 @@ export function getAllEvents(): ExtendedEvent[] {
     const baseMerged = [...custom, ...MOCK_EVENTS];
 
     return baseMerged
-      .filter((e) => !deletedIds.includes(e.id) && !deletedIds.includes(e.slug))
+      .filter((e) => {
+        const s = String(e.status || '').toUpperCase();
+        if (s === 'REJECTED' || s === 'DRAFT' || s === 'PENDING_APPROVAL') return false;
+        return !deletedIds.includes(e.id) && !deletedIds.includes(e.slug);
+      })
       .map((e) => (overrides[e.id] ? { ...e, ...overrides[e.id] } : e));
   } catch {
     return MOCK_EVENTS;

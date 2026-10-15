@@ -63,6 +63,31 @@ export async function sendLiveEventAnnouncementToAllUsers(
       };
     }
 
+    // 2.5 Check if host has disabled community broadcast for their events
+    const broadcastDisabledByTag = existingTags.includes('hu_no_broadcast:true') || fullEvent.broadcastToCommunity === false;
+    let broadcastDisabledByHost = broadcastDisabledByTag;
+    const orgId = fullEvent.organizer_id || fullEvent.organizerId;
+    if (!broadcastDisabledByHost && orgId && !options.force && !options.isTest) {
+      try {
+        const { data: orgUser } = await serverSupabase.auth.admin.getUserById(orgId);
+        const prefs = orgUser?.user?.user_metadata?.notification_preferences;
+        if (prefs && prefs.notifyHostBroadcast === false) {
+          broadcastDisabledByHost = true;
+        }
+      } catch (checkErr) {
+        console.warn('[live-event-email] Host preference check error:', checkErr);
+      }
+    }
+
+    if (broadcastDisabledByHost && !options.force && !options.isTest) {
+      console.log(`[live-event-email] Event "${fullEvent.title}" broadcast is disabled by host. Skipping announcement emails.`);
+      return {
+        success: true,
+        alreadyBroadcasted: false,
+        message: 'Broadcast is disabled by the organizer for this event.',
+      };
+    }
+
     // 3. Fetch all registered users from public.profiles
     let recipients: Array<{ id: string; name: string; email: string; role?: string; college?: string }> = [];
 
@@ -76,19 +101,39 @@ export async function sendLiveEventAnnouncementToAllUsers(
         },
       ];
     } else {
-      const { data: profiles, error: profilesError } = await serverSupabase
+      let profiles: any[] | null = null;
+      let profilesError: any = null;
+      const primaryRes = await serverSupabase
         .from('profiles')
-        .select('id, email, name, role, college')
+        .select('id, email, name, role, college, notification_preferences')
         .not('email', 'is', null);
+
+      if (primaryRes.error && (primaryRes.error.code === '42703' || primaryRes.error.message?.includes('column'))) {
+        const fallbackRes = await serverSupabase
+          .from('profiles')
+          .select('id, email, name, role, college')
+          .not('email', 'is', null);
+        profiles = fallbackRes.data;
+        profilesError = fallbackRes.error;
+      } else {
+        profiles = primaryRes.data;
+        profilesError = primaryRes.error;
+      }
 
       if (profilesError) {
         console.error('[live-event-email] Failed to fetch profiles:', profilesError);
         return { success: false, error: profilesError.message };
       }
 
-      // Sanitize, trim and deduplicate
+      // Sanitize, trim, deduplicate, and respect recipient opt-out
       const seen = new Set<string>();
       for (const p of profiles || []) {
+        // Skip recipient if they turned off new event notifications
+        const notifPrefs = p.notification_preferences;
+        if (notifPrefs && notifPrefs.notifyNewEvents === false) {
+          continue;
+        }
+
         const cleanEmail = (p.email || '').toLowerCase().trim();
         if (cleanEmail && cleanEmail.includes('@') && !cleanEmail.includes('example.com') && !seen.has(cleanEmail)) {
           seen.add(cleanEmail);

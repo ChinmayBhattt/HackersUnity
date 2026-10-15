@@ -38,6 +38,7 @@ export async function POST(req: Request) {
       bannerUrl,
       socialLinks,
       bankDetails,
+      notificationPreferences,
     } = body;
 
     // 2. Prevent IDOR: ensure user can only modify their own profile
@@ -171,6 +172,14 @@ export async function POST(req: Request) {
       updatedAt: new Date().toISOString(),
     } : null) : undefined;
 
+    const cleanNotificationPreferences = notificationPreferences && typeof notificationPreferences === 'object' ? {
+      notifyHostBroadcast: notificationPreferences.notifyHostBroadcast !== false,
+      notifyNewEvents: notificationPreferences.notifyNewEvents !== false,
+      notifyHackathons: notificationPreferences.notifyHackathons !== false,
+      notifyInvites: notificationPreferences.notifyInvites !== false,
+      notifyDigest: Boolean(notificationPreferences.notifyDigest),
+    } : undefined;
+
     // 5. Fetch existing user info from Supabase Auth
     let userEmail = auth.email;
     let existingMeta: Record<string, any> = auth.user.user_metadata || {};
@@ -203,6 +212,7 @@ export async function POST(req: Request) {
     if (cleanLinkedin !== undefined) profileUpdateData.linkedin_url = cleanLinkedin;
     if (cleanPortfolio !== undefined) profileUpdateData.portfolio_url = cleanPortfolio;
     if (cleanBankDetails !== undefined) profileUpdateData.bank_details = cleanBankDetails;
+    if (cleanNotificationPreferences !== undefined) profileUpdateData.notification_preferences = cleanNotificationPreferences;
 
     try {
       const { error: profileDbError } = await supabaseAdmin
@@ -216,6 +226,7 @@ export async function POST(req: Request) {
           const fallbackData = { ...profileUpdateData };
           delete fallbackData.username;
           delete fallbackData.bank_details;
+          delete fallbackData.notification_preferences;
           await supabaseAdmin.from('profiles').upsert(fallbackData, { onConflict: 'id' });
         }
       }
@@ -250,6 +261,7 @@ export async function POST(req: Request) {
           linkedin_url: cleanLinkedin !== null ? cleanLinkedin : existingMeta.linkedin_url,
           portfolio_url: cleanPortfolio !== null ? cleanPortfolio : existingMeta.portfolio_url,
           bank_details: cleanBankDetails !== undefined ? cleanBankDetails : existingMeta.bank_details,
+          notification_preferences: cleanNotificationPreferences !== undefined ? cleanNotificationPreferences : existingMeta.notification_preferences,
         },
       });
     } catch (authMetaErr) {

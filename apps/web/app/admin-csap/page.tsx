@@ -52,6 +52,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency } from '@/lib/utils';
+import { deleteHostedEvent } from '@/lib/storage';
 import { Logo } from '@/components/logo';
 import { AdminBlogsModeration } from '@/components/admin-blogs-moderation';
 import { AdminMentorsModeration } from '@/components/admin-mentors-moderation';
@@ -340,6 +341,16 @@ export default function AdminCsapPortal() {
         if (selectedEvent?.id === event.id) {
           setSelectedEvent((prev) => (prev ? { ...prev, status: 'PUBLISHED' } : null));
         }
+        // Remove from deleted list if previously rejected
+        try {
+          const rawDel = localStorage.getItem('hackers_unity_deleted_events');
+          if (rawDel) {
+            const delList: string[] = JSON.parse(rawDel);
+            const cleaned = delList.filter((id) => id !== event.id && id !== event.slug);
+            localStorage.setItem('hackers_unity_deleted_events', JSON.stringify(cleaned));
+            window.dispatchEvent(new Event('hackers_unity_storage_change'));
+          }
+        } catch {}
       } else {
         setNotificationMsg({
           type: 'error',
@@ -381,6 +392,18 @@ export default function AdminCsapPortal() {
         if (selectedEvent?.id === event.id) {
           setSelectedEvent((prev) => (prev ? { ...prev, status: 'REJECTED' } : null));
         }
+
+        // Clean up from local storage so it immediately vanishes from all listings
+        deleteHostedEvent(event.id, event.slug);
+        try {
+          const rawDel = localStorage.getItem('hackers_unity_deleted_events');
+          const delList: string[] = rawDel ? JSON.parse(rawDel) : [];
+          if (event.id && !delList.includes(event.id)) delList.push(event.id);
+          if (event.slug && !delList.includes(event.slug)) delList.push(event.slug);
+          localStorage.setItem('hackers_unity_deleted_events', JSON.stringify(delList));
+          window.dispatchEvent(new Event('hackers_unity_storage_change'));
+        } catch {}
+
         setRejectModalEvent(null);
         setRejectFeedback('');
       } else {

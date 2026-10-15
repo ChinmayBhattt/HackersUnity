@@ -209,6 +209,7 @@ function HackathonDetailContent({ params }: PageProps) {
 
   const isPendingApproval = event.status === EventStatus.PENDING_APPROVAL;
   const isDraft = event.status === EventStatus.DRAFT;
+  const isRejected = (event.status as string) === 'REJECTED' || (event.status as any) === 'rejected';
   const isUnpublished = Boolean(isPendingApproval || isDraft);
 
   // Private Preview Access Verification
@@ -229,6 +230,38 @@ function HackathonDetailContent({ params }: PageProps) {
      user.role === 'ADMIN' ||
      (user as any)?.role === 'SUPER_ADMIN')
   );
+
+  // If event has been rejected / revoked and viewer is not an admin/organizer, completely block access
+  if (isRejected && !isOrganizerOrAdmin) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-24 text-center space-y-6 animate-in fade-in">
+        <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-rose-50 to-red-50 border-2 border-rose-300 text-rose-600 flex items-center justify-center mx-auto shadow-sm">
+          <Lock className="w-10 h-10" />
+        </div>
+        <div className="space-y-3">
+          <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-rose-100 border border-rose-300 text-rose-800 text-xs font-bold uppercase tracking-wider">
+            <span className="w-2 h-2 rounded-full bg-rose-500" />
+            <span>Event Revoked</span>
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+            This Event Has Been Revoked
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed font-medium max-w-md mx-auto">
+            This hackathon has been rejected or revoked by platform administrators and is not available for registration or viewing.
+          </p>
+        </div>
+        <div className="pt-2 flex justify-center">
+          <Link
+            href="/hackathons"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-[#0099e6] hover:bg-[#0284c7] text-white text-xs font-bold transition-all shadow-md shadow-sky-500/20 cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Browse Active Hackathons</span>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const hasPrivateAccess = !isUnpublished || hasKeyAccess || isOrganizerOrAdmin || isExplicitPreview;
 
@@ -323,8 +356,21 @@ function HackathonDetailContent({ params }: PageProps) {
 
   return (
     <div className="flex-1 pb-28 lg:pb-20">
+      {/* Revoked Notice Banner */}
+      {isRejected && (
+        <div className="bg-rose-600 text-white px-4 py-3 text-xs font-bold flex items-center justify-between flex-wrap gap-2 border-b border-rose-700 shadow-xs">
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-white shrink-0" />
+            <span>🚫 This event has been REVOKED / REJECTED by administrators and is completely hidden from the public website.</span>
+          </div>
+          <span className="px-3 py-1 rounded-xl bg-black/30 text-white text-[11px] font-black uppercase tracking-wider">
+            REJECTED
+          </span>
+        </div>
+      )}
+
       {/* Pending Approval Notice Banner */}
-      {isUnpublished && (
+      {isUnpublished && !isRejected && (
         <div className="bg-amber-400 text-slate-950 px-4 py-3 text-xs font-bold flex items-center justify-between flex-wrap gap-2 border-b border-amber-500 shadow-xs">
           <div className="flex items-center gap-2">
             <Lock className="w-4 h-4 text-slate-900 shrink-0" />
@@ -1174,6 +1220,15 @@ function HackathonDetailContent({ params }: PageProps) {
                     </button>
                   )}
                 </div>
+              ) : isRejected ? (
+                <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 text-center space-y-1.5">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                    <span>🚫 Event Revoked</span>
+                  </div>
+                  <p className="text-xs text-rose-600/80 dark:text-rose-400/80 font-medium">
+                    This event has been revoked by administrators and registrations are disabled.
+                  </p>
+                </div>
               ) : effectiveStatus === EventStatus.COMPLETED ? (
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/[0.08] text-center space-y-2">
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border border-zinc-500/20">
@@ -1440,6 +1495,10 @@ function HackathonDetailContent({ params }: PageProps) {
                   </button>
                 </div>
               )
+            ) : isRejected ? (
+              <span className="px-4 py-2.5 rounded-xl bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 font-bold text-xs cursor-not-allowed shrink-0 border border-rose-200 dark:border-rose-900/50">
+                Revoked
+              </span>
             ) : effectiveStatus === EventStatus.COMPLETED ? (
               <span className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-white/[0.06] text-slate-400 dark:text-slate-500 font-bold text-xs cursor-not-allowed shrink-0">
                 Closed
