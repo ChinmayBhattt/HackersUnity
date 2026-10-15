@@ -580,8 +580,9 @@ function HostHackathonContent() {
             setRegistrationType(found.registrationType as 'FREE' | 'PAID');
           }
           if (found.entryFee !== undefined && found.entryFee !== null) {
-            const rawVal = Number(found.entryFee);
-            setEntryFee(rawVal === 59 || rawVal === 1 ? 800 : rawVal);
+            setEntryFee(Number(found.entryFee));
+          } else if ((found as any).entry_fee !== undefined && (found as any).entry_fee !== null) {
+            setEntryFee(Number((found as any).entry_fee));
           }
           if (found.registrationCapacity) {
             setRegistrationCapacity(found.registrationCapacity);

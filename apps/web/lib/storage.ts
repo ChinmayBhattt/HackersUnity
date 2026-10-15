@@ -152,12 +152,6 @@ export function getCustomEvents(): ExtendedEvent[] {
     if (!raw) return [];
     const parsed: ExtendedEvent[] = JSON.parse(raw);
     return parsed
-      .map((e) => {
-        if (e && (e.entryFee === 59 || e.entryFee === 1)) {
-          return { ...e, entryFee: 800 };
-        }
-        return e;
-      })
       .filter(
         (e) =>
           e &&

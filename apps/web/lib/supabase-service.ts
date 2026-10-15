@@ -144,10 +144,8 @@ export function mapDbEventToExtended(item: any): ExtendedEvent {
     rulesText: item.rules_text || '',
     registrationType: item.registration_type || (Number(item.entry_fee) > 0 ? 'PAID' : 'FREE'),
     entryFee: (() => {
-      const dbFee = Number(item.entry_fee || 0);
-      if (dbFee === 59 || dbFee === 1) return 800;
-      if (dbFee > 0) return dbFee;
-      return item.registration_type === 'PAID' ? 800 : 0;
+      const dbFee = Number(item.entry_fee !== undefined && item.entry_fee !== null ? item.entry_fee : (item.entryFee ?? 0));
+      return isNaN(dbFee) ? 0 : dbFee;
     })(),
     currency: item.currency || 'INR',
     registrationCapacity: item.registration_capacity || null,
@@ -552,6 +550,17 @@ export async function fetchEventBySlug(slugOrId: string): Promise<ExtendedEvent 
           .maybeSingle();
         data = aliasRes.data;
       }
+
+      // Fallback: title normalized match if slug was custom or ai-generated
+      if (!data) {
+        const titleNormalized = decoded.replace(/-/g, ' ').trim();
+        const titleRes = await supabase
+          .from('events')
+          .select('*')
+          .ilike('title', titleNormalized)
+          .maybeSingle();
+        data = titleRes.data;
+      }
     }
 
     if (data) {
@@ -573,9 +582,8 @@ export async function fetchEventBySlug(slugOrId: string): Promise<ExtendedEvent 
               if (mapped.endDate) res.endDate = mapped.endDate;
               if (mapped.registrationDeadline) res.registrationDeadline = mapped.registrationDeadline;
               if (mapped.registrationStart) res.registrationStart = mapped.registrationStart;
-              if (res.entryFee === 59 || res.entryFee === 1) {
-                res.entryFee = 800;
-              }
+              if (mapped.entryFee !== undefined && mapped.entryFee !== null) res.entryFee = mapped.entryFee;
+              if (mapped.registrationType) res.registrationType = mapped.registrationType;
               return res;
             }
           }

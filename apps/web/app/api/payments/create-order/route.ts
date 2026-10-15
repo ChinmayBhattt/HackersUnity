@@ -44,12 +44,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Event not found.' }, { status: 404 });
     }
 
-    // 2. Validate fee (mapped to ₹800 as requested)
-    let feeAmount = Number(eventData.entry_fee || 0);
-    if (feeAmount === 59 || feeAmount === 1 || !feeAmount) {
-      feeAmount = 800;
-    }
-    if (eventData.registration_type === 'FREE' || feeAmount <= 0) {
+    // 2. Validate fee
+    const feeAmount = Number(eventData.entry_fee !== undefined && eventData.entry_fee !== null ? eventData.entry_fee : (eventData as any).entryFee || 0);
+    const isPaid = eventData.registration_type === 'PAID' || feeAmount > 0;
+    if (!isPaid || feeAmount <= 0) {
       return NextResponse.json({
         isFree: true,
         message: 'This event is free of charge. No payment is required.',

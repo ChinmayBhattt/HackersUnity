@@ -47,10 +47,9 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
       setParticipantsDisplay(event.participantsDisplay || `${event.participantsCount || 500}+`);
       setCtaText(event.ctaText || 'Learn More');
       setFeatured(!!event.featured);
-      setRegistrationType(event.registrationType === 'PAID' || Number(event.entryFee) > 0 ? 'PAID' : 'FREE');
-      const rawFee = Number(event.entryFee);
-      const mappedFee = (rawFee === 59 || rawFee === 1) ? 800 : (event.entryFee !== undefined && event.entryFee !== null ? event.entryFee : 0);
-      setEntryFee(mappedFee);
+      setRegistrationType(event.registrationType === 'PAID' || Number(event.entryFee || (event as any).entry_fee) > 0 ? 'PAID' : 'FREE');
+      const rawFee = Number(event.entryFee !== undefined && event.entryFee !== null ? event.entryFee : (event as any).entry_fee || 0);
+      setEntryFee(rawFee);
     }
   }, [event]);
 
@@ -98,7 +97,7 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
       ctaText: ctaText.trim() || 'Learn More',
       featured: featured,
       registrationType: registrationType,
-      entryFee: registrationType === 'PAID' ? (Number(entryFee) || 800) : 0,
+      entryFee: registrationType === 'PAID' ? (Number(entryFee) || 0) : 0,
       currency: event.currency || 'INR',
     };
 
@@ -254,7 +253,6 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
                   type="button"
                   onClick={() => {
                     setRegistrationType('PAID');
-                    if (!entryFee || Number(entryFee) === 0) setEntryFee(800);
                   }}
                   className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
                     registrationType === 'PAID'

@@ -161,10 +161,18 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
 
   const [isAlreadyRegistered, setIsAlreadyRegistered] = useState(false);
 
-  // Payment states (fee mapped to ₹800 as requested)
-  const rawFee = Number(event?.entryFee || (event?.registrationType === 'PAID' ? 800 : 0));
-  const feeAmount = (rawFee === 59 || rawFee === 1) ? 800 : (rawFee || 800);
-  const isPaidEvent = Boolean(event && (event.registrationType === 'PAID' || Number(event.entryFee) > 0) && feeAmount > 0);
+  // Payment states (dynamically resolved from event)
+  const rawFee = event?.entryFee !== undefined && event?.entryFee !== null
+    ? Number(event.entryFee)
+    : (event as any)?.entry_fee !== undefined && (event as any)?.entry_fee !== null
+    ? Number((event as any).entry_fee)
+    : (event?.registrationType === 'PAID' || (event as any)?.registration_type === 'PAID' ? 0 : 0);
+  const feeAmount = rawFee;
+  const isPaidEvent = Boolean(
+    event &&
+    (event.registrationType === 'PAID' || (event as any)?.registration_type === 'PAID' || rawFee > 0) &&
+    feeAmount > 0
+  );
   const [paymentStatus, setPaymentStatus] = useState<'UNPAID' | 'PAID' | 'LOADING'>('LOADING');
   const isPaymentPending = isPaidEvent && paymentStatus !== 'PAID';
   const [paymentData, setPaymentData] = useState<any | null>(null);
@@ -279,7 +287,12 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
         }),
       });
 
-      const data = await response.json();
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error(`Payment server error (${response.status}). Please try again.`);
+      }
       if (!response.ok || data.error) {
         if (data.alreadyPaid) {
           setPaymentStatus('PAID');
@@ -410,7 +423,12 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
       rzp.open();
     } catch (err: any) {
       stopPolling();
-      setPaymentError(err.message || 'An unexpected error occurred during payment.');
+      const rawMsg = err?.message || '';
+      const userFriendlyMsg =
+        rawMsg === 'Load failed' || rawMsg.includes('Failed to fetch')
+          ? 'Unable to connect to the payment gateway. Please check your internet connection or try again in a few moments.'
+          : rawMsg || 'An unexpected error occurred during payment.';
+      setPaymentError(userFriendlyMsg);
       setIsProcessingPayment(false);
     }
   };

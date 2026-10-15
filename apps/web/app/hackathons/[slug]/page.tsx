@@ -93,9 +93,17 @@ function HackathonDetailContent({ params }: PageProps) {
   const { user, supabaseUser } = useAuth();
   const [userSquad, setUserSquad] = useState<any | null>(null);
 
-  const rawFee = Number(event?.entryFee || (event?.registrationType === 'PAID' ? 800 : 0));
-  const feeAmount = (rawFee === 59 || rawFee === 1) ? 800 : (rawFee || 800);
-  const isPaidEvent = Boolean(event && (event.registrationType === 'PAID' || Number(event.entryFee) > 0) && feeAmount > 0);
+  const rawFee = event?.entryFee !== undefined && event?.entryFee !== null
+    ? Number(event.entryFee)
+    : (event as any)?.entry_fee !== undefined && (event as any)?.entry_fee !== null
+    ? Number((event as any).entry_fee)
+    : (event?.registrationType === 'PAID' || (event as any)?.registration_type === 'PAID' ? 0 : 0);
+  const feeAmount = rawFee;
+  const isPaidEvent = Boolean(
+    event &&
+    (event.registrationType === 'PAID' || (event as any)?.registration_type === 'PAID' || rawFee > 0) &&
+    feeAmount > 0
+  );
   const [isEventPaid, setIsEventPaid] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -1098,7 +1106,7 @@ function HackathonDetailContent({ params }: PageProps) {
                   <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Registration Fee</span>
                 </div>
                 <div className="text-right">
-                  {(Number(event.entryFee || 0) > 0 || event.registrationType === 'PAID') ? (
+                  {isPaidEvent ? (
                     <div>
                       <span className="text-sm font-black text-[#ea580c] dark:text-[#f97316] font-mono">
                         ₹{Number(feeAmount).toLocaleString('en-IN')}
@@ -1228,7 +1236,7 @@ function HackathonDetailContent({ params }: PageProps) {
                   >
                     <Rocket className="w-4 h-4" />
                     <span>
-                      {(Number(event.entryFee || 0) > 0 || event.registrationType === 'PAID')
+                      {isPaidEvent
                         ? `Register • ₹${Number(feeAmount).toLocaleString('en-IN')} / Team`
                         : 'Register for Hackathon'}
                     </span>
@@ -1372,7 +1380,7 @@ function HackathonDetailContent({ params }: PageProps) {
                     </span>
                   )}
                 </div>
-              ) : (Number(event.entryFee || 0) > 0 || event.registrationType === 'PAID') ? (
+              ) : isPaidEvent ? (
                 <div>
                   <div className="text-base sm:text-lg font-black text-[#ea580c] dark:text-[#f97316] font-mono leading-none">
                     ₹{Number(feeAmount).toLocaleString('en-IN')}

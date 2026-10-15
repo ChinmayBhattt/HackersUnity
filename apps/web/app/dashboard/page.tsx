@@ -252,8 +252,8 @@ export default function DashboardPage() {
 
       if (remoteRegs && remoteRegs.length > 0) {
         const userRegs: UserRegistrationItem[] = remoteRegs.map((r: any) => {
-          const rawEntryFee = Number(r.events?.entry_fee || 0);
-          const mappedEntryFee = (rawEntryFee === 59 || rawEntryFee === 1) ? 800 : rawEntryFee;
+          const rawEntryFee = Number(r.events?.entry_fee ?? (r.events?.entryFee || 0));
+          const mappedEntryFee = rawEntryFee;
           return {
             eventId: r.event_id,
             eventName: r.events?.title || r.events?.name || 'Registered Hackathon',
@@ -1748,8 +1748,7 @@ export default function DashboardPage() {
                                   event_name: reg.eventName || matchedEvent?.title || 'Hackathon Arena',
                                   team_name: reg.teamName || 'Solo Builder',
                                   team_leader_name: user?.name || 'Hacker',
-                                  team_leader_email: user?.email || '',
-                                  amount: (reg.entryFee === 59 || reg.entryFee === 1) ? 800 : (reg.entryFee || 800),
+                                  amount: Number(reg.entryFee || matchedPayment?.amount || 0),
                                   currency: reg.currency || 'INR',
                                   status: 'PAID',
                                   transaction_date: reg.registeredAt,
