@@ -373,49 +373,242 @@ export async function GET(req: Request) {
 
       if (regError) {
         console.error('Error fetching registrations list:', regError);
-        return NextResponse.json({ error: regError.message, registrations: [] }, { status: 500 });
+        return NextResponse.json({ error: regError.message, registrations: [], teams: [] }, { status: 500 });
       }
 
+      // Fetch teams and payments for these events to cross-reference payment status
+      const [{ data: teamRows }, { data: payRows }] = await Promise.all([
+        serverSupabase
+          .from('teams')
+          .select('id, name, event_id, leader_id, payment_status, payment_id')
+          .in('event_id', idsToQuery),
+        serverSupabase
+          .from('payments')
+          .select('*')
+          .in('event_id', idsToQuery),
+      ]);
+
+      // Build indexing maps for quick lookup of payments
+      const paidPayments = (payRows || []).filter((p: any) => p.status === 'PAID');
+      const payById = new Map<string, any>();
+      const payByTeamId = new Map<string, any>();
+      const payByTeamName = new Map<string, any>();
+      const payByLeaderEmail = new Map<string, any>();
+      const payByUserId = new Map<string, any>();
+
+      paidPayments.forEach((p: any) => {
+        if (p.id) payById.set(p.id, p);
+        if (p.team_id) payByTeamId.set(p.team_id, p);
+        if (p.team_name) payByTeamName.set(p.team_name.toLowerCase().trim(), p);
+        if (p.team_leader_email) payByLeaderEmail.set(p.team_leader_email.toLowerCase().trim(), p);
+        if (p.user_id) payByUserId.set(p.user_id, p);
+      });
+
+      const teamByName = new Map<string, any>();
+      const teamById = new Map<string, any>();
+      (teamRows || []).forEach((t: any) => {
+        if (t.id) teamById.set(t.id, t);
+        if (t.name) teamByName.set(t.name.toLowerCase().trim(), t);
+      });
+
       const map = new Map<string, any>();
+      const teamAggMap = new Map<string, any>();
+
       (regRows || []).forEach((row: any) => {
         const key = (row.user_email || row.id || '').toLowerCase().trim();
+        const teamNameClean = (row.team_name || '').toLowerCase().trim();
+        const userEmailClean = (row.user_email || '').toLowerCase().trim();
+        const userId = row.user_id;
+        const teamId = row.team_id;
+        const paymentId = row.payment_id;
+
+        // Find matching payment record
+        let matchedPayment: any = null;
+        if (paymentId && payById.has(paymentId)) {
+          matchedPayment = payById.get(paymentId);
+        } else if (teamId && payByTeamId.has(teamId)) {
+          matchedPayment = payByTeamId.get(teamId);
+        } else if (teamNameClean && payByTeamName.has(teamNameClean)) {
+          matchedPayment = payByTeamName.get(teamNameClean);
+        } else if (userEmailClean && payByLeaderEmail.has(userEmailClean)) {
+          matchedPayment = payByLeaderEmail.get(userEmailClean);
+        } else if (userId && payByUserId.has(userId)) {
+          matchedPayment = payByUserId.get(userId);
+        }
+
+        const matchedTeam = (teamId ? teamById.get(teamId) : null) || (teamNameClean ? teamByName.get(teamNameClean) : null);
+        if (!matchedPayment && matchedTeam?.payment_status === 'PAID' && matchedTeam.payment_id && payById.has(matchedTeam.payment_id)) {
+          matchedPayment = payById.get(matchedTeam.payment_id);
+        }
+
+        const isPaid = Boolean(
+          matchedPayment ||
+          row.payment_status === 'PAID' ||
+          matchedTeam?.payment_status === 'PAID'
+        );
+
+        const utr =
+          matchedPayment?.utr_number ||
+          matchedPayment?.raw_response?.acquirer_data?.rrn ||
+          matchedPayment?.raw_response?.acquirer_data?.upi_transaction_id ||
+          matchedPayment?.raw_response?.acquirer_data?.bank_transaction_id ||
+          (isPaid ? matchedPayment?.razorpay_payment_id : null) ||
+          (isPaid ? 'CONFIRMED' : null);
+
+        const transactionDate = matchedPayment?.transaction_date || matchedPayment?.created_at || (isPaid ? row.registered_at : null);
+        const paymentIdVal = matchedPayment?.razorpay_payment_id || matchedPayment?.id || row.payment_id || (isPaid ? 'CONFIRMED' : null);
+        const amountVal = matchedPayment?.amount
+          ? `₹${matchedPayment.amount}`
+          : matchedPayment?.amount_in_paise
+          ? `₹${matchedPayment.amount_in_paise / 100}`
+          : (isPaid ? '₹800' : null);
+        const proofLink = matchedPayment?.razorpay_payment_id
+          ? `https://dashboard.razorpay.com/app/payments/${matchedPayment.razorpay_payment_id}`
+          : utr && utr !== 'CONFIRMED'
+          ? `UTR Ref: ${utr}`
+          : null;
+
+        // Auto-heal registration record in database asynchronously if out of sync
+        if (isPaid && row.payment_status !== 'PAID') {
+          Promise.resolve(
+            serverSupabase
+              .from('registrations')
+              .update({ payment_status: 'PAID', payment_id: paymentIdVal || undefined })
+              .eq('id', row.id)
+          ).catch(() => {});
+        }
+
+        const regItem = {
+          id: row.id,
+          eventId: row.event_id,
+          userId: row.user_id,
+          userName: row.user_name || 'Hacker',
+          userEmail: row.user_email || '',
+          phone: row.phone || '',
+          college: row.college || '',
+          city: row.city || '',
+          githubUrl: row.github_url || '',
+          linkedinUrl: row.linkedin_url || '',
+          skills: Array.isArray(row.skills) ? row.skills : [],
+          portfolioUrl: row.portfolio_url || row.custom_answers?.portfolio_url || row.custom_answers?.portfolioUrl || '',
+          resumeUrl: row.resume_url || row.custom_answers?.resume_url || row.custom_answers?.resumeUrl || '',
+          discordHandle: row.discord_handle || row.custom_answers?.discord_handle || row.custom_answers?.discordHandle || '',
+          twitterUrl: row.twitter_url || row.custom_answers?.twitter_url || row.custom_answers?.twitterUrl || '',
+          tshirtSize: row.tshirt_size || row.custom_answers?.tshirt_size || row.custom_answers?.tshirtSize || '',
+          dietaryPreference: row.dietary_preference || row.custom_answers?.dietary_preference || row.custom_answers?.dietaryPreference || '',
+          experienceLevel: row.experience_level || row.custom_answers?.experience_level || row.custom_answers?.experienceLevel || '',
+          customAnswers: row.custom_answers || {},
+          isTeam: Boolean(row.is_team),
+          teamName: row.team_name || '',
+          teamId: row.team_id || matchedTeam?.id || null,
+          role: row.role || (row.is_team ? 'Team Leader' : 'Individual Hacker'),
+          status: row.status || 'CONFIRMED',
+          registeredAt: row.registered_at || new Date().toISOString(),
+          paymentStatus: isPaid ? 'PAID' : (row.payment_status || 'UNPAID'),
+          paymentConfirmed: isPaid,
+          transactionConfirmed: isPaid ? 'Yes' : 'No',
+          transactionDate: transactionDate,
+          utrNumber: utr,
+          paymentId: paymentIdVal,
+          paymentAmount: amountVal,
+          paymentMethod: (matchedPayment?.payment_method || (isPaid ? 'UPI' : null))?.toUpperCase(),
+          paymentProofLink: proofLink,
+        };
+
         if (key && !map.has(key)) {
-          map.set(key, {
-            id: row.id,
-            eventId: row.event_id,
-            userId: row.user_id,
-            userName: row.user_name || 'Hacker',
-            userEmail: row.user_email || '',
-            phone: row.phone || '',
-            college: row.college || '',
-            city: row.city || '',
-            githubUrl: row.github_url || '',
-            linkedinUrl: row.linkedin_url || '',
-            skills: Array.isArray(row.skills) ? row.skills : [],
-            portfolioUrl: row.portfolio_url || row.custom_answers?.portfolio_url || row.custom_answers?.portfolioUrl || '',
-            resumeUrl: row.resume_url || row.custom_answers?.resume_url || row.custom_answers?.resumeUrl || '',
-            discordHandle: row.discord_handle || row.custom_answers?.discord_handle || row.custom_answers?.discordHandle || '',
-            twitterUrl: row.twitter_url || row.custom_answers?.twitter_url || row.custom_answers?.twitterUrl || '',
-            tshirtSize: row.tshirt_size || row.custom_answers?.tshirt_size || row.custom_answers?.tshirtSize || '',
-            dietaryPreference: row.dietary_preference || row.custom_answers?.dietary_preference || row.custom_answers?.dietaryPreference || '',
-            experienceLevel: row.experience_level || row.custom_answers?.experience_level || row.custom_answers?.experienceLevel || '',
-            customAnswers: row.custom_answers || {},
-            isTeam: Boolean(row.is_team),
-            teamName: row.team_name || '',
-            role: row.role || (row.is_team ? 'Team Leader' : 'Individual Hacker'),
-            status: row.status || 'CONFIRMED',
-            registeredAt: row.registered_at || new Date().toISOString(),
+          map.set(key, regItem);
+        }
+
+        // Group into teams
+        const groupTeamName = row.team_name?.trim() || 'Solo Builders';
+        const groupKey = groupTeamName.toLowerCase();
+        if (!teamAggMap.has(groupKey)) {
+          teamAggMap.set(groupKey, {
+            id: matchedTeam?.id || groupKey,
+            teamId: matchedTeam?.id || null,
+            teamName: groupTeamName,
+            isPaid: isPaid,
+            paymentStatus: isPaid ? 'PAID' : 'UNPAID',
+            transactionConfirmed: isPaid ? 'Yes' : 'No',
+            transactionDate: transactionDate,
+            utrNumber: utr,
+            paymentId: paymentIdVal,
+            paymentAmount: amountVal,
+            paymentProofLink: proofLink,
+            paymentMethod: (matchedPayment?.payment_method || (isPaid ? 'UPI' : null))?.toUpperCase(),
+            leaderName: row.user_name || 'Hacker',
+            leaderEmail: row.user_email || '',
+            leaderPhone: row.phone || '',
+            membersCount: 0,
+            approvedCount: 0,
+            members: [],
+          });
+        }
+
+        const teamEntry = teamAggMap.get(groupKey);
+        teamEntry.membersCount += 1;
+        if (row.status === 'APPROVED' || row.status === 'CONFIRMED') {
+          teamEntry.approvedCount += 1;
+        }
+        if (isPaid && !teamEntry.isPaid) {
+          teamEntry.isPaid = true;
+          teamEntry.paymentStatus = 'PAID';
+          teamEntry.transactionConfirmed = 'Yes';
+          teamEntry.transactionDate = teamEntry.transactionDate || transactionDate;
+          teamEntry.utrNumber = teamEntry.utrNumber || utr;
+          teamEntry.paymentId = teamEntry.paymentId || paymentIdVal;
+          teamEntry.paymentAmount = teamEntry.paymentAmount || amountVal;
+          teamEntry.paymentProofLink = teamEntry.paymentProofLink || proofLink;
+        }
+        if (row.role?.toLowerCase().includes('lead') || !teamEntry.leaderEmail) {
+          teamEntry.leaderName = row.user_name;
+          teamEntry.leaderEmail = row.user_email;
+          teamEntry.leaderPhone = row.phone || teamEntry.leaderPhone;
+        }
+        teamEntry.members.push(regItem);
+      });
+
+      // Also ensure any teams from `teamRows` that had no registrations are included
+      (teamRows || []).forEach((t: any) => {
+        const tKey = t.name?.toLowerCase().trim();
+        if (tKey && !teamAggMap.has(tKey)) {
+          const tPaid = t.payment_status === 'PAID' || payByTeamId.has(t.id) || payByTeamName.has(tKey);
+          const pay = (t.payment_id ? payById.get(t.payment_id) : null) || payByTeamId.get(t.id) || payByTeamName.get(tKey);
+          teamAggMap.set(tKey, {
+            id: t.id,
+            teamId: t.id,
+            teamName: t.name,
+            isPaid: tPaid,
+            paymentStatus: tPaid ? 'PAID' : 'UNPAID',
+            transactionConfirmed: tPaid ? 'Yes' : 'No',
+            transactionDate: pay?.transaction_date || pay?.created_at || null,
+            utrNumber: pay?.utr_number || (tPaid ? 'CONFIRMED' : null),
+            paymentId: pay?.razorpay_payment_id || t.payment_id || null,
+            paymentAmount: pay?.amount ? `₹${pay.amount}` : (tPaid ? '₹800' : null),
+            paymentProofLink: pay?.razorpay_payment_id ? `https://dashboard.razorpay.com/app/payments/${pay.razorpay_payment_id}` : null,
+            paymentMethod: pay?.payment_method?.toUpperCase() || (tPaid ? 'UPI' : null),
+            leaderName: '',
+            leaderEmail: '',
+            leaderPhone: '',
+            membersCount: 0,
+            approvedCount: 0,
+            members: [],
           });
         }
       });
 
-      const formatted = Array.from(map.values());
+      const formattedRegistrations = Array.from(map.values());
+      const formattedTeams = Array.from(teamAggMap.values()).sort((a, b) => {
+        if (a.isPaid !== b.isPaid) return a.isPaid ? -1 : 1;
+        return b.membersCount - a.membersCount;
+      });
 
       return NextResponse.json({
         success: true,
         eventId: targetEventId,
-        count: formatted.length,
-        registrations: formatted,
+        count: formattedRegistrations.length,
+        registrations: formattedRegistrations,
+        teams: formattedTeams,
       });
     }
 
@@ -458,13 +651,38 @@ export async function GET(req: Request) {
 }
 
 /**
- * PATCH: Update applicant status (single or bulk)
+ * PATCH: Update applicant status (single, bulk, or payment status)
  */
 export async function PATCH(req: Request) {
   try {
     const serverSupabase = createAdminClient();
     const body = await req.json();
-    const { action, id, ids, status } = body;
+    const { action, id, ids, status, teamName, paymentStatus, utrNumber } = body;
+
+    if (action === 'update_payment_status') {
+      const targetStatus = paymentStatus === 'PAID' ? 'PAID' : 'UNPAID';
+
+      if (id) {
+        await serverSupabase
+          .from('registrations')
+          .update({ payment_status: targetStatus })
+          .eq('id', id);
+      }
+
+      if (teamName) {
+        await serverSupabase
+          .from('registrations')
+          .update({ payment_status: targetStatus })
+          .ilike('team_name', teamName.trim());
+
+        await serverSupabase
+          .from('teams')
+          .update({ payment_status: targetStatus })
+          .ilike('name', teamName.trim());
+      }
+
+      return NextResponse.json({ success: true, paymentStatus: targetStatus });
+    }
 
     if (action === 'update_status' && id && status) {
       const { error } = await serverSupabase

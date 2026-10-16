@@ -411,6 +411,16 @@ export interface EventRegistration {
   rsvpStatus?: 'ATTENDING' | 'NOT_ATTENDING' | 'PENDING';
   rsvpAt?: string;
   rsvpResponses?: Record<string, any>;
+  teamId?: string;
+  paymentStatus?: 'PAID' | 'PENDING' | 'UNPAID' | string;
+  paymentConfirmed?: boolean;
+  transactionConfirmed?: 'Yes' | 'No';
+  transactionDate?: string | null;
+  utrNumber?: string | null;
+  paymentId?: string | null;
+  paymentAmount?: string | number | null;
+  paymentMethod?: string | null;
+  paymentProofLink?: string | null;
 }
 
 const EVENT_REGS_PREFIX = 'hackers_unity_event_regs_';

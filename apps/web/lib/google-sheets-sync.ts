@@ -457,6 +457,98 @@ export async function syncFullTable(tableName: string): Promise<TableSyncResult>
       const formatted = formatPaymentRecordForSheet(record);
       values.push(headers.map((h) => formatValueForSheet((formatted as any)[h])));
     });
+  } else if (tableName === 'registrations') {
+    // 1. Fetch payments and teams to enrich registrations with confirmed transactions
+    const [{ data: allPayments }, { data: allTeams }] = await Promise.all([
+      supabase.from('payments').select('*').eq('status', 'PAID'),
+      supabase.from('teams').select('id, name, payment_status, payment_id'),
+    ]);
+
+    const payByTeamName = new Map<string, any>();
+    const payByTeamId = new Map<string, any>();
+    const payById = new Map<string, any>();
+    const payByEmail = new Map<string, any>();
+    const payByUserId = new Map<string, any>();
+
+    (allPayments || []).forEach((p: any) => {
+      if (p.id) payById.set(p.id, p);
+      if (p.team_id) payByTeamId.set(p.team_id, p);
+      if (p.team_name) payByTeamName.set(p.team_name.toLowerCase().trim(), p);
+      if (p.team_leader_email) payByEmail.set(p.team_leader_email.toLowerCase().trim(), p);
+      if (p.user_id) payByUserId.set(p.user_id, p);
+    });
+
+    const teamByName = new Map<string, any>();
+    const teamById = new Map<string, any>();
+    (allTeams || []).forEach((t: any) => {
+      if (t.id) teamById.set(t.id, t);
+      if (t.name) teamByName.set(t.name.toLowerCase().trim(), t);
+    });
+
+    headers = [
+      'id',
+      'user_name',
+      'user_email',
+      'team_name',
+      'transaction_confirmed',
+      'date_of_transaction',
+      'utr_proof_of_transaction',
+      'payment_status',
+      'payment_amount',
+      'status',
+      'phone',
+      'college',
+      'city',
+      'registered_at',
+      'github_url',
+      'linkedin_url',
+      'skills',
+      'rsvp_status',
+      'event_id',
+    ];
+
+    values = [headers];
+    records.forEach((record: any) => {
+      const cleanTeam = (record.team_name || '').toLowerCase().trim();
+      const cleanEmail = (record.user_email || '').toLowerCase().trim();
+      const matchedPayment =
+        (record.payment_id ? payById.get(record.payment_id) : null) ||
+        (record.team_id ? payByTeamId.get(record.team_id) : null) ||
+        (cleanTeam ? payByTeamName.get(cleanTeam) : null) ||
+        (cleanEmail ? payByEmail.get(cleanEmail) : null) ||
+        (record.user_id ? payByUserId.get(record.user_id) : null);
+
+      const matchedTeam =
+        (record.team_id ? teamById.get(record.team_id) : null) ||
+        (cleanTeam ? teamByName.get(cleanTeam) : null);
+
+      const isPaid = Boolean(
+        matchedPayment ||
+        record.payment_status === 'PAID' ||
+        matchedTeam?.payment_status === 'PAID'
+      );
+
+      const utr =
+        matchedPayment?.utr_number ||
+        matchedPayment?.raw_response?.acquirer_data?.rrn ||
+        matchedPayment?.razorpay_payment_id ||
+        (isPaid ? 'CONFIRMED' : '');
+
+      const txDate = matchedPayment?.transaction_date || matchedPayment?.created_at || (isPaid ? record.registered_at : '');
+      const amount = matchedPayment?.amount ? `₹${matchedPayment.amount}` : (isPaid ? '₹800' : '');
+
+      const enriched: Record<string, any> = {
+        ...record,
+        team_name: record.team_name || 'Solo Builder',
+        transaction_confirmed: isPaid ? 'Yes' : 'No',
+        date_of_transaction: txDate,
+        utr_proof_of_transaction: utr,
+        payment_status: isPaid ? 'PAID' : (record.payment_status || 'UNPAID'),
+        payment_amount: amount,
+      };
+
+      values.push(headers.map((h) => formatValueForSheet(enriched[h])));
+    });
   } else {
     // Determine headers (primary key first, then other fields alphabetically)
     if (records.length > 0) {

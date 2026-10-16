@@ -23,6 +23,13 @@ import {
   Eye,
   Mail,
   Sparkles,
+  CreditCard,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  CheckCheck,
+  Shield,
+  Layers,
 } from 'lucide-react';
 import {
   getEventRegistrations,
@@ -54,8 +61,12 @@ export default function EventRegistrationsPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true);
   const [registrations, setRegistrations] = useState<EventRegistration[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'RSVP_YES' | 'RSVP_NO'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'TEAMS' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'RSVP_YES' | 'RSVP_NO'>('ALL');
   const [stats, setStats] = useState({ total: 0, approved: 0, pending: 0, rejected: 0, rsvpYes: 0, rsvpNo: 0 });
+  const [serverTeams, setServerTeams] = useState<any[]>([]);
+  const [expandedTeamNames, setExpandedTeamNames] = useState<Set<string>>(new Set());
+  const [teamPaymentFilter, setTeamPaymentFilter] = useState<'ALL' | 'PAID' | 'UNPAID'>('ALL');
+  const [copiedUtr, setCopiedUtr] = useState<string | null>(null);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
   const [notification, setNotification] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -155,6 +166,9 @@ export default function EventRegistrationsPage({ params }: PageProps) {
           const json = await res.json();
           if (json.success && Array.isArray(json.registrations)) {
             dbRegistrations = json.registrations;
+          }
+          if (json.success && Array.isArray(json.teams)) {
+            setServerTeams(json.teams);
           }
         }
       } catch (apiErr) {
@@ -349,13 +363,258 @@ export default function EventRegistrationsPage({ params }: PageProps) {
     }, 6000);
   };
 
-  // Export CSV
+  // Aggregated teams list from server and registrations
+  const teamsList = useMemo(() => {
+    const teamsMap = new Map<string, any>();
+
+    // 1. Seed from serverTeams if provided
+    serverTeams.forEach((st: any) => {
+      const key = (st.teamName || st.name || '').toLowerCase().trim();
+      if (key) {
+        teamsMap.set(key, {
+          id: st.id || key,
+          teamId: st.teamId || st.id,
+          teamName: st.teamName || st.name,
+          isPaid: Boolean(st.isPaid || st.paymentStatus === 'PAID'),
+          paymentStatus: st.isPaid || st.paymentStatus === 'PAID' ? 'PAID' : 'UNPAID',
+          transactionConfirmed: st.isPaid || st.paymentStatus === 'PAID' ? 'Yes' : 'No',
+          transactionDate: st.transactionDate || null,
+          utrNumber: st.utrNumber || null,
+          paymentId: st.paymentId || null,
+          paymentAmount: st.paymentAmount || null,
+          paymentProofLink: st.paymentProofLink || null,
+          paymentMethod: st.paymentMethod || null,
+          leaderName: st.leaderName || '',
+          leaderEmail: st.leaderEmail || '',
+          leaderPhone: st.leaderPhone || '',
+          members: Array.isArray(st.members) ? [...st.members] : [],
+        });
+      }
+    });
+
+    // 2. Aggregate all combined registrations
+    registrations.forEach((r) => {
+      const rawTeamName = r.teamName?.trim() || 'Solo Builders';
+      const key = rawTeamName.toLowerCase();
+
+      if (!teamsMap.has(key)) {
+        teamsMap.set(key, {
+          id: r.teamId || key,
+          teamId: r.teamId,
+          teamName: rawTeamName,
+          isPaid: Boolean(r.paymentConfirmed || r.paymentStatus === 'PAID'),
+          paymentStatus: r.paymentConfirmed || r.paymentStatus === 'PAID' ? 'PAID' : 'UNPAID',
+          transactionConfirmed: r.paymentConfirmed || r.paymentStatus === 'PAID' ? 'Yes' : 'No',
+          transactionDate: r.transactionDate || null,
+          utrNumber: r.utrNumber || null,
+          paymentId: r.paymentId || null,
+          paymentAmount: r.paymentAmount || null,
+          paymentProofLink: r.paymentProofLink || null,
+          paymentMethod: r.paymentMethod || null,
+          leaderName: '',
+          leaderEmail: '',
+          leaderPhone: '',
+          members: [],
+        });
+      }
+
+      const team = teamsMap.get(key);
+
+      if (r.paymentConfirmed || r.paymentStatus === 'PAID') {
+        team.isPaid = true;
+        team.paymentStatus = 'PAID';
+        team.transactionConfirmed = 'Yes';
+        if (!team.transactionDate && r.transactionDate) team.transactionDate = r.transactionDate;
+        if (!team.utrNumber && r.utrNumber) team.utrNumber = r.utrNumber;
+        if (!team.paymentId && r.paymentId) team.paymentId = r.paymentId;
+        if (!team.paymentAmount && r.paymentAmount) team.paymentAmount = r.paymentAmount;
+        if (!team.paymentProofLink && r.paymentProofLink) team.paymentProofLink = r.paymentProofLink;
+        if (!team.paymentMethod && r.paymentMethod) team.paymentMethod = r.paymentMethod;
+      }
+
+      if (r.role?.toLowerCase().includes('lead') || !team.leaderEmail) {
+        team.leaderName = r.userName;
+        team.leaderEmail = r.userEmail;
+        team.leaderPhone = r.phone || team.leaderPhone;
+      }
+
+      // Add member to team if not present
+      if (!team.members.some((m: any) => (m.id && m.id === r.id) || (m.userEmail && m.userEmail.toLowerCase() === r.userEmail.toLowerCase()))) {
+        team.members.push(r);
+      }
+    });
+
+    // 3. Propagate payment status to all members in that squad
+    for (const team of teamsMap.values()) {
+      if (team.isPaid) {
+        team.members.forEach((m: any) => {
+          m.paymentConfirmed = true;
+          m.paymentStatus = 'PAID';
+          m.transactionConfirmed = 'Yes';
+          m.transactionDate = m.transactionDate || team.transactionDate;
+          m.utrNumber = m.utrNumber || team.utrNumber;
+          m.paymentAmount = m.paymentAmount || team.paymentAmount;
+          m.paymentProofLink = m.paymentProofLink || team.paymentProofLink;
+          m.paymentMethod = m.paymentMethod || team.paymentMethod;
+        });
+      }
+    }
+
+    return Array.from(teamsMap.values()).sort((a, b) => {
+      if (a.isPaid !== b.isPaid) return a.isPaid ? -1 : 1;
+      return b.members.length - a.members.length;
+    });
+  }, [serverTeams, registrations]);
+
+  const paidTeamsCount = useMemo(() => teamsList.filter((t) => t.isPaid).length, [teamsList]);
+  const unpaidTeamsCount = useMemo(() => teamsList.filter((t) => !t.isPaid).length, [teamsList]);
+
+  // Filtered teams for the Teams View
+  const filteredTeams = useMemo(() => {
+    return teamsList.filter((team) => {
+      const q = searchQuery.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        team.teamName.toLowerCase().includes(q) ||
+        (team.leaderName && team.leaderName.toLowerCase().includes(q)) ||
+        (team.leaderEmail && team.leaderEmail.toLowerCase().includes(q)) ||
+        (team.utrNumber && team.utrNumber.toLowerCase().includes(q)) ||
+        team.members.some(
+          (m: any) =>
+            m.userName?.toLowerCase().includes(q) ||
+            m.userEmail?.toLowerCase().includes(q) ||
+            (m.college && m.college.toLowerCase().includes(q)) ||
+            (m.city && m.city.toLowerCase().includes(q))
+        );
+
+      const matchesPayment =
+        teamPaymentFilter === 'ALL' ||
+        (teamPaymentFilter === 'PAID' && team.isPaid) ||
+        (teamPaymentFilter === 'UNPAID' && !team.isPaid);
+
+      return matchesSearch && matchesPayment;
+    });
+  }, [teamsList, searchQuery, teamPaymentFilter]);
+
+  const toggleTeamExpand = (teamName: string) => {
+    setExpandedTeamNames((prev) => {
+      const next = new Set(prev);
+      if (next.has(teamName)) {
+        next.delete(teamName);
+      } else {
+        next.add(teamName);
+      }
+      return next;
+    });
+  };
+
+  const expandAllTeams = () => {
+    setExpandedTeamNames(new Set(filteredTeams.map((t) => t.teamName)));
+  };
+
+  const collapseAllTeams = () => {
+    setExpandedTeamNames(new Set());
+  };
+
+  const handleCopyUtr = (utr: string) => {
+    if (!utr) return;
+    navigator.clipboard.writeText(utr);
+    setCopiedUtr(utr);
+    setTimeout(() => setCopiedUtr(null), 2000);
+  };
+
+  const handleApproveTeam = async (team: any) => {
+    if (!event || !team.members || team.members.length === 0) return;
+    const memberIds = team.members.map((m: any) => m.id);
+    memberIds.forEach((id: string) => updateRegistrationStatus(event.id, id, 'APPROVED'));
+    setRegistrations((prev) =>
+      prev.map((r) => (memberIds.includes(r.id) ? { ...r, status: 'APPROVED' } : r))
+    );
+
+    try {
+      await fetch('/api/registrations', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'bulk_status',
+          ids: memberIds,
+          status: 'APPROVED',
+          eventId: event.id,
+        }),
+      });
+    } catch {}
+
+    setNotification({
+      text: `Approved all ${memberIds.length} members of ${team.teamName}.`,
+      type: 'success',
+    });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  const handleEmailTeam = (team: any) => {
+    const memberIds = team.members.map((m: any) => m.id);
+    setEmailTargetParticipant(null);
+    setEmailInitialSelectedIds(memberIds);
+    setIsEmailModalOpen(true);
+  };
+
+  // Export Teams CSV
+  const handleExportTeamsCSV = () => {
+    if (!event) return;
+    const headers = [
+      'Team Name',
+      'Payment Confirmed (Yes/No)',
+      'Date of Transaction',
+      'UTR Proof of Transaction',
+      'Payment Status',
+      'Payment Amount',
+      'Payment Method',
+      'Team Leader Name',
+      'Team Leader Email',
+      'Team Leader Phone',
+      'Total Members Count',
+      'Members (Name - Email - Status)',
+    ];
+
+    const rows = filteredTeams.map((t) => [
+      `"${(t.teamName || '').replace(/"/g, '""')}"`,
+      `"${t.isPaid ? 'Yes' : 'No'}"`,
+      `"${t.transactionDate ? formatDate(t.transactionDate) : ''}"`,
+      `"${(t.utrNumber || (t.isPaid ? 'CONFIRMED' : '')).replace(/"/g, '""')}"`,
+      `"${t.isPaid ? 'PAID' : 'UNPAID'}"`,
+      `"${(t.paymentAmount || (t.isPaid ? '₹800' : '')).replace(/"/g, '""')}"`,
+      `"${(t.paymentMethod || (t.isPaid ? 'UPI' : '')).replace(/"/g, '""')}"`,
+      `"${(t.leaderName || '').replace(/"/g, '""')}"`,
+      `"${(t.leaderEmail || '').replace(/"/g, '""')}"`,
+      `"${(t.leaderPhone || '').replace(/"/g, '""')}"`,
+      `"${t.members.length}"`,
+      `"${t.members.map((m: any) => `${m.userName} (${m.userEmail} - ${m.status})`).join('; ').replace(/"/g, '""')}"`,
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `${event.slug}-teams.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Export CSV (Full Registrations with Transaction & UTR fields)
   const handleExportCSV = () => {
     if (!event) return;
     const headers = [
       'Name',
       'Email',
       'Phone',
+      'Team Name',
+      'Transaction Confirmed (Yes/No)',
+      'Date of Transaction',
+      'UTR Proof of Transaction',
+      'Payment Status',
+      'Payment Amount',
+      'Payment Method',
       'College',
       'City',
       'GitHub',
@@ -382,6 +641,13 @@ export default function EventRegistrationsPage({ params }: PageProps) {
       `"${(r.userName || '').replace(/"/g, '""')}"`,
       `"${(r.userEmail || '').replace(/"/g, '""')}"`,
       `"${(r.phone || '').replace(/"/g, '""')}"`,
+      `"${(r.teamName || 'Solo Builder').replace(/"/g, '""')}"`,
+      `"${r.paymentConfirmed || r.paymentStatus === 'PAID' ? 'Yes' : 'No'}"`,
+      `"${r.transactionDate ? formatDate(r.transactionDate) : ''}"`,
+      `"${(r.utrNumber || (r.paymentConfirmed ? 'CONFIRMED' : '')).replace(/"/g, '""')}"`,
+      `"${r.paymentConfirmed || r.paymentStatus === 'PAID' ? 'PAID' : (r.paymentStatus || 'UNPAID')}"`,
+      `"${(r.paymentAmount || (r.paymentConfirmed ? '₹800' : '')).toString().replace(/"/g, '""')}"`,
+      `"${(r.paymentMethod || (r.paymentConfirmed ? 'UPI' : '')).replace(/"/g, '""')}"`,
       `"${(r.college || '').replace(/"/g, '""')}"`,
       `"${(r.city || '').replace(/"/g, '""')}"`,
       `"${(r.githubUrl || '').replace(/"/g, '""')}"`,
@@ -423,6 +689,9 @@ export default function EventRegistrationsPage({ params }: PageProps) {
         !q ||
         r.userName.toLowerCase().includes(q) ||
         r.userEmail.toLowerCase().includes(q) ||
+        (r.teamName && r.teamName.toLowerCase().includes(q)) ||
+        (r.phone && r.phone.toLowerCase().includes(q)) ||
+        (r.utrNumber && r.utrNumber.toLowerCase().includes(q)) ||
         (r.college && r.college.toLowerCase().includes(q)) ||
         (r.city && r.city.toLowerCase().includes(q));
 
@@ -430,6 +699,7 @@ export default function EventRegistrationsPage({ params }: PageProps) {
 
       const matchesStatus =
         statusFilter === 'ALL' ||
+        statusFilter === 'TEAMS' ||
         (statusFilter === 'APPROVED' && (r.status === 'APPROVED' || r.status === 'CONFIRMED')) ||
         (statusFilter === 'RSVP_YES' && rsvp === 'ATTENDING') ||
         (statusFilter === 'RSVP_NO' && rsvp === 'NOT_ATTENDING') ||
@@ -556,6 +826,8 @@ export default function EventRegistrationsPage({ params }: PageProps) {
                   ? 'APPROVED'
                   : statusFilter === 'RSVP_NO'
                   ? 'REJECTED'
+                  : statusFilter === 'TEAMS'
+                  ? 'ALL'
                   : statusFilter
               )
             }
@@ -580,9 +852,20 @@ export default function EventRegistrationsPage({ params }: PageProps) {
             onClick={handleExportCSV}
             disabled={registrations.length === 0}
             className="px-4 py-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] hover:bg-slate-50 dark:hover:bg-white/[0.04] text-slate-700 dark:text-slate-200 text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Export registrations with Transaction and UTR proof to CSV"
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <span>Export CSV</span>
+          </button>
+
+          <button
+            onClick={handleExportTeamsCSV}
+            disabled={teamsList.length === 0}
+            className="px-4 py-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-emerald-200 dark:border-emerald-800/40 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Export teams squads breakdown and payment confirmation to CSV"
+          >
+            <Layers className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Export Teams</span>
           </button>
 
           <button
@@ -686,6 +969,7 @@ export default function EventRegistrationsPage({ params }: PageProps) {
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
           {[
             { id: 'ALL', label: `All (${registrations.length})` },
+            { id: 'TEAMS', label: `Teams (${teamsList.length})` },
             { id: 'RSVP_YES', label: `RSVP Attending (${stats.rsvpYes})` },
             { id: 'RSVP_NO', label: `RSVP Declined (${stats.rsvpNo})` },
             { id: 'APPROVED', label: `Approved (${stats.approved})` },
@@ -768,257 +1052,726 @@ export default function EventRegistrationsPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* ─── Registrations Table ────────────────────────────────── */}
-      <div className="bg-white dark:bg-[#0c1017] rounded-3xl border border-slate-200 dark:border-white/[0.08] shadow-sm overflow-hidden">
-        {filteredRegistrations.length === 0 ? (
-          <div className="py-16 text-center space-y-3">
-            <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-white/[0.06] flex items-center justify-center mx-auto text-slate-400 dark:text-slate-500">
-              <Users className="w-6 h-6" />
-            </div>
-            <h3 className="text-sm font-bold text-slate-800 dark:text-white">No applicants found</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-              {searchQuery || statusFilter !== 'ALL'
-                ? 'Try adjusting your search query or status filter.'
-                : 'Registrations will appear here in real-time as builders apply or when uploaded.'}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50/80 dark:bg-white/[0.03] border-b border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-slate-400 uppercase font-bold tracking-wider">
-                <tr>
-                  <th className="py-3.5 px-4 w-10">
-                    <input
-                      type="checkbox"
-                      checked={isAllPageSelected}
-                      onChange={toggleSelectAllPage}
-                      className="rounded border-slate-300 dark:border-white/20 text-[#0099e6] focus:ring-[#0099e6] cursor-pointer"
-                      title="Select all on this page"
-                    />
-                  </th>
-                  <th className="py-3.5 px-4">Applicant</th>
-                  <th className="py-3.5 px-4">College / City</th>
-                  <th className="py-3.5 px-4">Profiles & Skills</th>
-                  <th className="py-3.5 px-4">Registered Date</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap">Status</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-white/[0.06] text-slate-700 dark:text-slate-300">
-                {paginatedRegistrations.map((reg) => {
-                  const isSelected = selectedIds.includes(reg.id);
-                  return (
-                    <tr
-                      key={reg.id}
-                      className={`transition-colors ${
-                        isSelected ? 'bg-blue-50/40 dark:bg-sky-950/20' : 'hover:bg-slate-50/50 dark:hover:bg-white/[0.02]'
-                      }`}
-                    >
-                      <td className="py-3.5 px-4">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleSelectRow(reg.id)}
-                          className="rounded border-slate-300 dark:border-white/20 text-[#0099e6] focus:ring-[#0099e6] cursor-pointer"
-                        />
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
-                          <span>{reg.userName}</span>
-                          {(reg.rsvpStatus === 'ATTENDING' || reg.customAnswers?.rsvpStatus === 'ATTENDING') && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 inline-flex items-center gap-0.5">
-                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500" /> RSVP Yes
-                            </span>
-                          )}
-                          {(reg.rsvpStatus === 'NOT_ATTENDING' || reg.customAnswers?.rsvpStatus === 'NOT_ATTENDING') && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40 inline-flex items-center gap-0.5">
-                              <XCircle className="w-2.5 h-2.5 text-rose-500" /> RSVP No
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">{reg.userEmail}</div>
-                        <div className="flex items-center gap-2 text-[10px] text-slate-400 dark:text-slate-500">
-                          {reg.teamName && (
-                            <span className="font-semibold text-slate-600 dark:text-slate-300">
-                              Team: {reg.teamName}
-                            </span>
-                          )}
-                          {reg.phone && <span>• {reg.phone}</span>}
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <div className="font-medium text-slate-800 dark:text-slate-200">{reg.college || '—'}</div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">{reg.city || '—'}</div>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2 mb-1">
-                          {reg.githubUrl && (
-                            <a
-                              href={reg.githubUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[#0099e6] hover:underline text-[11px] font-semibold inline-flex items-center gap-0.5"
-                            >
-                              GitHub <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
-                          )}
-                          {reg.linkedinUrl && (
-                            <a
-                              href={reg.linkedinUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[#0099e6] hover:underline text-[11px] font-semibold inline-flex items-center gap-0.5"
-                            >
-                              LinkedIn <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {(reg.skills || []).slice(0, 3).map((s) => (
-                            <span
-                              key={s}
-                              className="px-1.5 py-0.5 bg-slate-100 dark:bg-white/[0.06] rounded text-[10px] text-slate-600 dark:text-slate-300 font-mono"
-                            >
-                              {s}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500 dark:text-slate-400">
-                        {formatDate(reg.registeredAt)}
-                      </td>
-
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        {reg.status === 'APPROVED' || reg.status === 'CONFIRMED' ? (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
-                            Approved
-                          </span>
-                        ) : reg.status === 'REJECTED' ? (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/40">
-                            Rejected
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/[0.08]">
-                            None
-                          </span>
-                        )}
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="inline-flex items-center gap-1.5 justify-end">
-                          <button
-                            onClick={() => setViewingApplicant(reg)}
-                            title="View Full Details & Answers"
-                            className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 text-[#0099e6] transition-colors cursor-pointer border border-sky-200 dark:border-sky-800/40"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleOpenEmailSingle(reg)}
-                            title={`Send Email to ${reg.userName}`}
-                            className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800/40"
-                          >
-                            <Mail className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleStatusChange(reg.id, 'APPROVED')}
-                            title="Approve Applicant"
-                            className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 transition-colors cursor-pointer border border-emerald-200 dark:border-emerald-800/40"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleStatusChange(reg.id, 'REJECTED')}
-                            title="Reject Applicant"
-                            className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 transition-colors cursor-pointer border border-amber-200 dark:border-amber-800/40"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleStatusChange(reg.id, 'PENDING')}
-                            title="Set to None"
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-slate-600 dark:text-slate-300 transition-colors cursor-pointer border border-slate-200 dark:border-white/[0.1]"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* ─── Pagination Footer ──────────────────────────────────── */}
-        {filteredRegistrations.length > 0 && (
-          <div className="p-4 border-t border-slate-200 dark:border-white/[0.08] bg-slate-50/60 dark:bg-white/[0.02] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
-              <span>
-                Showing{' '}
-                <strong className="text-slate-800 dark:text-slate-200 font-mono">
-                  {(currentPage - 1) * pageSize + 1}
-                </strong>{' '}
-                to{' '}
-                <strong className="text-slate-800 dark:text-slate-200 font-mono">
-                  {Math.min(currentPage * pageSize, filteredRegistrations.length)}
-                </strong>{' '}
-                of{' '}
-                <strong className="text-slate-800 dark:text-slate-200 font-mono">
-                  {filteredRegistrations.length.toLocaleString()}
-                </strong>{' '}
-                applicants
+      {/* ─── Main View: Teams View OR Registrations Table ─────────── */}
+      {statusFilter === 'TEAMS' ? (
+        <div className="space-y-4">
+          {/* Teams Header Bar / Sub-filters */}
+          <div className="bg-white dark:bg-[#0c1017] p-4 rounded-3xl border border-slate-200 dark:border-white/[0.08] shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Filter Squads:
               </span>
+              <button
+                onClick={() => setTeamPaymentFilter('ALL')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  teamPaymentFilter === 'ALL'
+                    ? 'bg-[#0099e6] text-white shadow-2xs'
+                    : 'bg-slate-50 dark:bg-[#121824] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] border border-slate-200 dark:border-white/[0.08]'
+                }`}
+              >
+                All Teams ({teamsList.length})
+              </button>
 
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-400 dark:text-slate-500">Rows:</span>
-                <select
-                  value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                  className="px-2 py-1 bg-white dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] rounded-lg text-slate-800 dark:text-slate-200 font-bold outline-none cursor-pointer"
-                >
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                  <option value={500}>500</option>
-                </select>
-              </div>
+              <button
+                onClick={() => setTeamPaymentFilter('PAID')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  teamPaymentFilter === 'PAID'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/40'
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Payment Confirmed ({paidTeamsCount})</span>
+              </button>
+
+              <button
+                onClick={() => setTeamPaymentFilter('UNPAID')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  teamPaymentFilter === 'UNPAID'
+                    ? 'bg-amber-600 text-white shadow-2xs'
+                    : 'bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 border border-amber-200 dark:border-amber-800/40'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5 text-amber-500" />
+                <span>Payment Pending ({unpaidTeamsCount})</span>
+              </button>
             </div>
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#121824] hover:bg-slate-100 dark:hover:bg-white/[0.06] disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 dark:text-slate-200 font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                onClick={expandAllTeams}
+                className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-[#121824] hover:bg-slate-100 dark:hover:bg-white/[0.06] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/[0.08] text-xs font-bold transition-colors cursor-pointer"
               >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                <span>Prev</span>
+                Expand All
               </button>
-
-              <span className="text-slate-600 dark:text-slate-300 font-bold font-mono px-2">
-                {currentPage} / {totalPages}
-              </span>
-
               <button
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#121824] hover:bg-slate-100 dark:hover:bg-white/[0.06] disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 dark:text-slate-200 font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                onClick={collapseAllTeams}
+                className="px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-[#121824] hover:bg-slate-100 dark:hover:bg-white/[0.06] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/[0.08] text-xs font-bold transition-colors cursor-pointer"
               >
-                <span>Next</span>
-                <ChevronRight className="w-3.5 h-3.5" />
+                Collapse All
               </button>
             </div>
           </div>
-        )}
-      </div>
+
+          {/* Teams Cards List */}
+          {filteredTeams.length === 0 ? (
+            <div className="bg-white dark:bg-[#0c1017] rounded-3xl border border-slate-200 dark:border-white/[0.08] shadow-sm py-16 text-center space-y-3">
+              <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-white/[0.06] flex items-center justify-center mx-auto text-slate-400 dark:text-slate-500">
+                <Users className="w-6 h-6" />
+              </div>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-white">No teams found</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                No teams match your current search query or payment status filter.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredTeams.map((team) => {
+                const isExpanded = expandedTeamNames.has(team.teamName);
+                return (
+                  <div
+                    key={team.teamName}
+                    className="bg-white dark:bg-[#0c1017] rounded-3xl border border-slate-200 dark:border-white/[0.08] shadow-sm overflow-hidden transition-all duration-200 hover:border-slate-300 dark:hover:border-white/[0.16]"
+                  >
+                    {/* Header Row: Click to Expand */}
+                    <div
+                      onClick={() => toggleTeamExpand(team.teamName)}
+                      className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer select-none bg-slate-50/50 dark:bg-white/[0.01] hover:bg-slate-100/50 dark:hover:bg-white/[0.03] transition-colors"
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <div
+                          className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-sm tracking-wider uppercase shrink-0 ${
+                            team.isPaid
+                              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                              : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                          }`}
+                        >
+                          {team.teamName.slice(0, 2)}
+                        </div>
+
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
+                              {team.teamName}
+                            </h3>
+                            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-300 font-mono">
+                              {team.members.length} {team.members.length === 1 ? 'member' : 'members'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-0.5 flex-wrap">
+                            <span>
+                              Leader: <strong className="text-slate-700 dark:text-slate-300">{team.leaderName || '—'}</strong>
+                            </span>
+                            {team.leaderEmail && <span className="font-mono text-[11px]">({team.leaderEmail})</span>}
+                            {team.leaderPhone && <span className="text-[11px]">• {team.leaderPhone}</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Payment Badge & Expand Toggle */}
+                      <div className="flex items-center gap-3 self-end sm:self-center">
+                        {team.isPaid ? (
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                              <span>Payment Confirmed (Yes)</span>
+                            </span>
+                            <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400 hidden sm:inline-block">
+                              {team.paymentAmount || '₹800'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                              <Clock className="w-3.5 h-3.5 text-amber-500" />
+                              <span>Payment Pending (No)</span>
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="p-1 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-900 dark:hover:text-white">
+                          {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Accordion Content: Shows team members & payment details */}
+                    {isExpanded && (
+                      <div className="border-t border-slate-200 dark:border-white/[0.08] p-4 sm:p-5 space-y-4 bg-white dark:bg-[#0c1017]">
+                        {/* Squad Transaction & Payment Card */}
+                        <div
+                          className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                            team.isPaid
+                              ? 'bg-emerald-50/50 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-800/30'
+                              : 'bg-amber-50/50 dark:bg-amber-950/10 border-amber-200 dark:border-amber-800/30'
+                          }`}
+                        >
+                          <div className="flex items-start sm:items-center gap-3">
+                            <div
+                              className={`p-2.5 rounded-xl shrink-0 ${
+                                team.isPaid
+                                  ? 'bg-emerald-500/20 text-emerald-500'
+                                  : 'bg-amber-500/20 text-amber-500'
+                              }`}
+                            >
+                              <CreditCard className="w-5 h-5" />
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                                  Transaction Status:
+                                </span>
+                                <span
+                                  className={`text-xs font-black uppercase px-2 py-0.5 rounded-md ${
+                                    team.isPaid
+                                      ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                                      : 'bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                                  }`}
+                                >
+                                  {team.isPaid ? 'YES - CONFIRMED & VERIFIED' : 'NO - UNPAID / NOT RECEIVED'}
+                                </span>
+                                {team.paymentAmount && (
+                                  <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300">
+                                    • Amount: {team.paymentAmount}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400 flex-wrap">
+                                {team.transactionDate && (
+                                  <span>
+                                    <strong>Date:</strong> {formatDate(team.transactionDate)}
+                                  </span>
+                                )}
+
+                                {team.utrNumber ? (
+                                  <div className="flex items-center gap-1 font-mono">
+                                    <strong>UTR Proof:</strong>
+                                    <span className="text-slate-900 dark:text-white font-bold">{team.utrNumber}</span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCopyUtr(team.utrNumber);
+                                      }}
+                                      className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 text-slate-500 dark:text-slate-400 transition-colors"
+                                      title="Copy UTR Proof"
+                                    >
+                                      {copiedUtr === team.utrNumber ? (
+                                        <CheckCheck className="w-3.5 h-3.5 text-emerald-500" />
+                                      ) : (
+                                        <Copy className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                  </div>
+                                ) : team.isPaid ? (
+                                  <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                                    UTR Proof: Verified Online (Razorpay)
+                                  </span>
+                                ) : (
+                                  <span className="italic text-slate-400">UTR Proof: Awaiting payment</span>
+                                )}
+
+                                {team.paymentProofLink && (
+                                  <a
+                                    href={team.paymentProofLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[#0099e6] hover:underline font-semibold inline-flex items-center gap-0.5"
+                                  >
+                                    View Receipt <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Quick Squad Actions */}
+                          <div className="flex items-center gap-2 self-start md:self-center shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleApproveTeam(team);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                              title="Approve all registered members of this team"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Approve All Members</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEmailTeam(team);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800/40 hover:bg-sky-100 dark:hover:bg-sky-900/40 text-[#0099e6] dark:text-sky-300 text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                              title="Broadcast email to all members of this squad"
+                            >
+                              <Mail className="w-3.5 h-3.5" />
+                              <span>Email Squad</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Members Table */}
+                        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-white/[0.08]">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-50/80 dark:bg-white/[0.03] border-b border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-slate-400 uppercase font-bold tracking-wider">
+                              <tr>
+                                <th className="py-3 px-4">Member Name & Email</th>
+                                <th className="py-3 px-4">Role</th>
+                                <th className="py-3 px-4">College / City</th>
+                                <th className="py-3 px-4">RSVP Status</th>
+                                <th className="py-3 px-4">Payment</th>
+                                <th className="py-3 px-4">Status</th>
+                                <th className="py-3 px-4 text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-white/[0.06] text-slate-700 dark:text-slate-300">
+                              {team.members.map((member: any) => {
+                                const isLeader =
+                                  (member.userEmail && team.leaderEmail && member.userEmail.toLowerCase() === team.leaderEmail.toLowerCase()) ||
+                                  (member.role && member.role.toLowerCase() === 'leader');
+                                return (
+                                  <tr
+                                    key={member.id || member.userEmail}
+                                    className="hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-colors"
+                                  >
+                                    <td className="py-3 px-4">
+                                      <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                        <span>{member.userName}</span>
+                                        {isLeader && (
+                                          <span className="px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                                            Leader
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                                        {member.userEmail}
+                                      </div>
+                                      {member.phone && (
+                                        <div className="text-[10px] text-slate-400">{member.phone}</div>
+                                      )}
+                                    </td>
+
+                                    <td className="py-3 px-4">
+                                      <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                        {isLeader ? 'Squad Leader' : 'Team Member'}
+                                      </span>
+                                    </td>
+
+                                    <td className="py-3 px-4">
+                                      <div className="font-medium text-slate-800 dark:text-slate-200">
+                                        {member.college || '—'}
+                                      </div>
+                                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                                        {member.city || '—'}
+                                      </div>
+                                    </td>
+
+                                    <td className="py-3 px-4">
+                                      {member.rsvpStatus === 'ATTENDING' || member.customAnswers?.rsvpStatus === 'ATTENDING' ? (
+                                        <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 inline-flex items-center gap-1">
+                                          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500" /> Attending
+                                        </span>
+                                      ) : member.rsvpStatus === 'NOT_ATTENDING' || member.customAnswers?.rsvpStatus === 'NOT_ATTENDING' ? (
+                                        <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40 inline-flex items-center gap-1">
+                                          <XCircle className="w-2.5 h-2.5 text-rose-500" /> Declined
+                                        </span>
+                                      ) : (
+                                        <span className="text-[11px] text-slate-400 font-mono">Pending</span>
+                                      )}
+                                    </td>
+
+                                    <td className="py-3 px-4">
+                                      {team.isPaid || member.paymentConfirmed || member.paymentStatus === 'PAID' ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500" /> Confirmed (Yes)
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                                          Pending (No)
+                                        </span>
+                                      )}
+                                    </td>
+
+                                    <td className="py-3 px-4 whitespace-nowrap">
+                                      {member.status === 'APPROVED' || member.status === 'CONFIRMED' ? (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
+                                          Approved
+                                        </span>
+                                      ) : member.status === 'REJECTED' ? (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/40">
+                                          Rejected
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/[0.08]">
+                                          None
+                                        </span>
+                                      )}
+                                    </td>
+
+                                    <td className="py-3 px-4 text-right">
+                                      <div className="inline-flex items-center gap-1.5 justify-end">
+                                        <button
+                                          type="button"
+                                          onClick={() => setViewingApplicant(member)}
+                                          title="View Full Details & Answers"
+                                          className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 text-[#0099e6] transition-colors cursor-pointer border border-sky-200 dark:border-sky-800/40"
+                                        >
+                                          <Eye className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenEmailSingle(member)}
+                                          title={`Send Email to ${member.userName}`}
+                                          className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800/40"
+                                        >
+                                          <Mail className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleStatusChange(member.id, 'APPROVED')}
+                                          title="Approve Member"
+                                          className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 transition-colors cursor-pointer border border-emerald-200 dark:border-emerald-800/40"
+                                        >
+                                          <Check className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleStatusChange(member.id, 'REJECTED')}
+                                          title="Reject Member"
+                                          className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 transition-colors cursor-pointer border border-amber-200 dark:border-amber-800/40"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* ─── Registrations Table ────────────────────────────────── */
+        <div className="bg-white dark:bg-[#0c1017] rounded-3xl border border-slate-200 dark:border-white/[0.08] shadow-sm overflow-hidden">
+          {filteredRegistrations.length === 0 ? (
+            <div className="py-16 text-center space-y-3">
+              <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-white/[0.06] flex items-center justify-center mx-auto text-slate-400 dark:text-slate-500">
+                <Users className="w-6 h-6" />
+              </div>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-white">No applicants found</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                {searchQuery || statusFilter !== 'ALL'
+                  ? 'Try adjusting your search query or status filter.'
+                  : 'Registrations will appear here in real-time as builders apply or when uploaded.'}
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50/80 dark:bg-white/[0.03] border-b border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-slate-400 uppercase font-bold tracking-wider">
+                  <tr>
+                    <th className="py-3.5 px-4 w-10">
+                      <input
+                        type="checkbox"
+                        checked={isAllPageSelected}
+                        onChange={toggleSelectAllPage}
+                        className="rounded border-slate-300 dark:border-white/20 text-[#0099e6] focus:ring-[#0099e6] cursor-pointer"
+                        title="Select all on this page"
+                      />
+                    </th>
+                    <th className="py-3.5 px-4">Applicant</th>
+                    <th className="py-3.5 px-4">College / City</th>
+                    <th className="py-3.5 px-4">Profiles & Skills</th>
+                    <th className="py-3.5 px-4">Registered Date</th>
+                    <th className="py-3.5 px-4 whitespace-nowrap">Transaction</th>
+                    <th className="py-3.5 px-4 whitespace-nowrap">Status</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-white/[0.06] text-slate-700 dark:text-slate-300">
+                  {paginatedRegistrations.map((reg) => {
+                    const isSelected = selectedIds.includes(reg.id);
+                    const isPaid = reg.paymentConfirmed || reg.paymentStatus === 'PAID';
+                    return (
+                      <tr
+                        key={reg.id}
+                        className={`transition-colors ${
+                          isSelected ? 'bg-blue-50/40 dark:bg-sky-950/20' : 'hover:bg-slate-50/50 dark:hover:bg-white/[0.02]'
+                        }`}
+                      >
+                        <td className="py-3.5 px-4">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectRow(reg.id)}
+                            className="rounded border-slate-300 dark:border-white/20 text-[#0099e6] focus:ring-[#0099e6] cursor-pointer"
+                          />
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
+                            <span>{reg.userName}</span>
+                            {(reg.rsvpStatus === 'ATTENDING' || reg.customAnswers?.rsvpStatus === 'ATTENDING') && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 inline-flex items-center gap-0.5">
+                                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500" /> RSVP Yes
+                              </span>
+                            )}
+                            {(reg.rsvpStatus === 'NOT_ATTENDING' || reg.customAnswers?.rsvpStatus === 'NOT_ATTENDING') && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40 inline-flex items-center gap-0.5">
+                                <XCircle className="w-2.5 h-2.5 text-rose-500" /> RSVP No
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">{reg.userEmail}</div>
+                          <div className="flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500 flex-wrap mt-0.5">
+                            {reg.teamName && (
+                              <span className="font-semibold text-slate-600 dark:text-slate-300">
+                                Team: {reg.teamName}
+                              </span>
+                            )}
+                            {isPaid ? (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500" /> Paid
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400/80 border border-amber-500/20">
+                                Unpaid
+                              </span>
+                            )}
+                            {reg.phone && <span>• {reg.phone}</span>}
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <div className="font-medium text-slate-800 dark:text-slate-200">{reg.college || '—'}</div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400">{reg.city || '—'}</div>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-2 mb-1">
+                            {reg.githubUrl && (
+                              <a
+                                href={reg.githubUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[#0099e6] hover:underline text-[11px] font-semibold inline-flex items-center gap-0.5"
+                              >
+                                GitHub <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                            {reg.linkedinUrl && (
+                              <a
+                                href={reg.linkedinUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[#0099e6] hover:underline text-[11px] font-semibold inline-flex items-center gap-0.5"
+                              >
+                                LinkedIn <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {(reg.skills || []).slice(0, 3).map((s) => (
+                              <span
+                                key={s}
+                                className="px-1.5 py-0.5 bg-slate-100 dark:bg-white/[0.06] rounded text-[10px] text-slate-600 dark:text-slate-300 font-mono"
+                              >
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                          {formatDate(reg.registeredAt)}
+                        </td>
+
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          {isPaid ? (
+                            <div className="space-y-0.5">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" /> Confirmed (Yes)
+                              </span>
+                              {reg.utrNumber && (
+                                <div className="flex items-center gap-1 text-[10px] font-mono text-slate-500 dark:text-slate-400">
+                                  <span>UTR: {reg.utrNumber}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyUtr(reg.utrNumber!)}
+                                    className="hover:text-slate-900 dark:hover:text-white p-0.5 rounded cursor-pointer"
+                                    title="Copy UTR"
+                                  >
+                                    {copiedUtr === reg.utrNumber ? (
+                                      <CheckCheck className="w-3 h-3 text-emerald-500" />
+                                    ) : (
+                                      <Copy className="w-3 h-3 text-slate-400" />
+                                    )}
+                                  </button>
+                                </div>
+                              )}
+                              {reg.transactionDate && (
+                                <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                                  {formatDate(reg.transactionDate)}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-0.5">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 dark:bg-white/[0.06] text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-white/[0.08]">
+                                Pending (No)
+                              </span>
+                              <div className="text-[10px] text-slate-400 dark:text-slate-500 italic">
+                                No UTR
+                              </div>
+                            </div>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          {reg.status === 'APPROVED' || reg.status === 'CONFIRMED' ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
+                              Approved
+                            </span>
+                          ) : reg.status === 'REJECTED' ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/40">
+                              Rejected
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/[0.08]">
+                              None
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="inline-flex items-center gap-1.5 justify-end">
+                            <button
+                              onClick={() => setViewingApplicant(reg)}
+                              title="View Full Details & Answers"
+                              className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 text-[#0099e6] transition-colors cursor-pointer border border-sky-200 dark:border-sky-800/40"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleOpenEmailSingle(reg)}
+                              title={`Send Email to ${reg.userName}`}
+                              className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800/40"
+                            >
+                              <Mail className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleStatusChange(reg.id, 'APPROVED')}
+                              title="Approve Applicant"
+                              className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 transition-colors cursor-pointer border border-emerald-200 dark:border-emerald-800/40"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleStatusChange(reg.id, 'REJECTED')}
+                              title="Reject Applicant"
+                              className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 transition-colors cursor-pointer border border-amber-200 dark:border-amber-800/40"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleStatusChange(reg.id, 'PENDING')}
+                              title="Set to None"
+                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-slate-600 dark:text-slate-300 transition-colors cursor-pointer border border-slate-200 dark:border-white/[0.1]"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* ─── Pagination Footer ──────────────────────────────────── */}
+          {filteredRegistrations.length > 0 && (
+            <div className="p-4 border-t border-slate-200 dark:border-white/[0.08] bg-slate-50/60 dark:bg-white/[0.02] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
+                <span>
+                  Showing{' '}
+                  <strong className="text-slate-800 dark:text-slate-200 font-mono">
+                    {(currentPage - 1) * pageSize + 1}
+                  </strong>{' '}
+                  to{' '}
+                  <strong className="text-slate-800 dark:text-slate-200 font-mono">
+                    {Math.min(currentPage * pageSize, filteredRegistrations.length)}
+                  </strong>{' '}
+                  of{' '}
+                  <strong className="text-slate-800 dark:text-slate-200 font-mono">
+                    {filteredRegistrations.length.toLocaleString()}
+                  </strong>{' '}
+                  applicants
+                </span>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400 dark:text-slate-500">Rows:</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="px-2 py-1 bg-white dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] rounded-lg text-slate-800 dark:text-slate-200 font-bold outline-none cursor-pointer"
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={500}>500</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#121824] hover:bg-slate-100 dark:hover:bg-white/[0.06] disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 dark:text-slate-200 font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Prev</span>
+                </button>
+
+                <span className="text-slate-600 dark:text-slate-300 font-bold font-mono px-2">
+                  {currentPage} / {totalPages}
+                </span>
+
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#121824] hover:bg-slate-100 dark:hover:bg-white/[0.06] disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 dark:text-slate-200 font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <span>Next</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ─── Clear All Registrations Confirmation Modal ─────────── */}
       {showClearModal && (
@@ -1147,6 +1900,101 @@ export default function EventRegistrationsPage({ params }: PageProps) {
                 <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Registered At</span>
                 <span className="font-semibold text-slate-800 dark:text-slate-200 font-mono">{formatDate(viewingApplicant.registeredAt)}</span>
               </div>
+            </div>
+
+            {/* Dedicated Transaction & Fee Payment Card */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-[#0099e6]" />
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-900 dark:text-white">
+                    Transaction & Fee Payment Details
+                  </h4>
+                </div>
+                <span
+                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider ${
+                    viewingApplicant.paymentConfirmed || viewingApplicant.paymentStatus === 'PAID'
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                  }`}
+                >
+                  {viewingApplicant.paymentConfirmed || viewingApplicant.paymentStatus === 'PAID'
+                    ? '✓ Transaction Confirmed (Yes)'
+                    : '✕ Payment Pending (No)'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
+                <div className="p-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.06]">
+                  <span className="text-[10px] text-slate-400 block font-bold">Transaction Confirmed</span>
+                  <span
+                    className={`font-black text-xs mt-0.5 block ${
+                      viewingApplicant.paymentConfirmed || viewingApplicant.paymentStatus === 'PAID'
+                        ? 'text-emerald-400'
+                        : 'text-amber-400'
+                    }`}
+                  >
+                    {viewingApplicant.paymentConfirmed || viewingApplicant.paymentStatus === 'PAID' ? 'YES' : 'NO'}
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.06]">
+                  <span className="text-[10px] text-slate-400 block font-bold">Date of Transaction</span>
+                  <span className="font-mono text-slate-800 dark:text-slate-200 text-[11px] mt-0.5 block">
+                    {viewingApplicant.transactionDate ? formatDate(viewingApplicant.transactionDate) : '—'}
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.06]">
+                  <span className="text-[10px] text-slate-400 block font-bold">Fee Amount</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 mt-0.5 block">
+                    {viewingApplicant.paymentAmount || (viewingApplicant.paymentConfirmed || viewingApplicant.paymentStatus === 'PAID' ? '₹800' : '₹0')}
+                  </span>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.06] sm:col-span-2">
+                  <span className="text-[10px] text-slate-400 block font-bold">UTR Proof of Transaction</span>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="font-mono text-slate-800 dark:text-slate-200 text-xs font-bold">
+                      {viewingApplicant.utrNumber || (viewingApplicant.paymentConfirmed || viewingApplicant.paymentStatus === 'PAID' ? 'CONFIRMED' : 'Awaiting Payment Proof')}
+                    </span>
+                    {viewingApplicant.utrNumber && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopyUtr(viewingApplicant.utrNumber!)}
+                        className="p-1 rounded bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-slate-400 hover:text-white transition-colors cursor-pointer"
+                        title="Copy UTR"
+                      >
+                        {copiedUtr === viewingApplicant.utrNumber ? (
+                          <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.06]">
+                  <span className="text-[10px] text-slate-400 block font-bold">Payment Method</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200 text-[11px] mt-0.5 block">
+                    {viewingApplicant.paymentMethod || 'Razorpay / UPI'}
+                  </span>
+                </div>
+              </div>
+
+              {viewingApplicant.paymentProofLink && (
+                <div className="pt-1">
+                  <a
+                    href={viewingApplicant.paymentProofLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#0099e6] hover:underline text-xs font-semibold inline-flex items-center gap-1"
+                  >
+                    View Transaction Receipt / Gateway Proof <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
             </div>
 
             {/* Dedicated RSVP Response Info if applicant responded */}
