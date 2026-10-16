@@ -30,6 +30,7 @@ import {
   CheckCheck,
   Shield,
   Layers,
+  MoreVertical,
 } from 'lucide-react';
 import {
   getEventRegistrations,
@@ -67,6 +68,7 @@ export default function EventRegistrationsPage({ params }: PageProps) {
   const [expandedTeamNames, setExpandedTeamNames] = useState<Set<string>>(new Set());
   const [teamPaymentFilter, setTeamPaymentFilter] = useState<'ALL' | 'PAID' | 'UNPAID'>('ALL');
   const [copiedUtr, setCopiedUtr] = useState<string | null>(null);
+  const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
   const [notification, setNotification] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -1344,8 +1346,19 @@ export default function EventRegistrationsPage({ params }: PageProps) {
                                     className="hover:bg-slate-50/50 dark:hover:bg-white/[0.02] transition-colors"
                                   >
                                     <td className="py-3 px-4">
-                                      <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                      <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
                                         <span>{member.userName}</span>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setViewingApplicant(member);
+                                          }}
+                                          title="View Full Profile & Application"
+                                          className="p-1 rounded-md text-slate-400 hover:text-[#0099e6] hover:bg-sky-50 dark:hover:bg-sky-950/50 border border-transparent hover:border-sky-200 dark:hover:border-sky-800/40 transition-colors cursor-pointer inline-flex items-center"
+                                        >
+                                          <Eye className="w-3 h-3" />
+                                        </button>
                                         {isLeader && (
                                           <span className="px-1.5 py-0.2 rounded text-[10px] font-extrabold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
                                             Leader
@@ -1419,38 +1432,90 @@ export default function EventRegistrationsPage({ params }: PageProps) {
 
                                     <td className="py-3 px-4 text-right">
                                       <div className="inline-flex items-center gap-1.5 justify-end">
-                                        <button
-                                          type="button"
-                                          onClick={() => setViewingApplicant(member)}
-                                          title="View Full Details & Answers"
-                                          className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 text-[#0099e6] transition-colors cursor-pointer border border-sky-200 dark:border-sky-800/40"
-                                        >
-                                          <Eye className="w-3.5 h-3.5" />
-                                        </button>
+                                        {/* Email button: as it is */}
                                         <button
                                           type="button"
                                           onClick={() => handleOpenEmailSingle(member)}
                                           title={`Send Email to ${member.userName}`}
-                                          className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800/40"
+                                          className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 text-[#0099e6] dark:text-sky-300 transition-colors cursor-pointer border border-sky-200 dark:border-sky-800/40"
                                         >
                                           <Mail className="w-3.5 h-3.5" />
                                         </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleStatusChange(member.id, 'APPROVED')}
-                                          title="Approve Member"
-                                          className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 transition-colors cursor-pointer border border-emerald-200 dark:border-emerald-800/40"
-                                        >
-                                          <Check className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleStatusChange(member.id, 'REJECTED')}
-                                          title="Reject Member"
-                                          className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 transition-colors cursor-pointer border border-amber-200 dark:border-amber-800/40"
-                                        >
-                                          <X className="w-3.5 h-3.5" />
-                                        </button>
+
+                                        {/* Dropdown Menu for Status */}
+                                        <div className="relative">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setActiveDropdownId(activeDropdownId === `team-${member.id}` ? null : `team-${member.id}`);
+                                            }}
+                                            className={`p-1.5 rounded-lg transition-colors cursor-pointer border ${
+                                              activeDropdownId === `team-${member.id}`
+                                                ? 'bg-slate-200 dark:bg-white/[0.12] text-slate-900 dark:text-white border-slate-300 dark:border-white/20'
+                                                : 'bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-600 dark:text-slate-300 border-slate-200 dark:border-white/[0.08]'
+                                            }`}
+                                            title="Change Status"
+                                          >
+                                            <MoreVertical className="w-3.5 h-3.5" />
+                                          </button>
+
+                                          {activeDropdownId === `team-${member.id}` && (
+                                            <>
+                                              <div
+                                                className="fixed inset-0 z-30"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setActiveDropdownId(null);
+                                                }}
+                                              />
+                                              <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-[#121824] rounded-2xl border border-slate-200 dark:border-white/[0.12] shadow-xl py-1.5 z-40 text-left animate-in fade-in zoom-in-95 duration-150">
+                                                <div className="px-3 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                                  Change Status
+                                                </div>
+
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleStatusChange(member.id, 'APPROVED');
+                                                    setActiveDropdownId(null);
+                                                  }}
+                                                  className="w-full px-3 py-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 flex items-center gap-2 cursor-pointer transition-colors"
+                                                >
+                                                  <Check className="w-3.5 h-3.5" />
+                                                  <span>Approve</span>
+                                                </button>
+
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleStatusChange(member.id, 'REJECTED');
+                                                    setActiveDropdownId(null);
+                                                  }}
+                                                  className="w-full px-3 py-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2 cursor-pointer transition-colors"
+                                                >
+                                                  <X className="w-3.5 h-3.5" />
+                                                  <span>Reject</span>
+                                                </button>
+
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleStatusChange(member.id, 'PENDING');
+                                                    setActiveDropdownId(null);
+                                                  }}
+                                                  className="w-full px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer transition-colors"
+                                                >
+                                                  <Minus className="w-3.5 h-3.5" />
+                                                  <span>Set to None</span>
+                                                </button>
+                                              </div>
+                                            </>
+                                          )}
+                                        </div>
                                       </div>
                                     </td>
                                   </tr>
@@ -1528,6 +1593,17 @@ export default function EventRegistrationsPage({ params }: PageProps) {
                         <td className="py-3.5 px-4">
                           <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 flex-wrap">
                             <span>{reg.userName}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setViewingApplicant(reg);
+                              }}
+                              title="View Full Profile & Application"
+                              className="p-1 rounded-md text-slate-400 hover:text-[#0099e6] hover:bg-sky-50 dark:hover:bg-sky-950/50 border border-transparent hover:border-sky-200 dark:hover:border-sky-800/40 transition-colors cursor-pointer inline-flex items-center"
+                            >
+                              <Eye className="w-3 h-3" />
+                            </button>
                             {(reg.rsvpStatus === 'ATTENDING' || reg.customAnswers?.rsvpStatus === 'ATTENDING') && (
                               <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 inline-flex items-center gap-0.5">
                                 <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500" /> RSVP Yes
@@ -1662,41 +1738,118 @@ export default function EventRegistrationsPage({ params }: PageProps) {
 
                         <td className="py-3.5 px-4 text-right">
                           <div className="inline-flex items-center gap-1.5 justify-end">
+                            {/* Email button: as it is */}
                             <button
-                              onClick={() => setViewingApplicant(reg)}
-                              title="View Full Details & Answers"
-                              className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 text-[#0099e6] transition-colors cursor-pointer border border-sky-200 dark:border-sky-800/40"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                            </button>
-                            <button
+                              type="button"
                               onClick={() => handleOpenEmailSingle(reg)}
                               title={`Send Email to ${reg.userName}`}
-                              className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 transition-colors cursor-pointer border border-indigo-200 dark:border-indigo-800/40"
+                              className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 text-[#0099e6] dark:text-sky-300 transition-colors cursor-pointer border border-sky-200 dark:border-sky-800/40"
                             >
                               <Mail className="w-3.5 h-3.5" />
                             </button>
-                            <button
-                              onClick={() => handleStatusChange(reg.id, 'APPROVED')}
-                              title="Approve Applicant"
-                              className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 transition-colors cursor-pointer border border-emerald-200 dark:border-emerald-800/40"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleStatusChange(reg.id, 'REJECTED')}
-                              title="Reject Applicant"
-                              className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 transition-colors cursor-pointer border border-amber-200 dark:border-amber-800/40"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleStatusChange(reg.id, 'PENDING')}
-                              title="Set to None"
-                              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-slate-600 dark:text-slate-300 transition-colors cursor-pointer border border-slate-200 dark:border-white/[0.1]"
-                            >
-                              <Minus className="w-3.5 h-3.5" />
-                            </button>
+
+                            {/* Dropdown Menu for Status & Actions */}
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveDropdownId(activeDropdownId === reg.id ? null : reg.id);
+                                }}
+                                className={`p-1.5 rounded-lg transition-colors cursor-pointer border ${
+                                  activeDropdownId === reg.id
+                                    ? 'bg-slate-200 dark:bg-white/[0.12] text-slate-900 dark:text-white border-slate-300 dark:border-white/20'
+                                    : 'bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/[0.08]'
+                                }`}
+                                title="Change Status / Actions"
+                              >
+                                <MoreVertical className="w-3.5 h-3.5" />
+                              </button>
+
+                              {activeDropdownId === reg.id && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-30"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveDropdownId(null);
+                                    }}
+                                  />
+                                  <div className="absolute right-0 top-full mt-1 w-44 bg-white dark:bg-[#121824] rounded-2xl border border-slate-200 dark:border-white/[0.12] shadow-xl py-1.5 z-40 text-left animate-in fade-in zoom-in-95 duration-150">
+                                    <div className="px-3 py-1 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                      Change Status
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleStatusChange(reg.id, 'APPROVED');
+                                        setActiveDropdownId(null);
+                                      }}
+                                      className="w-full px-3 py-1.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 flex items-center gap-2 cursor-pointer transition-colors"
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                      <span>Approve</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleStatusChange(reg.id, 'REJECTED');
+                                        setActiveDropdownId(null);
+                                      }}
+                                      className="w-full px-3 py-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2 cursor-pointer transition-colors"
+                                    >
+                                      <X className="w-3.5 h-3.5" />
+                                      <span>Reject</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleStatusChange(reg.id, 'PENDING');
+                                        setActiveDropdownId(null);
+                                      }}
+                                      className="w-full px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer transition-colors"
+                                    >
+                                      <Minus className="w-3.5 h-3.5" />
+                                      <span>Set to None</span>
+                                    </button>
+
+                                    <div className="my-1 border-t border-slate-100 dark:border-white/[0.08]" />
+
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setViewingApplicant(reg);
+                                        setActiveDropdownId(null);
+                                      }}
+                                      className="w-full px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/[0.06] flex items-center gap-2 cursor-pointer transition-colors"
+                                    >
+                                      <Eye className="w-3.5 h-3.5 text-[#0099e6]" />
+                                      <span>View Full Profile</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteSingle(reg.id, reg.userName);
+                                        setActiveDropdownId(null);
+                                      }}
+                                      className="w-full px-3 py-1.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center gap-2 cursor-pointer transition-colors"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      <span>Delete Applicant</span>
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </td>
                       </tr>
