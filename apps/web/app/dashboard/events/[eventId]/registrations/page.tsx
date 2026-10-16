@@ -70,6 +70,7 @@ export default function EventRegistrationsPage({ params }: PageProps) {
   const [copiedUtr, setCopiedUtr] = useState<string | null>(null);
   const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
   const [notification, setNotification] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
 
@@ -1004,25 +1005,123 @@ export default function EventRegistrationsPage({ params }: PageProps) {
             <span>Announce to Platform</span>
           </button>
 
-          <button
-            onClick={() => handleExportCSV(false)}
-            disabled={registrations.length === 0}
-            className="px-4 py-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] hover:bg-slate-50 dark:hover:bg-white/[0.04] text-slate-700 dark:text-slate-200 text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            title={`Export all ${registrations.length} registrations with complete details, transaction proof, and custom questions to CSV`}
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span>Export CSV ({registrations.length})</span>
-          </button>
+          {/* ─── Unified Export Sheet Dropdown ─── */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
+              disabled={registrations.length === 0}
+              className={`px-4 py-2.5 rounded-xl border text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                isExportDropdownOpen
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700/60 text-emerald-700 dark:text-emerald-300'
+                  : 'bg-white dark:bg-[#0c1017] border-slate-200 dark:border-white/[0.08] hover:bg-slate-50 dark:hover:bg-white/[0.04] text-slate-700 dark:text-slate-200'
+              }`}
+              title="Download event registration and team spreadsheets"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Export Sheet</span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
+                  isExportDropdownOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
 
-          <button
-            onClick={handleExportTeamsCSV}
-            disabled={teamsList.length === 0}
-            className="px-4 py-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-emerald-200 dark:border-emerald-800/40 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            title={`Export all ${teamsList.length} teams squads breakdown and payment confirmation to CSV`}
-          >
-            <Layers className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span>Export Teams ({teamsList.length})</span>
-          </button>
+            {isExportDropdownOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-30"
+                  onClick={() => setIsExportDropdownOpen(false)}
+                />
+                <div className="absolute right-0 top-full mt-2 w-72 bg-white dark:bg-[#101622] rounded-2xl border border-slate-200 dark:border-white/[0.12] shadow-2xl py-2 z-40 text-left animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-3.5 py-1.5 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                    Select Data to Download
+                  </div>
+
+                  {/* Option 1: All Participants */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsExportDropdownOpen(false);
+                      handleExportCSV(false);
+                    }}
+                    disabled={registrations.length === 0}
+                    className="w-full px-3.5 py-2.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center justify-between gap-3 cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
+                        <Users className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="text-left">
+                        <div className="font-bold text-xs text-slate-900 dark:text-white">All Participants</div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                          Complete profile, questions & payment info
+                        </div>
+                      </div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/[0.08] text-[10px] font-bold font-mono text-slate-600 dark:text-slate-300">
+                      {registrations.length}
+                    </span>
+                  </button>
+
+                  {/* Option 2: Teams Breakdown */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsExportDropdownOpen(false);
+                      handleExportTeamsCSV();
+                    }}
+                    disabled={teamsList.length === 0}
+                    className="w-full px-3.5 py-2.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-sky-50 dark:hover:bg-sky-950/30 hover:text-sky-700 dark:hover:text-sky-300 flex items-center justify-between gap-3 cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-1.5 rounded-lg bg-sky-100 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400">
+                        <Layers className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="text-left">
+                        <div className="font-bold text-xs text-slate-900 dark:text-white">Teams Squads</div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                          Team squads, members & payments
+                        </div>
+                      </div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/[0.08] text-[10px] font-bold font-mono text-slate-600 dark:text-slate-300">
+                      {teamsList.length}
+                    </span>
+                  </button>
+
+                  {/* Option 3: Selected Applicants (if any selected) */}
+                  {selectedIds.length > 0 && (
+                    <div className="mt-1 pt-1 border-t border-slate-100 dark:border-white/[0.08]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsExportDropdownOpen(false);
+                          handleExportCSV(true);
+                        }}
+                        className="w-full px-3.5 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-[#0099e6]/10 hover:text-[#0099e6] flex items-center justify-between gap-3 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-1.5 rounded-lg bg-[#0099e6]/10 text-[#0099e6]">
+                            <Check className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="text-left">
+                            <div className="font-bold text-xs text-slate-900 dark:text-white">Selected Only</div>
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                              Only checked applicants
+                            </div>
+                          </div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full bg-[#0099e6]/10 text-[#0099e6] text-[10px] font-bold font-mono">
+                          {selectedIds.length}
+                        </span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
 
           <button
             onClick={() => setShowClearModal(true)}
