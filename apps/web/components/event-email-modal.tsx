@@ -21,6 +21,8 @@ import {
   Award,
   XCircle,
   Bell,
+  CreditCard,
+  Crown,
   Bold,
   Italic,
   Underline,
@@ -59,6 +61,19 @@ export interface EmailModalProps {
   registrations: EventRegistration[];
   // Initial mode or target
   singleRecipient?: EventRegistration | null;
+  targetTeam?: {
+    id?: string;
+    teamId?: string;
+    teamName: string;
+    leaderName?: string;
+    leaderEmail?: string;
+    leaderPhone?: string;
+    isPaid?: boolean;
+    paymentAmount?: number | string | null;
+    utrNumber?: string | null;
+    members?: any[];
+    [key: string]: any;
+  } | null;
   initialSelectedIds?: string[];
   initialFilter?: 'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED';
 }
@@ -69,6 +84,7 @@ type TemplateType =
   | 'rejection'
   | 'certificate'
   | 'rsvp'
+  | 'payment_reminder'
   | 'general'
   | 'custom';
 
@@ -147,6 +163,22 @@ To finalize venue arrangements, mentor slots, and hardware kits, we require your
     ctaText: 'Confirm Your RSVP Now →',
   },
   {
+    id: 'payment_reminder',
+    label: 'Payment Pending / Fee Reminder',
+    badge: 'Payment Pending',
+    subject: 'Action Required: Pending Registration Payment for {team_name} | {event_title}',
+    body: `Hello **{name}**,
+
+We noticed that the registration payment and verification for your squad **{team_name}** is currently **pending** for **{event_title}**.
+
+To confirm your squad's slot and unlock full participation in the hackathon, please complete the pending registration fee of **{amount}** and submit your UTR / transaction receipt.
+
+**Important Note:** Team slots are allocated on a strictly limited basis. Unconfirmed registrations may be moved to the waitlist once the payment deadline passes.
+
+If you have already transferred the fee, please reply to this email with your UTR proof so our organizing team can verify and approve your squad immediately.`,
+    ctaText: 'Complete Registration Payment ({amount}) →',
+  },
+  {
     id: 'general',
     label: 'General Announcement',
     badge: 'Announcement',
@@ -166,20 +198,29 @@ export function EventEmailModal({
   event,
   registrations,
   singleRecipient = null,
+  targetTeam = null,
   initialSelectedIds = [],
   initialFilter = 'ALL',
 }: EmailModalProps) {
+  // Target Team squad mode
+  const [activeTeam, setActiveTeam] = useState<any | null>(targetTeam || null);
+  const [teamRecipientScope, setTeamRecipientScope] = useState<'ENTIRE_TEAM' | 'LEADER_ONLY'>('ENTIRE_TEAM');
+
   // Mode: single participant vs broadcast
   const [isSingleMode, setIsSingleMode] = useState<boolean>(Boolean(singleRecipient));
   const [recipientFilter, setRecipientFilter] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED' | 'CUSTOM'>(
     initialSelectedIds.length > 0 ? 'CUSTOM' : initialFilter
   );
 
-  // Selected template
-  const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('selection');
-  const [subject, setSubject] = useState<string>(TEMPLATES[0].subject);
-  const [bodyText, setBodyText] = useState<string>(() => textToHtml(TEMPLATES[0].body));
-  const [actionButtonText, setActionButtonText] = useState<string>(TEMPLATES[0].ctaText);
+  // Selected template (default to payment_reminder if targeting an unpaid squad)
+  const defaultTemplateId: TemplateType =
+    targetTeam && targetTeam.isPaid === false ? 'payment_reminder' : 'selection';
+  const initialTmpl = TEMPLATES.find((t) => t.id === defaultTemplateId) || TEMPLATES[0];
+
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>(defaultTemplateId);
+  const [subject, setSubject] = useState<string>(initialTmpl.subject);
+  const [bodyText, setBodyText] = useState<string>(() => textToHtml(initialTmpl.body));
+  const [actionButtonText, setActionButtonText] = useState<string>(initialTmpl.ctaText);
 
   // Rich-text editor refs & format states
   const editorRef = useRef<HTMLDivElement>(null);
@@ -309,6 +350,8 @@ export function EventEmailModal({
   const [selectedRecipientIds, setSelectedRecipientIds] = useState<string[]>(
     singleRecipient
       ? [singleRecipient.id]
+      : targetTeam
+      ? (targetTeam.members || []).map((m: any) => m.id).filter(Boolean)
       : initialSelectedIds.length > 0
       ? initialSelectedIds
       : registrations.map((r) => r.id)
@@ -335,8 +378,68 @@ export function EventEmailModal({
     warning?: string;
   } | null>(null);
 
-  // Calculate target audience based on filter or single mode
+  // Identify Team Leader in active team
+  const teamLeader = useMemo(() => {
+    if (!activeTeam) return null;
+    const members: any[] = activeTeam.members || [];
+    const leaderEmail = (activeTeam.leaderEmail || '').toLowerCase().trim();
+
+    if (leaderEmail) {
+      const found = members.find((m) => (m.userEmail || '').toLowerCase().trim() === leaderEmail);
+      if (found) return found;
+    }
+
+    const byRole = members.find((m) => {
+      const r = (m.role || '').toLowerCase();
+      return r === 'leader' || r.includes('lead');
+    });
+    if (byRole) return byRole;
+
+    if (members.length > 0) return members[0];
+
+    if (activeTeam.leaderEmail) {
+      return {
+        id: (activeTeam.id || activeTeam.teamName) + '-leader',
+        userName: activeTeam.leaderName || 'Squad Leader',
+        userEmail: activeTeam.leaderEmail,
+        phone: activeTeam.leaderPhone,
+        teamName: activeTeam.teamName,
+        role: 'Leader',
+        status: 'APPROVED',
+      };
+    }
+
+    return null;
+  }, [activeTeam]);
+
+  // Handle template selection
+  const handleSelectTemplate = (tmplId: TemplateType) => {
+    setSelectedTemplate(tmplId);
+    const tmpl = TEMPLATES.find((t) => t.id === tmplId);
+    if (tmpl) {
+      setSubject(tmpl.subject);
+      const html = textToHtml(tmpl.body);
+      setBodyText(html);
+      if (editorRef.current) {
+        editorRef.current.innerHTML = html;
+      }
+      setActionButtonText(tmpl.ctaText);
+    }
+  };
+
+  // Calculate target audience based on squad mode, single mode, or filter
   const targetRecipients = useMemo(() => {
+    if (activeTeam) {
+      if (teamRecipientScope === 'LEADER_ONLY') {
+        return teamLeader ? [teamLeader] : [];
+      }
+      return activeTeam.members && activeTeam.members.length > 0
+        ? activeTeam.members
+        : teamLeader
+        ? [teamLeader]
+        : [];
+    }
+
     if (isSingleMode && singleRecipient) {
       return [singleRecipient];
     }
@@ -358,19 +461,52 @@ export function EventEmailModal({
     }
 
     return registrations;
-  }, [isSingleMode, singleRecipient, recipientFilter, registrations, selectedRecipientIds]);
+  }, [activeTeam, teamRecipientScope, teamLeader, isSingleMode, singleRecipient, recipientFilter, registrations, selectedRecipientIds]);
 
   // Filtered list for search box
   const searchFilteredList = useMemo(() => {
     const q = recipientSearch.toLowerCase().trim();
     if (!q) return targetRecipients;
     return targetRecipients.filter(
-      (r) =>
-        r.userName.toLowerCase().includes(q) ||
-        r.userEmail.toLowerCase().includes(q) ||
+      (r: any) =>
+        (r.userName && r.userName.toLowerCase().includes(q)) ||
+        (r.userEmail && r.userEmail.toLowerCase().includes(q)) ||
         (r.college && r.college.toLowerCase().includes(q))
     );
   }, [targetRecipients, recipientSearch]);
+
+  // Sync state whenever modal is opened or target props change
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTeam(targetTeam || null);
+      setTeamRecipientScope('ENTIRE_TEAM');
+      setIsSingleMode(Boolean(singleRecipient));
+      setRecipientSearch('');
+      setShowRecipientList(false);
+      setSendResult(null);
+
+      if (targetTeam) {
+        const memberIds = (targetTeam.members || []).map((m: any) => m.id).filter(Boolean);
+        setSelectedRecipientIds(memberIds);
+        setRecipientFilter('CUSTOM');
+        if (targetTeam.isPaid === false) {
+          handleSelectTemplate('payment_reminder');
+        } else {
+          handleSelectTemplate('selection');
+        }
+      } else if (singleRecipient) {
+        setSelectedRecipientIds([singleRecipient.id]);
+        setRecipientFilter('CUSTOM');
+        handleSelectTemplate('approval');
+      } else if (initialSelectedIds && initialSelectedIds.length > 0) {
+        setSelectedRecipientIds(initialSelectedIds);
+        setRecipientFilter('CUSTOM');
+      } else {
+        setSelectedRecipientIds(registrations.map((r) => r.id));
+        setRecipientFilter(initialFilter || 'ALL');
+      }
+    }
+  }, [isOpen, targetTeam, singleRecipient, initialSelectedIds, initialFilter]);
 
   // Sync editor content with bodyText when opening or switching back to editor tab
   useEffect(() => {
@@ -382,21 +518,6 @@ export function EventEmailModal({
   }, [isOpen, activeTab, selectedTemplate]);
 
   if (!isOpen || !event) return null;
-
-  // Handle template selection
-  const handleSelectTemplate = (tmplId: TemplateType) => {
-    setSelectedTemplate(tmplId);
-    const tmpl = TEMPLATES.find((t) => t.id === tmplId);
-    if (tmpl) {
-      setSubject(tmpl.subject);
-      const html = textToHtml(tmpl.body);
-      setBodyText(html);
-      if (editorRef.current) {
-        editorRef.current.innerHTML = html;
-      }
-      setActionButtonText(tmpl.ctaText);
-    }
-  };
 
   // Insert variable tag into body text at current cursor / selection
   const handleInsertTag = (tag: string) => {
@@ -457,6 +578,24 @@ export function EventEmailModal({
     updateActiveFormats();
   };
 
+  // Sample preview helper resolution
+  const previewRecipient = targetRecipients[0] || {
+    userName: activeTeam?.leaderName || 'Aarav Sharma',
+    userEmail: activeTeam?.leaderEmail || 'aarav.sharma@example.com',
+    college: 'Government Engineering College, Ajmer',
+    status: 'APPROVED',
+  };
+
+  const previewTeamName =
+    (previewRecipient as any).teamName ||
+    (previewRecipient as any).team_name ||
+    activeTeam?.teamName ||
+    `${previewRecipient.userName}'s Squad`;
+
+  const previewAmount =
+    (activeTeam && (activeTeam.paymentAmount ? `₹${activeTeam.paymentAmount}` : activeTeam.isPaid ? '₹0' : '₹800')) ||
+    ((previewRecipient as any).paymentAmount ? `₹${(previewRecipient as any).paymentAmount}` : ((event as any)?.price ? `₹${(event as any).price}` : '₹800'));
+
   // Send a test email
   const handleSendTestEmail = async () => {
     if (!testEmailAddress) return;
@@ -476,9 +615,10 @@ export function EventEmailModal({
           actionButtonText,
           isTest: true,
           testEmail: testEmailAddress,
-          testRecipientName: previewRecipient?.userName || 'Chinmay Bhatt',
-          testTeamName: (previewRecipient as any)?.teamName || 'hcj',
+          testRecipientName: previewRecipient?.userName || activeTeam?.leaderName || 'Chinmay Bhatt',
+          testTeamName: previewTeamName,
           testCollege: previewRecipient?.college || '',
+          testAmount: previewAmount,
           origin: typeof window !== 'undefined' ? window.location.origin : undefined,
         }),
       });
@@ -507,12 +647,13 @@ export function EventEmailModal({
     setSendResult(null);
 
     try {
-      const payloadRecipients = targetRecipients.map((r) => ({
+      const payloadRecipients = targetRecipients.map((r: any) => ({
         name: r.userName,
         email: r.userEmail,
-        teamName: (r as any).teamName || (r as any).team_name || r.userName,
+        teamName: (r as any).teamName || (r as any).team_name || (activeTeam ? activeTeam.teamName : r.userName),
         college: r.college,
         status: r.status,
+        amount: (activeTeam && (activeTeam.paymentAmount || (activeTeam.isPaid ? 0 : 800))) || (r as any).paymentAmount || ((event as any)?.price ? (event as any).price : 800),
       }));
 
       const res = await fetch('/api/event-broadcast-email', {
@@ -555,27 +696,25 @@ export function EventEmailModal({
     }
   };
 
-  // Sample preview rendering
-  const previewRecipient = targetRecipients[0] || {
-    userName: 'Aarav Sharma',
-    userEmail: 'aarav.sharma@example.com',
-    college: 'IIT Bombay',
-    status: 'APPROVED',
-  };
-
   const previewSubject = subject
     .replace(/\{name\}/gi, previewRecipient.userName)
     .replace(/\{user\}/gi, previewRecipient.userName)
-    .replace(/\{team_name\}/gi, (previewRecipient as any).teamName || `${previewRecipient.userName}'s Squad`)
-    .replace(/\{team\}/gi, `${previewRecipient.userName}'s Squad`)
-    .replace(/\{event_title\}/gi, event.title);
+    .replace(/\{team_name\}/gi, previewTeamName)
+    .replace(/\{team\}/gi, previewTeamName)
+    .replace(/\{event_title\}/gi, event.title)
+    .replace(/\{event\}/gi, event.title)
+    .replace(/\{amount\}/gi, String(previewAmount))
+    .replace(/\{college\}/gi, previewRecipient.college || 'Participant')
+    .replace(/\{status\}/gi, previewRecipient.status || 'Registered');
 
   const previewBody = bodyText
     .replace(/\{name\}/gi, previewRecipient.userName)
     .replace(/\{user\}/gi, previewRecipient.userName)
-    .replace(/\{team_name\}/gi, (previewRecipient as any).teamName || `${previewRecipient.userName}'s Squad`)
-    .replace(/\{team\}/gi, `${previewRecipient.userName}'s Squad`)
+    .replace(/\{team_name\}/gi, previewTeamName)
+    .replace(/\{team\}/gi, previewTeamName)
     .replace(/\{event_title\}/gi, event.title)
+    .replace(/\{event\}/gi, event.title)
+    .replace(/\{amount\}/gi, String(previewAmount))
     .replace(/\{college\}/gi, previewRecipient.college || 'Participant')
     .replace(/\{status\}/gi, previewRecipient.status || 'Registered');
 
@@ -635,125 +774,286 @@ export function EventEmailModal({
             </div>
           )}
 
-          {/* Audience Filter Bar (Unstop style) */}
+          {/* Audience Filter Bar: Squad Mode vs Single vs Broadcast */}
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-[#0099e6]" />
-                <span className="text-xs font-bold text-slate-900 dark:text-white">
-                  Target Audience ({targetRecipients.length} Candidates Selected)
-                </span>
-              </div>
-
-              {singleRecipient && (
-                <button
-                  type="button"
-                  onClick={() => setIsSingleMode(!isSingleMode)}
-                  className="text-xs font-semibold text-[#0099e6] hover:underline cursor-pointer"
-                >
-                  {isSingleMode ? 'Switch to All Participants' : 'Switch to Single'}
-                </button>
-              )}
-            </div>
-
-            {/* If Single Mode */}
-            {isSingleMode && singleRecipient ? (
-              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08]">
-                <div className="w-7 h-7 rounded-full bg-[#0099e6]/20 text-[#0099e6] font-bold text-xs flex items-center justify-center font-mono">
-                  {singleRecipient.userName.slice(0, 2).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                    TO: {singleRecipient.userName}
+            {activeTeam ? (
+              /* Squad Mode with Leader vs Entire Squad Toggle */
+              <div className="space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-[#0099e6]/10 text-[#0099e6] flex items-center justify-center">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-2 flex-wrap">
+                        <span>Squad: <strong className="text-[#0099e6]">{activeTeam.teamName}</strong></span>
+                        <span className="px-2 py-0.5 rounded-full bg-slate-200/80 dark:bg-white/[0.08] text-[10px] text-slate-700 dark:text-slate-300 font-mono font-bold">
+                          {activeTeam.members?.length || 0} members
+                        </span>
+                        {activeTeam.isPaid ? (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold border border-emerald-200 dark:border-emerald-800/40">
+                            ● Payment Confirmed
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 text-[10px] font-bold border border-amber-200 dark:border-amber-800/40">
+                            ● Payment Pending
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        {targetRecipients.length} {targetRecipients.length === 1 ? 'recipient targeted' : 'recipients targeted'}
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-500 font-mono truncate">
-                    {singleRecipient.userEmail}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTeam(null);
+                      setSelectedRecipientIds(registrations.map((r) => r.id));
+                      setRecipientFilter('ALL');
+                    }}
+                    className="text-xs font-semibold text-[#0099e6] hover:underline cursor-pointer"
+                  >
+                    Switch to All Event Participants
+                  </button>
+                </div>
+
+                {/* Option to send to Whole Team or Leader Only */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                    Send email to:
                   </div>
-                </div>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-300">
-                  {singleRecipient.status}
-                </span>
-              </div>
-            ) : (
-              /* If Broadcast Mode: Status Filters */
-              <div className="space-y-2">
-                <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                  Filter Candidates by Status:
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { id: 'ALL', label: `All (${registrations.length})` },
-                    {
-                      id: 'APPROVED',
-                      label: `Approved (${
-                        registrations.filter((r) => r.status === 'APPROVED' || r.status === 'CONFIRMED').length
-                      })`,
-                    },
-                    {
-                      id: 'PENDING',
-                      label: `None / Pending (${
-                        registrations.filter((r) => r.status === 'PENDING' || !r.status).length
-                      })`,
-                    },
-                    {
-                      id: 'REJECTED',
-                      label: `Rejected (${registrations.filter((r) => r.status === 'REJECTED').length})`,
-                    },
-                  ].map((tab) => (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {/* Option 1: Entire Squad */}
                     <button
-                      key={tab.id}
                       type="button"
-                      onClick={() => setRecipientFilter(tab.id as any)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                        recipientFilter === tab.id
-                          ? 'bg-[#0099e6] text-white shadow-2xs'
-                          : 'bg-white dark:bg-[#0c1017] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] border border-slate-200 dark:border-white/[0.08]'
+                      onClick={() => setTeamRecipientScope('ENTIRE_TEAM')}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
+                        teamRecipientScope === 'ENTIRE_TEAM'
+                          ? 'bg-sky-50/80 dark:bg-sky-950/40 border-[#0099e6] text-[#0099e6] shadow-2xs'
+                          : 'bg-white dark:bg-[#0c1017] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-slate-300 hover:border-slate-300'
                       }`}
                     >
-                      {tab.label}
+                      <div
+                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center mt-0.5 shrink-0 ${
+                          teamRecipientScope === 'ENTIRE_TEAM'
+                            ? 'border-[#0099e6] bg-[#0099e6]'
+                            : 'border-slate-300 dark:border-slate-600'
+                        }`}
+                      >
+                        {teamRecipientScope === 'ENTIRE_TEAM' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <Users className="w-3.5 h-3.5 text-[#0099e6]" />
+                          <span>Puri Team / Squad Ko</span>
+                          <span className="px-1.5 py-0.2 rounded-md bg-sky-100 dark:bg-sky-950/60 text-[#0099e6] text-[10px] font-black font-mono">
+                            {activeTeam.members?.length || 0}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Send to all {activeTeam.members?.length || 0} registered members of {activeTeam.teamName}
+                        </div>
+                      </div>
                     </button>
-                  ))}
+
+                    {/* Option 2: Team Leader Only */}
+                    <button
+                      type="button"
+                      onClick={() => setTeamRecipientScope('LEADER_ONLY')}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
+                        teamRecipientScope === 'LEADER_ONLY'
+                          ? 'bg-sky-50/80 dark:bg-sky-950/40 border-[#0099e6] text-[#0099e6] shadow-2xs'
+                          : 'bg-white dark:bg-[#0c1017] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-slate-300 hover:border-slate-300'
+                      }`}
+                    >
+                      <div
+                        className={`w-4 h-4 rounded-full border-2 flex items-center justify-center mt-0.5 shrink-0 ${
+                          teamRecipientScope === 'LEADER_ONLY'
+                            ? 'border-[#0099e6] bg-[#0099e6]'
+                            : 'border-slate-300 dark:border-slate-600'
+                        }`}
+                      >
+                        {teamRecipientScope === 'LEADER_ONLY' && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <Crown className="w-3.5 h-3.5 text-amber-500" />
+                          <span>Sirf Team Leader Ko</span>
+                          <span className="px-1.5 py-0.2 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 text-[10px] font-black font-mono">
+                            1
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                          {teamLeader?.userName || activeTeam.leaderName || 'Leader'} ({teamLeader?.userEmail || activeTeam.leaderEmail || 'No email'})
+                        </div>
+                      </div>
+                    </button>
+                  </div>
                 </div>
 
-                {/* Collapsible View / Edit List */}
+                {/* Collapsible View / search squad contacts */}
                 <button
                   type="button"
                   onClick={() => setShowRecipientList(!showRecipientList)}
                   className="pt-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1 hover:text-[#0099e6] cursor-pointer"
                 >
                   {showRecipientList ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  <span>{showRecipientList ? 'Hide contact details' : 'View / search selected contacts'}</span>
+                  <span>{showRecipientList ? 'Hide squad contact details' : `View selected squad contacts (${targetRecipients.length})`}</span>
                 </button>
 
                 {showRecipientList && (
                   <div className="mt-2 p-3 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] space-y-2">
-                    <div className="relative">
-                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="text"
-                        placeholder="Search candidates..."
-                        value={recipientSearch}
-                        onChange={(e) => setRecipientSearch(e.target.value)}
-                        className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-[#121824] rounded-lg text-xs outline-none border border-slate-200 dark:border-white/[0.06]"
-                      />
-                    </div>
-
                     <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 dark:divide-white/[0.04]">
-                      {searchFilteredList.map((rec) => (
-                        <div key={rec.id} className="py-1.5 flex items-center justify-between text-xs">
-                          <div>
-                            <div className="font-bold text-slate-800 dark:text-slate-200">{rec.userName}</div>
-                            <div className="text-[11px] text-slate-500 font-mono">{rec.userEmail}</div>
+                      {targetRecipients.map((rec: any) => {
+                        const isLeader =
+                          (teamLeader && rec.userEmail && teamLeader.userEmail && rec.userEmail.toLowerCase() === teamLeader.userEmail.toLowerCase()) ||
+                          (rec.role && rec.role.toLowerCase().includes('lead'));
+                        return (
+                          <div key={rec.id || rec.userEmail} className="py-1.5 flex items-center justify-between text-xs">
+                            <div>
+                              <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                <span>{rec.userName}</span>
+                                {isLeader && (
+                                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40 flex items-center gap-0.5">
+                                    <Crown className="w-2.5 h-2.5" /> Leader
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-slate-500 font-mono">{rec.userEmail}</div>
+                            </div>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/[0.06] text-slate-500">
+                              {rec.status || 'Active'}
+                            </span>
                           </div>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/[0.06] text-slate-500">
-                            {rec.status}
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
               </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-[#0099e6]" />
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">
+                      Target Audience ({targetRecipients.length} Candidates Selected)
+                    </span>
+                  </div>
+
+                  {singleRecipient && (
+                    <button
+                      type="button"
+                      onClick={() => setIsSingleMode(!isSingleMode)}
+                      className="text-xs font-semibold text-[#0099e6] hover:underline cursor-pointer"
+                    >
+                      {isSingleMode ? 'Switch to All Participants' : 'Switch to Single'}
+                    </button>
+                  )}
+                </div>
+
+                {/* If Single Mode */}
+                {isSingleMode && singleRecipient ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08]">
+                    <div className="w-7 h-7 rounded-full bg-[#0099e6]/20 text-[#0099e6] font-bold text-xs flex items-center justify-center font-mono">
+                      {singleRecipient.userName.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                        TO: {singleRecipient.userName}
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-mono truncate">
+                        {singleRecipient.userEmail}
+                      </div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-300">
+                      {singleRecipient.status}
+                    </span>
+                  </div>
+                ) : (
+                  /* If Broadcast Mode: Status Filters */
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                      Filter Candidates by Status:
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { id: 'ALL', label: `All (${registrations.length})` },
+                        {
+                          id: 'APPROVED',
+                          label: `Approved (${
+                            registrations.filter((r) => r.status === 'APPROVED' || r.status === 'CONFIRMED').length
+                          })`,
+                        },
+                        {
+                          id: 'PENDING',
+                          label: `None / Pending (${
+                            registrations.filter((r) => r.status === 'PENDING' || !r.status).length
+                          })`,
+                        },
+                        {
+                          id: 'REJECTED',
+                          label: `Rejected (${registrations.filter((r) => r.status === 'REJECTED').length})`,
+                        },
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setRecipientFilter(tab.id as any)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            recipientFilter === tab.id
+                              ? 'bg-[#0099e6] text-white shadow-2xs'
+                              : 'bg-white dark:bg-[#0c1017] text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.06] border border-slate-200 dark:border-white/[0.08]'
+                          }`}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Collapsible View / Edit List */}
+                    <button
+                      type="button"
+                      onClick={() => setShowRecipientList(!showRecipientList)}
+                      className="pt-1 text-[11px] font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1 hover:text-[#0099e6] cursor-pointer"
+                    >
+                      {showRecipientList ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      <span>{showRecipientList ? 'Hide contact details' : 'View / search selected contacts'}</span>
+                    </button>
+
+                    {showRecipientList && (
+                      <div className="mt-2 p-3 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] space-y-2">
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            placeholder="Search candidates..."
+                            value={recipientSearch}
+                            onChange={(e) => setRecipientSearch(e.target.value)}
+                            className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-[#121824] rounded-lg text-xs outline-none border border-slate-200 dark:border-white/[0.06]"
+                          />
+                        </div>
+
+                        <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 dark:divide-white/[0.04]">
+                          {searchFilteredList.map((rec: any) => (
+                            <div key={rec.id} className="py-1.5 flex items-center justify-between text-xs">
+                              <div>
+                                <div className="font-bold text-slate-800 dark:text-slate-200">{rec.userName}</div>
+                                <div className="text-[11px] text-slate-500 font-mono">{rec.userEmail}</div>
+                              </div>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/[0.06] text-slate-500">
+                                {rec.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -806,6 +1106,8 @@ export function EventEmailModal({
                       return <Award className="w-4 h-4 text-amber-600 dark:text-amber-400" />;
                     case 'rsvp':
                       return <Clock className="w-4 h-4 text-orange-600 dark:text-orange-400" />;
+                    case 'payment_reminder':
+                      return <CreditCard className="w-4 h-4 text-amber-500 dark:text-amber-400" />;
                     case 'general':
                       return <Bell className="w-4 h-4 text-sky-600 dark:text-sky-400" />;
                     default:
@@ -847,21 +1149,60 @@ export function EventEmailModal({
                 className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] rounded-xl text-xs text-slate-900 dark:text-white font-medium outline-none focus:border-[#0099e6]"
               />
 
-              {/* Quick Subject Suggestion Chips (As requested by user) */}
-              <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                <span className="text-[10px] font-bold text-slate-400 flex items-center gap-0.5">
-                  Suggestions:
-                </span>
-                {TEMPLATES.map((tmpl) => (
-                  <button
-                    key={tmpl.id}
-                    type="button"
-                    onClick={() => handleSelectTemplate(tmpl.id)}
-                    className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 hover:bg-sky-50 dark:bg-white/[0.06] dark:hover:bg-sky-950/30 text-slate-600 hover:text-[#0099e6] dark:text-slate-300 transition-colors cursor-pointer border border-slate-200 dark:border-white/[0.08]"
-                  >
-                    {tmpl.badge}
-                  </button>
-                ))}
+              {/* Quick Subject Suggestion Chips (Includes Payment Pending as requested) */}
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] font-bold text-slate-400 flex items-center gap-0.5">
+                    Suggestions:
+                  </span>
+                  {TEMPLATES.map((tmpl) => (
+                    <button
+                      key={tmpl.id}
+                      type="button"
+                      onClick={() => handleSelectTemplate(tmpl.id)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer border ${
+                        selectedTemplate === tmpl.id
+                          ? 'bg-[#0099e6] text-white border-[#0099e6] shadow-xs'
+                          : tmpl.id === 'payment_reminder'
+                          ? 'bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/50 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700/50'
+                          : 'bg-slate-100 hover:bg-sky-50 dark:bg-white/[0.06] dark:hover:bg-sky-950/30 text-slate-600 hover:text-[#0099e6] dark:text-slate-300 border-slate-200 dark:border-white/[0.08]'
+                      }`}
+                    >
+                      {tmpl.badge}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Additional Quick Subject Presets specifically for Payment Pending */}
+                {selectedTemplate === 'payment_reminder' && (
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-1.5 animate-in fade-in duration-150">
+                    <div className="text-[10px] font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                      <CreditCard className="w-3 h-3 text-amber-600" />
+                      <span>Pending payment subject suggestions (click to use):</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        'Action Required: Pending Registration Payment for {team_name} | {event_title}',
+                        'Urgent Reminder: Complete payment to confirm slot for {event_title}',
+                        'Pending Registration Fee & UTR Verification for {team_name}',
+                        'Action Required: Complete your team registration payment for {event_title}',
+                      ].map((subOption) => (
+                        <button
+                          key={subOption}
+                          type="button"
+                          onClick={() => setSubject(subOption)}
+                          className={`text-[10px] text-left px-2 py-1 rounded-md transition-colors cursor-pointer border ${
+                            subject === subOption
+                              ? 'bg-amber-600 text-white font-bold border-amber-600 shadow-2xs'
+                              : 'bg-white dark:bg-[#0c1017] text-amber-900 dark:text-amber-200 border-amber-200 dark:border-amber-800/40 hover:bg-amber-100 dark:hover:bg-amber-950/50'
+                          }`}
+                        >
+                          {subOption}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -881,6 +1222,7 @@ export function EventEmailModal({
                   { tag: '{name}', label: 'Hacker Name' },
                   { tag: '{team_name}', label: 'Team Name' },
                   { tag: '{event_title}', label: 'Event Title' },
+                  { tag: '{amount}', label: 'Fee / Amount' },
                   { tag: '{college}', label: 'College' },
                   { tag: '{status}', label: 'Status' },
                   { tag: '{rsvp_url}', label: 'RSVP Mini Form Link' },
@@ -1273,10 +1615,30 @@ export function EventEmailModal({
                     />
                   </div>
 
+                  {/* Highlight Info Box for Payment Pending in Preview */}
+                  {selectedTemplate === 'payment_reminder' && (
+                    <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 text-xs flex items-center justify-between">
+                      <div>
+                        <div className="text-[10px] text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wider">
+                          Pending Due
+                        </div>
+                        <div className="text-sm font-black text-amber-700 dark:text-amber-300">
+                          {previewAmount}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] text-slate-500 font-medium">Squad</div>
+                        <div className="text-xs font-bold text-slate-800 dark:text-slate-200">{previewTeamName}</div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* CTA button inside preview */}
                   <div className="pt-2 text-center">
-                    <span className="inline-block px-5 py-2.5 rounded-xl bg-[#0099e6] text-white font-bold text-xs shadow-md">
-                      {actionButtonText}
+                    <span className={`inline-block px-5 py-2.5 rounded-xl text-white font-bold text-xs shadow-md ${
+                      selectedTemplate === 'payment_reminder' ? 'bg-amber-600' : 'bg-[#0099e6]'
+                    }`}>
+                      {actionButtonText.replace(/\{amount\}/gi, String(previewAmount))}
                     </span>
                   </div>
 
@@ -1331,12 +1693,20 @@ export function EventEmailModal({
               type="button"
               onClick={handleSendBroadcast}
               disabled={isSending || targetRecipients.length === 0}
-              className="px-5 py-2.5 rounded-xl bg-[#0099e6] hover:bg-[#0088cc] text-white font-bold text-xs transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`px-5 py-2.5 rounded-xl text-white font-bold text-xs transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                selectedTemplate === 'payment_reminder'
+                  ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
+                  : 'bg-[#0099e6] hover:bg-[#0088cc]'
+              }`}
             >
               <Send className="w-3.5 h-3.5" />
               <span>
                 {isSending
                   ? 'Dispatching Emails...'
+                  : activeTeam
+                  ? teamRecipientScope === 'LEADER_ONLY'
+                    ? 'Send Email to Team Leader (1 Candidate)'
+                    : `Send Email to Entire Squad (${targetRecipients.length} Candidates)`
                   : `Send Email to ${targetRecipients.length} ${
                       targetRecipients.length === 1 ? 'Candidate' : 'Candidates'
                     }`}

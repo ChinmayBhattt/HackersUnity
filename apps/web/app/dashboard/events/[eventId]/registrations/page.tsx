@@ -79,6 +79,7 @@ export default function EventRegistrationsPage({ params }: PageProps) {
   // Email modal state
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [emailTargetParticipant, setEmailTargetParticipant] = useState<EventRegistration | null>(null);
+  const [emailTargetTeam, setEmailTargetTeam] = useState<any | null>(null);
   const [emailInitialSelectedIds, setEmailInitialSelectedIds] = useState<string[]>([]);
   const [emailInitialFilter, setEmailInitialFilter] = useState<'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED'>('ALL');
   const [isLiveBroadcastModalOpen, setIsLiveBroadcastModalOpen] = useState(false);
@@ -138,6 +139,7 @@ export default function EventRegistrationsPage({ params }: PageProps) {
   // Email handlers
   const handleOpenEmailAll = (filter: 'ALL' | 'APPROVED' | 'PENDING' | 'REJECTED' = 'ALL') => {
     setEmailTargetParticipant(null);
+    setEmailTargetTeam(null);
     setEmailInitialSelectedIds([]);
     setEmailInitialFilter(filter);
     setIsEmailModalOpen(true);
@@ -145,12 +147,15 @@ export default function EventRegistrationsPage({ params }: PageProps) {
 
   const handleOpenEmailSelected = () => {
     setEmailTargetParticipant(null);
+    setEmailTargetTeam(null);
     setEmailInitialSelectedIds(selectedIds);
+    setEmailInitialFilter('ALL');
     setIsEmailModalOpen(true);
   };
 
   const handleOpenEmailSingle = (reg: EventRegistration) => {
     setEmailTargetParticipant(reg);
+    setEmailTargetTeam(null);
     setEmailInitialSelectedIds([reg.id]);
     setIsEmailModalOpen(true);
   };
@@ -572,9 +577,11 @@ export default function EventRegistrationsPage({ params }: PageProps) {
   };
 
   const handleEmailTeam = (team: any) => {
-    const memberIds = team.members.map((m: any) => m.id);
+    const memberIds = (team.members || []).map((m: any) => m.id).filter(Boolean);
     setEmailTargetParticipant(null);
+    setEmailTargetTeam(team);
     setEmailInitialSelectedIds(memberIds);
+    setEmailInitialFilter('ALL');
     setIsEmailModalOpen(true);
   };
 
@@ -2290,15 +2297,22 @@ export default function EventRegistrationsPage({ params }: PageProps) {
       )}
 
       {/* ─── Send Email Drawer / Modal ───────────────────────────── */}
-      <EventEmailModal
-        isOpen={isEmailModalOpen}
-        onClose={() => setIsEmailModalOpen(false)}
-        event={event}
-        registrations={registrations}
-        singleRecipient={emailTargetParticipant}
-        initialSelectedIds={emailInitialSelectedIds}
-        initialFilter={emailInitialFilter}
-      />
+      {isEmailModalOpen && (
+        <EventEmailModal
+          isOpen={isEmailModalOpen}
+          onClose={() => {
+            setIsEmailModalOpen(false);
+            setEmailTargetTeam(null);
+            setEmailTargetParticipant(null);
+          }}
+          event={event}
+          registrations={registrations}
+          singleRecipient={emailTargetParticipant}
+          targetTeam={emailTargetTeam}
+          initialSelectedIds={emailInitialSelectedIds}
+          initialFilter={emailInitialFilter}
+        />
+      )}
 
       {/* ─── Platform Live Announcement Modal ────────────────────── */}
       <EventLiveBroadcastModal
