@@ -824,28 +824,56 @@ export default function DashboardPage() {
       return;
     }
 
-    const headers = ['Hacker Name', 'Contact Email', 'Phone', 'College', 'City', 'Role / Skills', 'GitHub', 'LinkedIn', 'Status', 'Registered Date'];
-    const rows = eventRegistrations.map((r) => [
-      `"${r.user_name || r.userName || r.name || ''}"`,
-      `"${r.user_email || r.userEmail || r.email || ''}"`,
-      `"${r.phone || ''}"`,
-      `"${r.college || ''}"`,
-      `"${r.city || ''}"`,
-      `"${r.role || (r.skills && r.skills.length > 0 ? r.skills.join('; ') : '')}"`,
-      `"${r.github_url || r.githubUrl || ''}"`,
-      `"${r.linkedin_url || r.linkedinUrl || ''}"`,
-      `"${r.status || 'CONFIRMED'}"`,
-      `"${r.registered_at || r.registeredAt || new Date().toISOString()}"`,
+    const formatCell = (val: any) => {
+      if (val === null || val === undefined) return '""';
+      const str = String(val);
+      return `"${str.replace(/"/g, '""').replace(/\r\n|\n|\r/g, ' ')}"`;
+    };
+
+    const headers = [
+      'Participant Name',
+      'Contact Email',
+      'Phone',
+      'Team Name',
+      'College',
+      'City',
+      'Skills',
+      'GitHub',
+      'LinkedIn',
+      'Status',
+      'Registered Date',
+    ];
+
+    const rows = eventRegistrations.map((r: any) => [
+      formatCell(r.user_name || r.userName || r.name || 'Hacker'),
+      formatCell(r.user_email || r.userEmail || r.email || ''),
+      formatCell(r.phone || ''),
+      formatCell(r.team_name || r.teamName || 'Solo Builder'),
+      formatCell(r.college || ''),
+      formatCell(r.city || ''),
+      formatCell(r.role || (Array.isArray(r.skills) ? r.skills.join('; ') : '')),
+      formatCell(r.github_url || r.githubUrl || ''),
+      formatCell(r.linkedin_url || r.linkedinUrl || ''),
+      formatCell(r.status || 'CONFIRMED'),
+      formatCell(r.registered_at || r.registeredAt || new Date().toISOString()),
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const csvContent =
+      '\uFEFF' +
+      [
+        headers.map((h) => `"${h.replace(/"/g, '""')}"`).join(','),
+        ...rows.map((row) => row.join(',')),
+      ].join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `${eventItem.slug}-registrations.csv`);
+    link.href = url;
+    link.download = `${eventItem.slug || eventItem.id}-all-${eventRegistrations.length}-registrations.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Trajectory chart — compute SVG points from real API data

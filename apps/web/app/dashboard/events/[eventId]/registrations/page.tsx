@@ -560,9 +560,34 @@ export default function EventRegistrationsPage({ params }: PageProps) {
     setIsEmailModalOpen(true);
   };
 
-  // Export Teams CSV
+  // Helper for safe RFC 4180 CSV cells without line breaks or quote distortion
+  const formatCsvCell = (val: any): string => {
+    if (val === null || val === undefined) return '""';
+    if (typeof val === 'object') {
+      try {
+        const str = Array.isArray(val) ? val.join('; ') : JSON.stringify(val);
+        return `"${String(str).replace(/"/g, '""').replace(/\r\n|\n|\r/g, ' ')}"`;
+      } catch {
+        return '""';
+      }
+    }
+    const str = String(val);
+    return `"${str.replace(/"/g, '""').replace(/\r\n|\n|\r/g, ' ')}"`;
+  };
+
+  // Export Teams CSV (Exports all teams squads with member breakdown)
   const handleExportTeamsCSV = () => {
     if (!event) return;
+    const targetTeams = teamsList;
+    if (targetTeams.length === 0) {
+      setNotification({
+        text: 'No teams squads found to export.',
+        type: 'error',
+      });
+      setTimeout(() => setNotification(null), 3000);
+      return;
+    }
+
     const headers = [
       'Team Name',
       'Payment Confirmed (Yes/No)',
@@ -575,112 +600,241 @@ export default function EventRegistrationsPage({ params }: PageProps) {
       'Team Leader Email',
       'Team Leader Phone',
       'Total Members Count',
-      'Members (Name - Email - Status)',
+      'Members (Name - Email - Phone - Status)',
     ];
 
-    const rows = filteredTeams.map((t) => [
-      `"${(t.teamName || '').replace(/"/g, '""')}"`,
-      `"${t.isPaid ? 'Yes' : 'No'}"`,
-      `"${t.transactionDate ? formatDate(t.transactionDate) : ''}"`,
-      `"${(t.utrNumber || (t.isPaid ? 'CONFIRMED' : '')).replace(/"/g, '""')}"`,
-      `"${t.isPaid ? 'PAID' : 'UNPAID'}"`,
-      `"${(t.paymentAmount || (t.isPaid ? '₹800' : '')).replace(/"/g, '""')}"`,
-      `"${(t.paymentMethod || (t.isPaid ? 'UPI' : '')).replace(/"/g, '""')}"`,
-      `"${(t.leaderName || '').replace(/"/g, '""')}"`,
-      `"${(t.leaderEmail || '').replace(/"/g, '""')}"`,
-      `"${(t.leaderPhone || '').replace(/"/g, '""')}"`,
-      `"${t.members.length}"`,
-      `"${t.members.map((m: any) => `${m.userName} (${m.userEmail} - ${m.status})`).join('; ').replace(/"/g, '""')}"`,
+    const rows = targetTeams.map((t) => [
+      formatCsvCell(t.teamName || 'Squad'),
+      formatCsvCell(t.isPaid ? 'Yes' : 'No'),
+      formatCsvCell(t.transactionDate ? formatDate(t.transactionDate) : ''),
+      formatCsvCell(t.utrNumber || (t.isPaid ? 'CONFIRMED' : '')),
+      formatCsvCell(t.isPaid ? 'PAID' : 'UNPAID'),
+      formatCsvCell((t.paymentAmount || (t.isPaid ? '₹800' : '')).toString()),
+      formatCsvCell(t.paymentMethod || (t.isPaid ? 'UPI' : '')),
+      formatCsvCell(t.leaderName || ''),
+      formatCsvCell(t.leaderEmail || ''),
+      formatCsvCell(t.leaderPhone || ''),
+      formatCsvCell(t.members.length),
+      formatCsvCell(
+        t.members
+          .map((m: any) => `${m.userName} (${m.userEmail}${m.phone ? ` • ${m.phone}` : ''} • ${m.status})`)
+          .join('; ')
+      ),
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const csvContent =
+      '\uFEFF' +
+      [
+        headers.map((h) => `"${h.replace(/"/g, '""')}"`).join(','),
+        ...rows.map((row) => row.join(',')),
+      ].join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `${event.slug}-teams.csv`);
+    link.href = url;
+    link.download = `${event.slug || event.id}-teams-${targetTeams.length}-squads.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setNotification({
+      text: `Successfully exported CSV with all ${targetTeams.length} teams squads!`,
+      type: 'success',
+    });
+    setTimeout(() => setNotification(null), 4000);
   };
 
-  // Export CSV (Full Registrations with Transaction & UTR fields)
-  const handleExportCSV = () => {
+  // Export CSV (Full Registrations with all 62+ participants, transaction & UTR fields, and expanded custom questions)
+  const handleExportCSV = (exportSelectedOnly: boolean = false) => {
     if (!event) return;
+
+    // Use all registrations by default so search filters or active tabs do NOT truncate the export
+    let targetData = registrations;
+    if (exportSelectedOnly && selectedIds.length > 0) {
+      targetData = registrations.filter((r) => selectedIds.includes(r.id));
+    }
+
+    if (targetData.length === 0) {
+      setNotification({
+        text: 'No registrations found to export.',
+        type: 'error',
+      });
+      setTimeout(() => setNotification(null), 3000);
+      return;
+    }
+
+    // Collect all custom questions defined on the event
+    const definedCustomQuestions: { id: string; label: string }[] = [];
+    if (Array.isArray(event.customQuestions)) {
+      event.customQuestions.forEach((q: any) => {
+        if (q && (q.id || q.label)) {
+          definedCustomQuestions.push({
+            id: q.id || q.label,
+            label: q.label || q.id,
+          });
+        }
+      });
+    }
+
+    // Also collect any extra custom question keys across all participant registrations
+    const reservedKeys = new Set([
+      'portfolio_url',
+      'portfolioUrl',
+      'resume_url',
+      'resumeUrl',
+      'discord_handle',
+      'discordHandle',
+      'twitter_url',
+      'twitterUrl',
+      'tshirt_size',
+      'tshirtSize',
+      'dietary_preference',
+      'dietaryPreference',
+      'experience_level',
+      'experienceLevel',
+      'rsvpStatus',
+      'attendanceCount',
+      'hardwareRequirement',
+      'remarks',
+      'declineReason',
+    ]);
+
+    const extraCustomKeys: string[] = [];
+    targetData.forEach((r) => {
+      if (r.customAnswers && typeof r.customAnswers === 'object') {
+        Object.keys(r.customAnswers).forEach((k) => {
+          if (
+            !reservedKeys.has(k) &&
+            !definedCustomQuestions.some((q) => q.id === k) &&
+            !extraCustomKeys.includes(k)
+          ) {
+            extraCustomKeys.push(k);
+          }
+        });
+      }
+    });
+
     const headers = [
-      'Name',
-      'Email',
-      'Phone',
+      'Participant Name',
+      'Email Address',
+      'Phone Number',
       'Team Name',
+      'Team Role',
       'Transaction Confirmed (Yes/No)',
       'Date of Transaction',
       'UTR Proof of Transaction',
       'Payment Status',
       'Payment Amount',
       'Payment Method',
-      'College',
+      'Payment Proof Reference',
+      'College / University',
       'City',
-      'GitHub',
-      'LinkedIn',
+      'GitHub Profile',
+      'LinkedIn Profile',
       'Skills',
-      'Portfolio',
-      'Resume',
-      'Discord',
-      'Twitter',
+      'Portfolio URL',
+      'Resume URL',
+      'Discord Handle',
+      'Twitter / X Profile',
       'T-Shirt Size',
       'Dietary Preference',
       'Experience Level',
-      'Custom Answers',
+      // Dynamically added custom questions as individual spreadsheet columns
+      ...definedCustomQuestions.map((q) => `Question: ${q.label}`),
+      ...extraCustomKeys.map((k) => `Custom: ${k}`),
       'RSVP Status',
-      'RSVP Attending Count',
-      'RSVP Dietary',
-      'RSVP T-Shirt',
-      'RSVP Hardware',
-      'RSVP Notes',
-      'Status',
-      'Registered At',
+      'RSVP Attendance Count',
+      'RSVP Dietary Preference',
+      'RSVP T-Shirt Size',
+      'RSVP Hardware Requirement',
+      'RSVP Remarks / Decline Reason',
+      'Application Status',
+      'Registered Date',
+      'Registered Timestamp (ISO)',
+      'Registration ID',
+      'Raw Custom Answers (JSON)',
     ];
-    const rows = filteredRegistrations.map((r) => [
-      `"${(r.userName || '').replace(/"/g, '""')}"`,
-      `"${(r.userEmail || '').replace(/"/g, '""')}"`,
-      `"${(r.phone || '').replace(/"/g, '""')}"`,
-      `"${(r.teamName || 'Solo Builder').replace(/"/g, '""')}"`,
-      `"${r.paymentConfirmed || r.paymentStatus === 'PAID' ? 'Yes' : 'No'}"`,
-      `"${r.transactionDate ? formatDate(r.transactionDate) : ''}"`,
-      `"${(r.utrNumber || (r.paymentConfirmed ? 'CONFIRMED' : '')).replace(/"/g, '""')}"`,
-      `"${r.paymentConfirmed || r.paymentStatus === 'PAID' ? 'PAID' : (r.paymentStatus || 'UNPAID')}"`,
-      `"${(r.paymentAmount || (r.paymentConfirmed ? '₹800' : '')).toString().replace(/"/g, '""')}"`,
-      `"${(r.paymentMethod || (r.paymentConfirmed ? 'UPI' : '')).replace(/"/g, '""')}"`,
-      `"${(r.college || '').replace(/"/g, '""')}"`,
-      `"${(r.city || '').replace(/"/g, '""')}"`,
-      `"${(r.githubUrl || '').replace(/"/g, '""')}"`,
-      `"${(r.linkedinUrl || '').replace(/"/g, '""')}"`,
-      `"${(r.skills || []).join('; ').replace(/"/g, '""')}"`,
-      `"${((r as any).portfolioUrl || r.customAnswers?.portfolio_url || r.customAnswers?.portfolioUrl || '').replace(/"/g, '""')}"`,
-      `"${((r as any).resumeUrl || r.customAnswers?.resume_url || r.customAnswers?.resumeUrl || '').replace(/"/g, '""')}"`,
-      `"${((r as any).discordHandle || r.customAnswers?.discord_handle || r.customAnswers?.discordHandle || '').replace(/"/g, '""')}"`,
-      `"${((r as any).twitterUrl || r.customAnswers?.twitter_url || r.customAnswers?.twitterUrl || '').replace(/"/g, '""')}"`,
-      `"${((r as any).tshirtSize || r.customAnswers?.tshirt_size || r.customAnswers?.tshirtSize || '').replace(/"/g, '""')}"`,
-      `"${((r as any).dietaryPreference || r.customAnswers?.dietary_preference || r.customAnswers?.dietaryPreference || '').replace(/"/g, '""')}"`,
-      `"${((r as any).experienceLevel || r.customAnswers?.experience_level || r.customAnswers?.experienceLevel || '').replace(/"/g, '""')}"`,
-      `"${JSON.stringify(r.customAnswers || {}).replace(/"/g, '""')}"`,
-      `"${r.rsvpStatus || r.customAnswers?.rsvpStatus || 'PENDING'}"`,
-      `"${r.customAnswers?.attendanceCount || ''}"`,
-      `"${r.dietaryPreference || r.customAnswers?.dietaryPreference || ''}"`,
-      `"${r.tshirtSize || r.customAnswers?.tshirtSize || ''}"`,
-      `"${(r.customAnswers?.hardwareRequirement || '').replace(/"/g, '""')}"`,
-      `"${(r.customAnswers?.remarks || r.customAnswers?.declineReason || '').replace(/"/g, '""')}"`,
-      `"${r.status}"`,
-      `"${r.registeredAt}"`,
-    ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((row) => row.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
+    const rows = targetData.map((r) => {
+      const dynamicCustomValues = definedCustomQuestions.map((q) => {
+        const val =
+          r.customAnswers?.[q.id] ??
+          r.customAnswers?.[q.label] ??
+          r.customAnswers?.[q.id.toLowerCase()] ??
+          '';
+        return formatCsvCell(typeof val === 'object' ? JSON.stringify(val) : val);
+      });
+
+      const extraCustomValues = extraCustomKeys.map((k) => {
+        const val = r.customAnswers?.[k] ?? '';
+        return formatCsvCell(typeof val === 'object' ? JSON.stringify(val) : val);
+      });
+
+      return [
+        formatCsvCell(r.userName || 'Hacker'),
+        formatCsvCell(r.userEmail || ''),
+        formatCsvCell(r.phone || ''),
+        formatCsvCell(r.teamName || 'Solo Builder'),
+        formatCsvCell(r.role || (r.isTeam ? 'Team Leader' : 'Individual Hacker')),
+        formatCsvCell(r.paymentConfirmed || r.paymentStatus === 'PAID' ? 'Yes' : 'No'),
+        formatCsvCell(r.transactionDate ? formatDate(r.transactionDate) : ''),
+        formatCsvCell(r.utrNumber || (r.paymentConfirmed ? 'CONFIRMED' : '')),
+        formatCsvCell(r.paymentConfirmed || r.paymentStatus === 'PAID' ? 'PAID' : (r.paymentStatus || 'UNPAID')),
+        formatCsvCell((r.paymentAmount || (r.paymentConfirmed ? '₹800' : '')).toString()),
+        formatCsvCell(r.paymentMethod || (r.paymentConfirmed ? 'UPI' : '')),
+        formatCsvCell((r as any).paymentProofLink || ''),
+        formatCsvCell(r.college || ''),
+        formatCsvCell(r.city || ''),
+        formatCsvCell(r.githubUrl || ''),
+        formatCsvCell(r.linkedinUrl || ''),
+        formatCsvCell((r.skills || []).join('; ')),
+        formatCsvCell((r as any).portfolioUrl || r.customAnswers?.portfolio_url || r.customAnswers?.portfolioUrl || ''),
+        formatCsvCell((r as any).resumeUrl || r.customAnswers?.resume_url || r.customAnswers?.resumeUrl || ''),
+        formatCsvCell((r as any).discordHandle || r.customAnswers?.discord_handle || r.customAnswers?.discordHandle || ''),
+        formatCsvCell((r as any).twitterUrl || r.customAnswers?.twitter_url || r.customAnswers?.twitterUrl || ''),
+        formatCsvCell((r as any).tshirtSize || r.customAnswers?.tshirt_size || r.customAnswers?.tshirtSize || r.tshirtSize || ''),
+        formatCsvCell((r as any).dietaryPreference || r.customAnswers?.dietary_preference || r.customAnswers?.dietaryPreference || r.dietaryPreference || ''),
+        formatCsvCell((r as any).experienceLevel || r.customAnswers?.experience_level || r.customAnswers?.experienceLevel || ''),
+        ...dynamicCustomValues,
+        ...extraCustomValues,
+        formatCsvCell(r.rsvpStatus || r.customAnswers?.rsvpStatus || 'PENDING'),
+        formatCsvCell(r.customAnswers?.attendanceCount || ''),
+        formatCsvCell(r.dietaryPreference || r.customAnswers?.dietaryPreference || ''),
+        formatCsvCell(r.tshirtSize || r.customAnswers?.tshirtSize || ''),
+        formatCsvCell(r.customAnswers?.hardwareRequirement || ''),
+        formatCsvCell(r.customAnswers?.remarks || r.customAnswers?.declineReason || ''),
+        formatCsvCell(r.status),
+        formatCsvCell(r.registeredAt ? formatDate(r.registeredAt) : ''),
+        formatCsvCell(r.registeredAt || ''),
+        formatCsvCell(r.id || ''),
+        formatCsvCell(r.customAnswers && Object.keys(r.customAnswers).length > 0 ? JSON.stringify(r.customAnswers) : ''),
+      ];
+    });
+
+    const csvContent =
+      '\uFEFF' +
+      [
+        headers.map((h) => `"${h.replace(/"/g, '""')}"`).join(','),
+        ...rows.map((row) => row.join(',')),
+      ].join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `${event.slug}-registrations.csv`);
+    link.href = url;
+    link.download = `${event.slug || event.id}-all-${targetData.length}-participants.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setNotification({
+      text: `Successfully downloaded CSV with all ${targetData.length} participants!`,
+      type: 'success',
+    });
+    setTimeout(() => setNotification(null), 4000);
   };
 
   // Filtered registrations
@@ -851,23 +1005,23 @@ export default function EventRegistrationsPage({ params }: PageProps) {
           </button>
 
           <button
-            onClick={handleExportCSV}
+            onClick={() => handleExportCSV(false)}
             disabled={registrations.length === 0}
             className="px-4 py-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] hover:bg-slate-50 dark:hover:bg-white/[0.04] text-slate-700 dark:text-slate-200 text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Export registrations with Transaction and UTR proof to CSV"
+            title={`Export all ${registrations.length} registrations with complete details, transaction proof, and custom questions to CSV`}
           >
             <FileSpreadsheet className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span>Export CSV</span>
+            <span>Export CSV ({registrations.length})</span>
           </button>
 
           <button
             onClick={handleExportTeamsCSV}
             disabled={teamsList.length === 0}
             className="px-4 py-2.5 rounded-xl bg-white dark:bg-[#0c1017] border border-emerald-200 dark:border-emerald-800/40 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Export teams squads breakdown and payment confirmation to CSV"
+            title={`Export all ${teamsList.length} teams squads breakdown and payment confirmation to CSV`}
           >
             <Layers className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <span>Export Teams</span>
+            <span>Export Teams ({teamsList.length})</span>
           </button>
 
           <button
@@ -1034,6 +1188,15 @@ export default function EventRegistrationsPage({ params }: PageProps) {
             >
               <Mail className="w-3.5 h-3.5" />
               <span>Email Selected ({selectedIds.length})</span>
+            </button>
+
+            <button
+              onClick={() => handleExportCSV(true)}
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+              title="Export only selected participants to CSV"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Export Selected ({selectedIds.length})</span>
             </button>
 
             <button
