@@ -40,7 +40,19 @@ import {
   ChevronDown,
   Search,
   Landmark,
+  RotateCcw,
+  Archive,
+  Calendar,
+  FileText,
+  Users,
 } from 'lucide-react';
+import {
+  getRecycleBinItems,
+  restoreRecycleBinItem,
+  permanentlyDeleteRecycleBinItem,
+  clearRecycleBin,
+  RecycledItem,
+} from '@/lib/storage';
 import { validatePassword } from '@/lib/password-validation';
 import { useAuth } from '@/lib/auth-context';
 import { AvatarUpload } from '@/components/avatar-upload';
@@ -168,8 +180,89 @@ export default function SettingsPage() {
   const [authOpen, setAuthOpen] = useState(false);
 
   // Settings Tabs
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'socials' | 'notifications' | 'bank' | 'danger'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'socials' | 'notifications' | 'bank' | 'recycle_bin' | 'danger'>('profile');
   const [showPublicPreview, setShowPublicPreview] = useState(false);
+
+  // Recycle Bin / Recovery States
+  const [recycledItems, setRecycledItems] = useState<RecycledItem[]>([]);
+  const [recycleFilter, setRecycleFilter] = useState<'ALL' | 'REGISTRATION' | 'EVENT' | 'SUBMISSION'>('ALL');
+  const [recycleSearch, setRecycleSearch] = useState('');
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [recycleNotification, setRecycleNotification] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const formatDeletedDate = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  useEffect(() => {
+    const loadRecycle = () => {
+      setRecycledItems(getRecycleBinItems());
+    };
+    loadRecycle();
+    window.addEventListener('hackers_unity_storage_change', loadRecycle);
+    return () => window.removeEventListener('hackers_unity_storage_change', loadRecycle);
+  }, []);
+
+  const handleRestore = async (item: RecycledItem) => {
+    setRestoringId(item.id);
+    try {
+      const ok = await restoreRecycleBinItem(item.id);
+      if (ok) {
+        setRecycleNotification({
+          text: `Successfully restored "${item.title}"!`,
+          type: 'success',
+        });
+        setRecycledItems(getRecycleBinItems());
+      } else {
+        setRecycleNotification({
+          text: `Failed to restore "${item.title}".`,
+          type: 'error',
+        });
+      }
+    } catch (e: any) {
+      setRecycleNotification({
+        text: `Error restoring: ${e?.message || 'Unknown error'}`,
+        type: 'error',
+      });
+    } finally {
+      setRestoringId(null);
+      setTimeout(() => setRecycleNotification(null), 4000);
+    }
+  };
+
+  const handlePermanentDelete = (item: RecycledItem) => {
+    if (confirm(`Permanently erase "${item.title}" from Recycle Bin? This cannot be undone.`)) {
+      permanentlyDeleteRecycleBinItem(item.id);
+      setRecycledItems(getRecycleBinItems());
+      setRecycleNotification({
+        text: `Permanently deleted "${item.title}".`,
+        type: 'info',
+      });
+      setTimeout(() => setRecycleNotification(null), 3000);
+    }
+  };
+
+  const handleEmptyRecycleBin = () => {
+    clearRecycleBin();
+    setRecycledItems([]);
+    setRecycleNotification({
+      text: 'Recycle Bin has been completely emptied.',
+      type: 'info',
+    });
+    setTimeout(() => setRecycleNotification(null), 3000);
+  };
 
   // Profile Form States
   const [username, setUsername] = useState('');
@@ -783,6 +876,39 @@ export default function SettingsPage() {
                 <div>Add Bank Details</div>
                 <div className={`text-[10px] font-normal ${activeTab === 'bank' ? 'text-white/80' : 'text-slate-400 dark:text-slate-500'}`}>
                   Host revenue & payouts
+                </div>
+              </div>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('recycle_bin')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs font-bold transition-all cursor-pointer text-left ${activeTab === 'recycle_bin'
+                ? 'bg-[#0099e6] text-white shadow-xs'
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/[0.05] hover:text-slate-900 dark:hover:text-white'
+                }`}
+            >
+              <RotateCcw className="w-4 h-4 shrink-0" />
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span>Recycle Bin</span>
+                  {recycledItems.length > 0 && (
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-mono ${
+                        activeTab === 'recycle_bin'
+                          ? 'bg-white/20 text-white'
+                          : 'bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40'
+                      }`}
+                    >
+                      {recycledItems.length}
+                    </span>
+                  )}
+                </div>
+                <div
+                  className={`text-[10px] font-normal ${
+                    activeTab === 'recycle_bin' ? 'text-white/80' : 'text-slate-400 dark:text-slate-500'
+                  }`}
+                >
+                  Restore events, registrations & submissions
                 </div>
               </div>
             </button>
@@ -1953,6 +2079,287 @@ export default function SettingsPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {/* Tab: Recycle Bin & Data Recovery */}
+          {activeTab === 'recycle_bin' && (
+            <div className="p-7 rounded-3xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] shadow-sm space-y-6 animate-in fade-in">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-white/[0.08] pb-5">
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                    <RotateCcw className="w-5 h-5 text-[#0099e6]" />
+                    <span>Recycle Bin &amp; Data Recovery</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    Accidentally cleared an event, registrations, or submissions? Restore them instantly with 1-click.
+                  </p>
+                </div>
+
+                {recycledItems.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (
+                        confirm(
+                          'Are you sure you want to permanently clear the Recycle Bin? All backed-up items will be purged.'
+                        )
+                      ) {
+                        handleEmptyRecycleBin();
+                      }
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shrink-0"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Empty Bin</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Notification Banner */}
+              {recycleNotification && (
+                <div
+                  className={`p-3.5 rounded-2xl border text-xs font-semibold flex items-center justify-between gap-2 animate-in fade-in ${
+                    recycleNotification.type === 'success'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40 text-emerald-800 dark:text-emerald-200'
+                      : recycleNotification.type === 'error'
+                      ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800/40 text-red-800 dark:text-red-200'
+                      : 'bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800/40 text-blue-800 dark:text-blue-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {recycleNotification.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                    )}
+                    <span>{recycleNotification.text}</span>
+                  </div>
+                  <button
+                    onClick={() => setRecycleNotification(null)}
+                    className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <XIcon className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Filter Tabs & Search Bar */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/[0.06] overflow-x-auto">
+                  {(
+                    [
+                      { key: 'ALL', label: 'All Items', count: recycledItems.length },
+                      {
+                        key: 'REGISTRATION',
+                        label: 'Registrations',
+                        count: recycledItems.filter((i) => i.type === 'REGISTRATION').length,
+                        icon: Users,
+                      },
+                      {
+                        key: 'EVENT',
+                        label: 'Events',
+                        count: recycledItems.filter((i) => i.type === 'EVENT').length,
+                        icon: Calendar,
+                      },
+                      {
+                        key: 'SUBMISSION',
+                        label: 'Submissions',
+                        count: recycledItems.filter((i) => i.type === 'SUBMISSION').length,
+                        icon: FileText,
+                      },
+                    ] as const
+                  ).map((tab) => {
+                    const IconComp = (tab as any).icon;
+                    return (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setRecycleFilter(tab.key)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+                          recycleFilter === tab.key
+                            ? 'bg-white dark:bg-[#121824] text-slate-900 dark:text-white shadow-xs'
+                            : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                      >
+                        {IconComp && <IconComp className="w-3.5 h-3.5" />}
+                        <span>{tab.label}</span>
+                        <span
+                          className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                            recycleFilter === tab.key
+                              ? 'bg-slate-100 dark:bg-white/[0.08] text-slate-900 dark:text-white'
+                              : 'text-slate-400'
+                          }`}
+                        >
+                          {tab.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={recycleSearch}
+                    onChange={(e) => setRecycleSearch(e.target.value)}
+                    placeholder="Search in recycle bin..."
+                    className="w-full pl-9 pr-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/[0.08] text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#0099e6]"
+                  />
+                  {recycleSearch && (
+                    <button
+                      onClick={() => setRecycleSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <XIcon className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Items List */}
+              {(() => {
+                const filtered = recycledItems.filter((item) => {
+                  if (recycleFilter !== 'ALL' && item.type !== recycleFilter) return false;
+                  if (!recycleSearch) return true;
+                  const q = recycleSearch.toLowerCase();
+                  return (
+                    item.title.toLowerCase().includes(q) ||
+                    (item.subtitle && item.subtitle.toLowerCase().includes(q)) ||
+                    (item.eventName && item.eventName.toLowerCase().includes(q)) ||
+                    (item.eventId && item.eventId.toLowerCase().includes(q))
+                  );
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="p-12 text-center rounded-3xl border border-dashed border-slate-200 dark:border-white/[0.08] bg-slate-50/50 dark:bg-white/[0.01] space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-white/[0.05] text-slate-400 flex items-center justify-center mx-auto">
+                        <Archive className="w-6 h-6" />
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                        {recycleSearch || recycleFilter !== 'ALL'
+                          ? 'No matching deleted items'
+                          : 'Recycle Bin is Empty'}
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
+                        {recycleSearch || recycleFilter !== 'ALL'
+                          ? 'Try adjusting your search query or tab filter.'
+                          : 'Any deleted events, registrations (cleared individually or in bulk), or submissions will be kept safe here.'}
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-3">
+                    {filtered.map((item) => {
+                      const isRestoring = restoringId === item.id;
+                      const isReg = item.type === 'REGISTRATION';
+                      const isEvent = item.type === 'EVENT';
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="p-4 rounded-2xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#121824] hover:border-slate-300 dark:hover:border-white/[0.15] transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-2xs"
+                        >
+                          <div className="flex items-start gap-3.5">
+                            <div
+                              className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border ${
+                                isReg
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/40'
+                                  : isEvent
+                                  ? 'bg-sky-50 dark:bg-sky-950/40 text-[#0099e6] dark:text-sky-400 border-sky-200 dark:border-sky-800/40'
+                                  : 'bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-800/40'
+                              }`}
+                            >
+                              {isReg ? (
+                                <Users className="w-5 h-5" />
+                              ) : isEvent ? (
+                                <Calendar className="w-5 h-5" />
+                              ) : (
+                                <FileText className="w-5 h-5" />
+                              )}
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                                  {item.title}
+                                </h3>
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                    isReg
+                                      ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300'
+                                      : isEvent
+                                      ? 'bg-sky-100 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300'
+                                      : 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300'
+                                  }`}
+                                >
+                                  {isReg ? 'Registration' : isEvent ? 'Event' : 'Submission'}
+                                </span>
+                                {item.itemCount !== undefined && item.itemCount > 1 && (
+                                  <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/[0.08] text-[10px] font-bold font-mono text-slate-600 dark:text-slate-300">
+                                    {item.itemCount} items
+                                  </span>
+                                )}
+                              </div>
+
+                              {item.subtitle && (
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  {item.subtitle}
+                                </p>
+                              )}
+
+                              <div className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-2 font-mono">
+                                <span>Deleted: {formatDeletedDate(item.deletedAt)}</span>
+                                {item.eventId && (
+                                  <>
+                                    <span>•</span>
+                                    <span>Event ID: {item.eventId}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleRestore(item)}
+                              disabled={isRestoring}
+                              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                              title="Restore item back to active database and view"
+                            >
+                              {isRestoring ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Restoring...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                  <span>Restore</span>
+                                </>
+                              )}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handlePermanentDelete(item)}
+                              className="p-2 rounded-xl border border-slate-200 dark:border-white/[0.08] hover:border-red-200 dark:hover:border-red-900/40 hover:bg-red-50 dark:hover:bg-red-950/20 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer"
+                              title="Permanently remove from Recycle Bin"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           )}
 

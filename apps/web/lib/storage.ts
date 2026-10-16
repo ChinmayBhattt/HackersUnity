@@ -26,7 +26,22 @@ const STORAGE_KEYS = {
   SAVED_PROFILES: 'hackers_unity_saved_profiles',
   INVITES: 'hackers_unity_invites',
   SUBMISSIONS: 'hackers_unity_project_submissions',
+  RECYCLE_BIN: 'hackers_unity_recycle_bin',
 };
+
+export type RecycleItemType = 'REGISTRATION' | 'EVENT' | 'SUBMISSION';
+
+export interface RecycledItem {
+  id: string;
+  type: RecycleItemType;
+  title: string;
+  subtitle?: string;
+  deletedAt: string;
+  eventId?: string;
+  eventName?: string;
+  itemCount?: number;
+  data: any;
+}
 
 export const DEFAULT_USER: UserPublic = {
   id: 'usr_me',
@@ -258,6 +273,21 @@ export function updateHostedEvent(event: ExtendedEvent): void {
 export function deleteHostedEvent(eventId: string, slug?: string): void {
   if (typeof window === 'undefined') return;
   try {
+    const custom = getCustomEvents();
+    const target = custom.find(
+      (e) => e.id === eventId || e.slug === eventId || (slug && (e.id === slug || e.slug === slug))
+    );
+    if (target) {
+      addToRecycleBin({
+        type: 'EVENT',
+        title: target.title || 'Untitled Event',
+        subtitle: `Slug: ${target.slug || target.id} • ${target.location || 'Online'}`,
+        eventId: target.id,
+        eventName: target.title,
+        data: target,
+      });
+    }
+
     const rawDeleted = localStorage.getItem(STORAGE_KEYS_DELETED_EVENTS);
     const deleted: string[] = rawDeleted ? JSON.parse(rawDeleted) : [];
     if (eventId && !deleted.includes(eventId)) {
@@ -268,7 +298,6 @@ export function deleteHostedEvent(eventId: string, slug?: string): void {
     }
     localStorage.setItem(STORAGE_KEYS_DELETED_EVENTS, JSON.stringify(deleted));
 
-    const custom = getCustomEvents();
     const updatedCustom = custom.filter(
       (e) => e.id !== eventId && e.slug !== eventId && (!slug || (e.id !== slug && e.slug !== slug))
     );
@@ -609,6 +638,18 @@ export function updateRegistrationRsvp(
 export function deleteEventRegistration(eventId: string, regId: string): void {
   if (typeof window === 'undefined') return;
   const current = getEventRegistrations(eventId);
+  const target = current.find((r) => r.id === regId);
+  if (target) {
+    addToRecycleBin({
+      type: 'REGISTRATION',
+      title: `${target.userName || 'Participant'} (${target.userEmail || ''})`,
+      subtitle: `Event: ${eventId} • Team: ${target.teamName || 'Solo'}`,
+      eventId,
+      itemCount: 1,
+      data: target,
+    });
+  }
+
   const updated = current.filter((r) => r.id !== regId);
   try {
     localStorage.setItem(`${EVENT_REGS_PREFIX}${eventId}`, JSON.stringify(updated));
@@ -622,6 +663,18 @@ export function deleteBulkEventRegistrations(eventId: string, regIds: string[]):
   if (typeof window === 'undefined') return 0;
   const idSet = new Set(regIds);
   const current = getEventRegistrations(eventId);
+  const deleted = current.filter((r) => idSet.has(r.id));
+  if (deleted.length > 0) {
+    addToRecycleBin({
+      type: 'REGISTRATION',
+      title: `${deleted.length} Registrations`,
+      subtitle: `Bulk deleted from event ${eventId}`,
+      eventId,
+      itemCount: deleted.length,
+      data: deleted,
+    });
+  }
+
   const updated = current.filter((r) => !idSet.has(r.id));
   const count = current.length - updated.length;
   try {
@@ -638,6 +691,17 @@ export function clearAllEventRegistrations(eventId: string): number {
   if (typeof window === 'undefined') return 0;
   const current = getEventRegistrations(eventId);
   const count = current.length;
+  if (count > 0) {
+    addToRecycleBin({
+      type: 'REGISTRATION',
+      title: `All Registrations (${count})`,
+      subtitle: `Cleared all active participants from event ${eventId}`,
+      eventId,
+      itemCount: count,
+      data: [...current],
+    });
+  }
+
   try {
     localStorage.removeItem(`${EVENT_REGS_PREFIX}${eventId}`);
     window.dispatchEvent(new Event('hackers_unity_storage_change'));
@@ -890,6 +954,17 @@ export function deleteProjectSubmission(submissionId: string): void {
   if (typeof window === 'undefined') return;
   try {
     const all = getAllProjectSubmissions();
+    const target = all.find((s) => s.id === submissionId);
+    if (target) {
+      addToRecycleBin({
+        type: 'SUBMISSION',
+        title: target.projectTitle || 'Untitled Project',
+        subtitle: `Event: ${target.eventId} • Track: ${target.track || 'General'}`,
+        eventId: target.eventId,
+        data: target,
+      });
+    }
+
     const updated = all.filter((s) => s.id !== submissionId);
     localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(updated));
     localStorage.removeItem(`${AI_EVALUATION_PREFIX}${submissionId}`);
@@ -1158,4 +1233,164 @@ export function getLocalPendingInvitesForEmail(email: string): any[] {
   }
   return results;
 }
+
+// ─── RECYCLE BIN / DATA RECOVERY SYSTEM ───────────────────────────────────
+
+export function getRecycleBinItems(): RecycledItem[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.RECYCLE_BIN);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function addToRecycleBin(
+  item: Omit<RecycledItem, 'id' | 'deletedAt'>
+): RecycledItem {
+  const newItem: RecycledItem = {
+    ...item,
+    id: `recycle_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    deletedAt: new Date().toISOString(),
+  };
+
+  if (typeof window !== 'undefined') {
+    try {
+      const items = getRecycleBinItems();
+      items.unshift(newItem);
+      // Keep up to 200 recent deleted entries
+      localStorage.setItem(
+        STORAGE_KEYS.RECYCLE_BIN,
+        JSON.stringify(items.slice(0, 200))
+      );
+      window.dispatchEvent(new Event('hackers_unity_storage_change'));
+    } catch (e) {
+      console.warn('Failed to add to recycle bin:', e);
+    }
+  }
+
+  return newItem;
+}
+
+export async function restoreRecycleBinItem(id: string): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  try {
+    const items = getRecycleBinItems();
+    const item = items.find((i) => i.id === id);
+    if (!item) return false;
+
+    if (item.type === 'REGISTRATION') {
+      const eventId = item.eventId;
+      if (!eventId) return false;
+      const regsToRestore = Array.isArray(item.data) ? item.data : [item.data];
+
+      // 1. Restore to LocalStorage
+      const current = getEventRegistrations(eventId);
+      const map = new Map<string, any>();
+      current.forEach((r) => map.set(r.id, r));
+      regsToRestore.forEach((r) => map.set(r.id, r));
+      localStorage.setItem(`${EVENT_REGS_PREFIX}${eventId}`, JSON.stringify(Array.from(map.values())));
+
+      // 2. Sync to Supabase in background
+      try {
+        await fetch('/api/registrations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'bulk_insert',
+            eventId: eventId,
+            registrations: regsToRestore,
+          }),
+        });
+      } catch (err) {
+        console.warn('Failed to sync restored registrations to database:', err);
+      }
+    } else if (item.type === 'EVENT') {
+      const eventToRestore = item.data;
+      if (!eventToRestore) return false;
+
+      // 1. Remove from STORAGE_KEYS_DELETED_EVENTS
+      const rawDeleted = localStorage.getItem(STORAGE_KEYS_DELETED_EVENTS);
+      const deleted: string[] = rawDeleted ? JSON.parse(rawDeleted) : [];
+      const updatedDeleted = deleted.filter(
+        (d) => d !== eventToRestore.id && d !== eventToRestore.slug
+      );
+      localStorage.setItem(STORAGE_KEYS_DELETED_EVENTS, JSON.stringify(updatedDeleted));
+
+      // 2. Restore to HOSTED_EVENTS
+      const custom = getCustomEvents();
+      if (!custom.some((e) => e.id === eventToRestore.id || (e.slug && e.slug === eventToRestore.slug))) {
+        custom.unshift(eventToRestore);
+        localStorage.setItem(STORAGE_KEYS.HOSTED_EVENTS, JSON.stringify(custom));
+      }
+
+      // 3. Sync to API
+      try {
+        await fetch('/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(eventToRestore),
+        });
+      } catch (err) {
+        console.warn('Failed to sync restored event to database:', err);
+      }
+    } else if (item.type === 'SUBMISSION') {
+      const subToRestore = item.data;
+      if (!subToRestore) return false;
+
+      const all = getAllProjectSubmissions();
+      if (!all.some((s) => s.id === subToRestore.id)) {
+        all.unshift(subToRestore);
+        localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(all));
+      }
+
+      try {
+        await fetch('/api/submissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(subToRestore),
+        });
+      } catch (err) {
+        console.warn('Failed to sync restored submission to database:', err);
+      }
+    }
+
+    // Remove from Recycle Bin
+    const remaining = items.filter((i) => i.id !== id);
+    localStorage.setItem(STORAGE_KEYS.RECYCLE_BIN, JSON.stringify(remaining));
+    window.dispatchEvent(new Event('hackers_unity_storage_change'));
+    return true;
+  } catch (e) {
+    console.error('Error restoring recycle bin item:', e);
+    return false;
+  }
+}
+
+export function permanentlyDeleteRecycleBinItem(id: string): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const items = getRecycleBinItems();
+    const remaining = items.filter((i) => i.id !== id);
+    localStorage.setItem(STORAGE_KEYS.RECYCLE_BIN, JSON.stringify(remaining));
+    window.dispatchEvent(new Event('hackers_unity_storage_change'));
+    return true;
+  } catch (e) {
+    console.error(e);
+    return false;
+  }
+}
+
+export function clearRecycleBin(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    localStorage.removeItem(STORAGE_KEYS.RECYCLE_BIN);
+    window.dispatchEvent(new Event('hackers_unity_storage_change'));
+    return true;
+  } catch (e) {
+    console.error(e);
+    return false;
+  }
+}
+
 

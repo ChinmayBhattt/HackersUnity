@@ -42,6 +42,7 @@ import {
   deleteBulkEventRegistrations,
   clearAllEventRegistrations,
   getCustomEvents,
+  addToRecycleBin,
 } from '@/lib/storage';
 import { ExtendedEvent } from '@/lib/mock-data';
 import { formatDate } from '@/lib/utils';
@@ -72,6 +73,7 @@ export default function EventRegistrationsPage({ params }: PageProps) {
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
+  const [confirmClearChecked, setConfirmClearChecked] = useState(false);
   const [notification, setNotification] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(null);
 
   // Email modal state
@@ -335,11 +337,26 @@ export default function EventRegistrationsPage({ params }: PageProps) {
     }, 5000);
   };
 
-  // Clear all registrations
+  // Clear all registrations (with safety backup to Recycle Bin)
   const handleClearAll = async () => {
     if (!event) return;
+
+    // Save recovery snapshot to Recycle Bin
+    if (registrations.length > 0) {
+      addToRecycleBin({
+        type: 'REGISTRATION',
+        title: `${event.title} - All Registrations (${registrations.length})`,
+        subtitle: `Host cleared all ${registrations.length} participants (can be restored from Recycle Bin)`,
+        eventId: event.id,
+        eventName: event.title,
+        itemCount: registrations.length,
+        data: [...registrations],
+      });
+    }
+
     const count = clearAllEventRegistrations(event.id);
     setShowClearModal(false);
+    setConfirmClearChecked(false);
     setSelectedIds([]);
     setRegistrations([]);
 
@@ -358,8 +375,8 @@ export default function EventRegistrationsPage({ params }: PageProps) {
 
     loadData();
     setNotification({
-      text: `Cleared all ${count} registrations successfully.`,
-      type: 'success',
+      text: `Cleared all ${registrations.length || count} registrations. Safe backup stored in Recycle Bin!`,
+      type: 'info',
     });
     setTimeout(() => {
       setNotification((curr) => (curr?.type === 'success' ? null : curr));
@@ -2201,27 +2218,48 @@ export default function EventRegistrationsPage({ params }: PageProps) {
                 Delete All Registrations?
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
-                Are you sure you want to permanently delete all{' '}
+                You are about to remove all{' '}
                 <strong className="text-slate-800 dark:text-slate-200 font-mono">
                   {registrations.length.toLocaleString()}
                 </strong>{' '}
-                registrations for <strong className="text-slate-800 dark:text-slate-200">{event?.title}</strong>? This
-                action cannot be undone.
+                registrations for <strong className="text-slate-800 dark:text-slate-200">{event?.title}</strong>.
               </p>
             </div>
+
+            {/* Safety Confirmation Checkbox */}
+            <label className="flex items-start gap-3 p-3.5 rounded-2xl bg-red-50/80 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 cursor-pointer select-none transition-colors">
+              <input
+                type="checkbox"
+                checked={confirmClearChecked}
+                onChange={(e) => setConfirmClearChecked(e.target.checked)}
+                className="mt-0.5 rounded text-red-600 focus:ring-red-500 w-4 h-4 cursor-pointer accent-red-600 shrink-0"
+              />
+              <span className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed">
+                I understand this will clear all active registrations. A safe backup will be placed in the{' '}
+                <strong className="text-slate-900 dark:text-white font-bold">Recycle Bin</strong> (under My Account & Settings) where you can restore them anytime.
+              </span>
+            </label>
 
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setShowClearModal(false)}
-                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#121824] hover:bg-slate-100 dark:hover:bg-white/[0.06] text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer"
+                onClick={() => {
+                  setShowClearModal(false);
+                  setConfirmClearChecked(false);
+                }}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#121824] hover:bg-slate-100 dark:hover:bg-white/[0.06] text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={!confirmClearChecked}
                 onClick={handleClearAll}
-                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+                className={`px-5 py-2.5 rounded-xl text-white text-xs font-bold transition-all shadow-xs flex items-center gap-2 ${
+                  confirmClearChecked
+                    ? 'bg-red-600 hover:bg-red-700 cursor-pointer shadow-red-500/20'
+                    : 'bg-red-400 dark:bg-red-900/40 opacity-50 cursor-not-allowed'
+                }`}
               >
                 <Trash2 className="w-4 h-4" />
                 <span>Yes, Delete Everything</span>
