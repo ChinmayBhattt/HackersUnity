@@ -847,7 +847,7 @@ export function EventEmailModal({
                       <div className="min-w-0">
                         <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                           <Users className="w-3.5 h-3.5 text-[#0099e6]" />
-                          <span>Puri Team / Squad Ko</span>
+                          <span>Entire Team / Squad</span>
                           <span className="px-1.5 py-0.2 rounded-md bg-sky-100 dark:bg-sky-950/60 text-[#0099e6] text-[10px] font-black font-mono">
                             {activeTeam.members?.length || 0}
                           </span>
@@ -880,7 +880,7 @@ export function EventEmailModal({
                       <div className="min-w-0">
                         <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
                           <Crown className="w-3.5 h-3.5 text-amber-500" />
-                          <span>Sirf Team Leader Ko</span>
+                          <span>Team Leader Only</span>
                           <span className="px-1.5 py-0.2 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 text-[10px] font-black font-mono">
                             1
                           </span>
