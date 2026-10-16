@@ -542,11 +542,29 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
               setApplicantPendingRequest(null);
               setCreatedTeamId(reg.registration.team_id || null);
               setTeamName(reg.registration.team_name || 'Squad');
-              setMode('CREATE_TEAM');
+              const isMember = reg.registration.role?.toLowerCase().includes('member');
+              setMode(isMember ? 'JOIN_TEAM' : 'CREATE_TEAM');
               if (reg.registration.user_name) setFullName(reg.registration.user_name);
               setRegisteredRole(
-                reg.registration.role || `Squad Leader (${reg.registration.team_name || 'Squad'})`
+                reg.registration.role || (isMember ? `Squad Member (${reg.registration.team_name})` : `Squad Leader (${reg.registration.team_name || 'Squad'})`)
               );
+
+              // Resiliently fetch full squad details & members by team_id or team_name
+              if (reg.registration.team_id) {
+                fetchTeamWithMembers(reg.registration.team_id).then((t) => {
+                  if (t) {
+                    setCreatedTeamData(t);
+                    setCreatedTeamId(t.id);
+                  }
+                });
+              } else if (reg.registration.team_name) {
+                fetchTeamByInviteCode(currentEvent.slug || currentEvent.id, reg.registration.team_name).then((res) => {
+                  if (res.success && res.team) {
+                    setCreatedTeamData(res.team);
+                    setCreatedTeamId(res.team.id);
+                  }
+                });
+              }
 
               if (reg.registration.payment_status === 'PAID') {
                 setPaymentStatus('PAID');
@@ -2325,51 +2343,113 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                   </div>
 
                   {/* Member Roster */}
-                  {createdTeamData?.team_members && createdTeamData.team_members.length > 0 && (
+                  {createdTeamData?.team_members && createdTeamData.team_members.length > 0 ? (
                     <div className="space-y-2">
                       <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
                         Squad Members ({createdTeamData.team_members.length})
                       </p>
                       <div className="space-y-1.5">
-                        {createdTeamData.team_members.map((m: any) => (
-                          <div
-                            key={m.id || m.user_id}
-                            className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#121824] border border-slate-200/80 dark:border-white/[0.08] text-xs"
-                          >
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 rounded-full bg-sky-100 dark:bg-sky-900/50 text-[#0099e6] font-bold text-[10px] flex items-center justify-center">
-                                {(m.profiles?.name || '?').charAt(0).toUpperCase()}
+                        {createdTeamData.team_members.map((m: any) => {
+                          const memberName =
+                            m.profiles?.name ||
+                            m.user_name ||
+                            m.name ||
+                            (m.role === 'LEADER'
+                              ? createdTeamData?.profiles?.name || fullName
+                              : 'Teammate');
+                          const avatar = m.profiles?.avatar_url;
+
+                          return (
+                            <div
+                              key={m.id || m.user_id}
+                              className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#121824] border border-slate-200/80 dark:border-white/[0.08] text-xs"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="w-7 h-7 rounded-full bg-sky-100 dark:bg-sky-900/50 text-[#0099e6] font-bold text-[11px] flex items-center justify-center overflow-hidden shrink-0">
+                                  {avatar ? (
+                                    <img
+                                      src={avatar}
+                                      alt={memberName}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    (memberName || '?').charAt(0).toUpperCase()
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="font-bold text-slate-800 dark:text-slate-200 block truncate">
+                                    {memberName}
+                                  </span>
+                                  {m.profiles?.college && (
+                                    <p className="text-[10px] text-slate-400 font-normal truncate">
+                                      {m.profiles.college}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
-                              <span className="font-bold text-slate-800 dark:text-slate-200">{m.profiles?.name || 'Teammate'}</span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span
+                                  className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-md ${
+                                    m.role === 'LEADER'
+                                      ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
+                                      : 'bg-slate-200 dark:bg-white/[0.08] text-slate-700 dark:text-slate-300'
+                                  }`}
+                                >
+                                  {m.role || 'Member'}
+                                </span>
+                                {(mode === 'CREATE_TEAM' ||
+                                  createdTeamData?.leader_id ===
+                                    (supabaseUser?.id || user?.id)) &&
+                                  m.role !== 'LEADER' &&
+                                  (m.user_id || m.id) !==
+                                    (supabaseUser?.id || user?.id) && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleRemoveMember(m.user_id || m.id)
+                                      }
+                                      disabled={
+                                        removingMemberId === (m.user_id || m.id)
+                                      }
+                                      className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                                      title="Remove from squad"
+                                    >
+                                      {removingMemberId ===
+                                      (m.user_id || m.id) ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
+                                      ) : (
+                                        <UserMinus className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                  )}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-md ${
-                                  m.role === 'LEADER' ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300' : 'bg-slate-200 dark:bg-white/[0.08] text-slate-700 dark:text-slate-300'
-                                }`}
-                              >
-                                {m.role || 'Member'}
-                              </span>
-                              {(mode === 'CREATE_TEAM' || createdTeamData?.leader_id === (supabaseUser?.id || user?.id)) &&
-                                m.role !== 'LEADER' &&
-                                (m.user_id || m.id) !== (supabaseUser?.id || user?.id) && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveMember(m.user_id || m.id)}
-                                    disabled={removingMemberId === (m.user_id || m.id)}
-                                    className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
-                                    title="Remove from squad"
-                                  >
-                                    {removingMemberId === (m.user_id || m.id) ? (
-                                      <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
-                                    ) : (
-                                      <UserMinus className="w-3.5 h-3.5" />
-                                    )}
-                                  </button>
-                                )}
-                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    /* Fallback when team_members array is not yet loaded or empty */
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                        Squad Members (1)
+                      </p>
+                      <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 dark:bg-[#121824] border border-slate-200/80 dark:border-white/[0.08] text-xs">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-sky-100 dark:bg-sky-900/50 text-[#0099e6] font-bold text-[11px] flex items-center justify-center">
+                            {(createdTeamData?.profiles?.name || fullName || 'L')
+                              .charAt(0)
+                              .toUpperCase()}
                           </div>
-                        ))}
+                          <span className="font-bold text-slate-800 dark:text-slate-200">
+                            {createdTeamData?.profiles?.name ||
+                              fullName ||
+                              'Squad Leader'}
+                          </span>
+                        </div>
+                        <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">
+                          Leader
+                        </span>
                       </div>
                     </div>
                   )}

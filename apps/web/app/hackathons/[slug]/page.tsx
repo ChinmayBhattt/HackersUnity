@@ -604,14 +604,22 @@ function HackathonDetailContent({ params }: PageProps) {
                         <div className="flex flex-wrap gap-2">
                           {userSquad.team_members.map((m: any) => (
                             <div
-                              key={m.id}
+                              key={m.id || m.user_id}
                               className="px-3 py-1.5 rounded-xl bg-white dark:bg-[#121824] border border-sky-100 dark:border-white/[0.08] shadow-2xs flex items-center gap-2 text-xs font-medium text-slate-800 dark:text-slate-200"
                             >
-                              <div className="w-6 h-6 rounded-lg bg-sky-100 dark:bg-sky-950 text-[#0099e6] dark:text-[#38bdf8] flex items-center justify-center font-black text-[10px]">
-                                {m.profiles?.name?.charAt(0) || 'B'}
+                              <div className="w-6 h-6 rounded-lg bg-sky-100 dark:bg-sky-950 text-[#0099e6] dark:text-[#38bdf8] flex items-center justify-center font-black text-[10px] overflow-hidden shrink-0">
+                                {m.profiles?.avatar_url ? (
+                                  <img
+                                    src={m.profiles.avatar_url}
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  (m.profiles?.name || m.user_name || m.name || '?').charAt(0).toUpperCase()
+                                )}
                               </div>
-                              <span>{m.profiles?.name || 'Member'}</span>
-                              <span className="text-[10px] text-slate-400 font-mono">({m.role})</span>
+                              <span className="font-bold">{m.profiles?.name || m.user_name || m.name || 'Member'}</span>
+                              <span className="text-[10px] text-slate-400 font-mono">({m.role || 'Member'})</span>
                             </div>
                           ))}
                         </div>

@@ -3224,15 +3224,36 @@ export async function fetchTeamWithMembers(teamId: string): Promise<any | null> 
   if (teamId.startsWith('team_') || local) {
     return local;
   }
+
+  // 1. Try server API route first (runs with admin privileges, bypasses RLS and includes full profiles)
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch(`/api/teams?teamId=${encodeURIComponent(teamId)}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.team) {
+          return json.team;
+        }
+      }
+    } catch (e) {
+      console.warn('API /api/teams GET teamId error, fallback to client Supabase:', e);
+    }
+  }
+
+  // 2. Direct client fallback
   try {
     const { data, error } = await supabase
       .from('teams')
-      .select('*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url)), team_invitations(id, invited_email, status, created_at)')
+      .select('*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url, phone, college, skills)), team_invitations(id, invited_email, status, created_at, invite_token)')
       .eq('id', teamId)
       .maybeSingle();
 
     if (error || !data) return local;
-    return data;
+    const inviteToken =
+      data.team_invitations?.find((i: any) => i.invite_token)?.invite_token ||
+      (data.team_invitations as any[])?.[0]?.invite_token ||
+      data.name;
+    return { ...data, invite_token: inviteToken };
   } catch {
     return local;
   }
@@ -3268,7 +3289,7 @@ export async function fetchUserTeams(userId: string): Promise<any[]> {
     // Fetch full team details
     const { data: teams, error: teamErr } = await supabase
       .from('teams')
-      .select('*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url)), events(id, title, slug, start_date, end_date), team_invitations(id, invited_email, status, created_at)')
+      .select('*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url, phone, college, skills)), events(id, title, slug, start_date, end_date), team_invitations(id, invited_email, status, created_at, invite_token)')
       .in('id', allTeamIds)
       .order('created_at', { ascending: false });
 
@@ -3292,6 +3313,24 @@ export async function fetchUserTeamForEvent(eventId: string, userId: string): Pr
   if (!eventId || !userId) return null;
   if (eventId.startsWith('evt_custom_')) return null;
 
+  // 1. Try server API route first (runs with admin privileges, bypasses RLS and handles multiple teams cleanly)
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch(
+        `/api/teams?action=get_user_team&eventId=${encodeURIComponent(eventId)}&userId=${encodeURIComponent(userId)}`
+      );
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.team) {
+          return json.team;
+        }
+      }
+    } catch (apiErr) {
+      console.warn('API /api/teams get_user_team error, fallback to client Supabase:', apiErr);
+    }
+  }
+
+  // 2. Client fallback
   let resolvedEventId = eventId;
   const isEventUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
   if (!isEventUuid) {
@@ -3308,47 +3347,64 @@ export async function fetchUserTeamForEvent(eventId: string, userId: string): Pr
   }
 
   try {
-
-    // Check if leader
-    const { data: leaderTeam } = await supabase
+    // Check if leader - safely order by created_at desc without maybeSingle crashing
+    const { data: leaderTeams } = await supabase
       .from('teams')
-      .select('*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url)), events(id, title, slug, start_date, end_date), team_invitations(id, invited_email, status, created_at, invite_token)')
+      .select('*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url, phone, college, skills)), events(id, title, slug, start_date, end_date), team_invitations(id, invited_email, status, created_at, invite_token)')
       .eq('event_id', resolvedEventId)
       .eq('leader_id', userId)
-      .maybeSingle();
+      .order('created_at', { ascending: false });
 
-    if (leaderTeam) {
+    if (leaderTeams && leaderTeams.length > 0) {
+      // Pick team with most members, or the most recent
+      const sortedTeams = [...leaderTeams].sort((a, b) => {
+        const countA = a.team_members?.length || 0;
+        const countB = b.team_members?.length || 0;
+        if (countB !== countA) return countB - countA;
+        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      });
+      const leaderTeam = sortedTeams[0];
       const inviteToken =
         leaderTeam.team_invitations?.find((i: any) => i.invite_token)?.invite_token ||
+        (leaderTeam.team_invitations as any[])?.[0]?.invite_token ||
         leaderTeam.name;
       return { ...leaderTeam, invite_token: inviteToken };
     }
 
     // Check if member
-    const { data: memberRow } = await supabase
+    const { data: memberRows } = await supabase
       .from('team_members')
       .select('team_id')
       .eq('user_id', userId);
 
-    if (memberRow && memberRow.length > 0) {
-      const teamIds = memberRow.map((m: any) => m.team_id);
-      const { data: memberTeam } = await supabase
+    if (memberRows && memberRows.length > 0) {
+      const teamIds = memberRows.map((m: any) => m.team_id);
+      const { data: memberTeams } = await supabase
         .from('teams')
-        .select('*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url)), events(id, title, slug, start_date, end_date), team_invitations(id, invited_email, status, created_at, invite_token)')
+        .select('*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url, phone, college, skills)), events(id, title, slug, start_date, end_date), team_invitations(id, invited_email, status, created_at, invite_token)')
         .eq('event_id', resolvedEventId)
         .in('id', teamIds)
-        .maybeSingle();
+        .order('created_at', { ascending: false });
 
-      if (memberTeam) {
+      if (memberTeams && memberTeams.length > 0) {
+        const sortedMemberTeams = [...memberTeams].sort((a, b) => {
+          const countA = a.team_members?.length || 0;
+          const countB = b.team_members?.length || 0;
+          if (countB !== countA) return countB - countA;
+          return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+        });
+        const memberTeam = sortedMemberTeams[0];
         const inviteToken =
           memberTeam.team_invitations?.find((i: any) => i.invite_token)?.invite_token ||
+          (memberTeam.team_invitations as any[])?.[0]?.invite_token ||
           memberTeam.name;
         return { ...memberTeam, invite_token: inviteToken };
       }
     }
 
     return null;
-  } catch {
+  } catch (err) {
+    console.warn('fetchUserTeamForEvent error:', err);
     return null;
   }
 }

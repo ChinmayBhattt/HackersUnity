@@ -44,7 +44,11 @@ export async function GET(req: Request) {
     const teamId = searchParams.get('teamId');
     const serverSupabase = createAdminClient();
 
-    if (searchParams.get('action') === 'get_join_requests') {
+    const eventId = searchParams.get('eventId');
+    const userId = searchParams.get('userId');
+    const action = searchParams.get('action');
+
+    if (action === 'get_join_requests') {
       const auth = await authenticateRequest(req);
       if (!auth) {
         return unauthorizedResponse('You must be signed in to view join requests.');
@@ -117,11 +121,94 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: true, requests });
     }
 
+    // ─── GET SQUAD FOR USER IN EVENT ───────────────────────────────────────────
+    if (action === 'get_user_team' || (eventId && userId)) {
+      const auth = await authenticateRequest(req).catch(() => null);
+      const targetUserId = userId || auth?.userId;
+      if (!eventId || !targetUserId) {
+        return NextResponse.json({ error: 'eventId and userId are required' }, { status: 400 });
+      }
+
+      let resolvedEventId = eventId;
+      const isEventUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
+      if (!isEventUuid) {
+        const { data: ev } = await serverSupabase
+          .from('events')
+          .select('id')
+          .eq('slug', eventId)
+          .maybeSingle();
+        if (ev?.id) {
+          resolvedEventId = ev.id;
+        } else {
+          return NextResponse.json({ success: true, team: null });
+        }
+      }
+
+      // 1. Find teams where target user is the leader
+      const { data: leaderTeams } = await serverSupabase
+        .from('teams')
+        .select('*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url, phone, college, skills)), events(id, title, slug, start_date, end_date), team_invitations(id, invited_email, status, created_at, invite_token)')
+        .eq('event_id', resolvedEventId)
+        .eq('leader_id', targetUserId)
+        .order('created_at', { ascending: false });
+
+      // 2. Find teams where target user is an accepted member
+      const { data: memberRows } = await serverSupabase
+        .from('team_members')
+        .select('team_id')
+        .eq('user_id', targetUserId);
+
+      let memberTeams: any[] = [];
+      if (memberRows && memberRows.length > 0) {
+        const teamIds = memberRows.map((m: any) => m.team_id);
+        const { data: mTeams } = await serverSupabase
+          .from('teams')
+          .select('*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url, phone, college, skills)), events(id, title, slug, start_date, end_date), team_invitations(id, invited_email, status, created_at, invite_token)')
+          .eq('event_id', resolvedEventId)
+          .in('id', teamIds)
+          .order('created_at', { ascending: false });
+        if (mTeams) memberTeams = mTeams;
+      }
+
+      const allFoundTeams = [...(leaderTeams || []), ...memberTeams];
+      if (allFoundTeams.length === 0) {
+        return NextResponse.json({ success: true, team: null });
+      }
+
+      // Deduplicate by id
+      const uniqueTeamsMap = new Map<string, any>();
+      for (const t of allFoundTeams) {
+        if (!uniqueTeamsMap.has(t.id)) {
+          uniqueTeamsMap.set(t.id, t);
+        }
+      }
+      const uniqueTeams = Array.from(uniqueTeamsMap.values());
+
+      // Sort candidate teams: highest member count first, then most recently created
+      uniqueTeams.sort((a, b) => {
+        const countA = a.team_members?.length || 0;
+        const countB = b.team_members?.length || 0;
+        if (countB !== countA) return countB - countA;
+        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      });
+
+      const bestTeam = uniqueTeams[0];
+      const inviteToken =
+        bestTeam.team_invitations?.find((i: any) => i.invite_token)?.invite_token ||
+        (bestTeam.team_invitations as any[])?.[0]?.invite_token ||
+        bestTeam.name;
+
+      return NextResponse.json({
+        success: true,
+        team: { ...bestTeam, invite_token: inviteToken },
+      });
+    }
+
     if (inviteCode) {
       // 1. Look up by invite_token in team_invitations
       const { data: inv } = await serverSupabase
         .from('team_invitations')
-        .select('invite_token, team_id, teams(*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url)), events(id, title, slug, start_date, end_date))')
+        .select('invite_token, team_id, teams(*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url, phone, college, skills)), events(id, title, slug, start_date, end_date))')
         .ilike('invite_token', inviteCode.trim())
         .maybeSingle();
 
@@ -132,7 +219,7 @@ export async function GET(req: Request) {
       // 2. Fallback: look up by team name in teams
       const { data: teamByName } = await serverSupabase
         .from('teams')
-        .select('*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url)), events(id, title, slug, start_date, end_date), team_invitations(invite_token)')
+        .select('*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url, phone, college, skills)), events(id, title, slug, start_date, end_date), team_invitations(invite_token)')
         .ilike('name', inviteCode.trim())
         .maybeSingle();
 
@@ -147,7 +234,7 @@ export async function GET(req: Request) {
     if (teamId) {
       const { data: team } = await serverSupabase
         .from('teams')
-        .select('*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url)), events(id, title, slug, start_date, end_date), team_invitations(invite_token)')
+        .select('*, profiles:leader_id(name, email, avatar_url), team_members(*, profiles:user_id(name, email, avatar_url, phone, college, skills)), events(id, title, slug, start_date, end_date), team_invitations(id, invited_email, status, created_at, invite_token)')
         .eq('id', teamId)
         .maybeSingle();
 
@@ -155,10 +242,15 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: 'Team not found' }, { status: 404 });
       }
 
-      return NextResponse.json({ success: true, team });
+      const inviteToken =
+        team.team_invitations?.find((i: any) => i.invite_token)?.invite_token ||
+        (team.team_invitations as any[])?.[0]?.invite_token ||
+        team.name;
+
+      return NextResponse.json({ success: true, team: { ...team, invite_token: inviteToken } });
     }
 
-    return NextResponse.json({ error: 'inviteCode or teamId is required' }, { status: 400 });
+    return NextResponse.json({ error: 'inviteCode, teamId, or eventId is required' }, { status: 400 });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to fetch team' }, { status: 500 });
   }
