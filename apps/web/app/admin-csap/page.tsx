@@ -1148,7 +1148,7 @@ export default function AdminCsapPortal() {
       ) : statusFilter === 'UTM' ? (
         <AdminUtmSection
           events={events}
-          initialSelectedEventId={selectedEvent?.id || events[0]?.id}
+          initialSelectedEventId={selectedEvent?.id || null}
           onNotification={(msg) => setNotificationMsg(msg)}
           isViewer={isViewer}
         />
@@ -1429,7 +1429,10 @@ export default function AdminCsapPortal() {
                     {/* Quick UTM Referral Link Button */}
                     <button
                       type="button"
-                      onClick={() => setUtmModalEvent(event)}
+                      onClick={() => {
+                        setSelectedEvent(event);
+                        setUtmModalEvent(event);
+                      }}
                       className="px-3 py-2 rounded-2xl border text-xs font-bold transition flex items-center gap-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-sky-500/10 dark:hover:bg-sky-500/20 border-sky-200 dark:border-sky-500/30 text-[#0099e6] dark:text-[#38bdf8] cursor-pointer shadow-2xs shrink-0"
                       title="Create & Copy Custom UTM Referral Link"
                     >

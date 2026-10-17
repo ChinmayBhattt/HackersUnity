@@ -44,10 +44,21 @@ export function AdminUtmSection({
   onNotification,
   isViewer = false,
 }: AdminUtmSectionProps) {
+  // Filter out rejected events
+  const eligibleEvents = useMemo(() => {
+    return (events || []).filter((ev) => {
+      const status = (ev.status || '').toUpperCase();
+      return status !== 'REJECTED';
+    });
+  }, [events]);
+
   // Currently selected event
-  const [selectedEventId, setSelectedEventId] = useState<string>(
-    initialSelectedEventId || events[0]?.id || ''
-  );
+  const [selectedEventId, setSelectedEventId] = useState<string>(() => {
+    if (initialSelectedEventId && eligibleEvents.some((e) => e.id === initialSelectedEventId)) {
+      return initialSelectedEventId;
+    }
+    return eligibleEvents[0]?.id || '';
+  });
 
   // Search in left events list
   const [eventSearch, setEventSearch] = useState('');
@@ -75,19 +86,29 @@ export function AdminUtmSection({
   // Copied state
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
-  // Resolve currently active event object
+  // Resolve currently active event object from eligibleEvents
   const activeEvent = useMemo(() => {
-    return events.find((e) => e.id === selectedEventId) || events[0] || null;
-  }, [events, selectedEventId]);
+    return eligibleEvents.find((e) => e.id === selectedEventId) || eligibleEvents[0] || null;
+  }, [eligibleEvents, selectedEventId]);
 
-  // Update selected event if initialSelectedEventId changes
+  // Sync selected event if initialSelectedEventId changes from parent
   useEffect(() => {
-    if (initialSelectedEventId) {
+    if (initialSelectedEventId && eligibleEvents.some((e) => e.id === initialSelectedEventId)) {
       setSelectedEventId(initialSelectedEventId);
-    } else if (!selectedEventId && events[0]?.id) {
-      setSelectedEventId(events[0].id);
     }
-  }, [initialSelectedEventId, events, selectedEventId]);
+  }, [initialSelectedEventId, eligibleEvents]);
+
+  // Ensure selectedEventId points to a valid non-rejected event
+  useEffect(() => {
+    if (eligibleEvents.length > 0) {
+      setSelectedEventId((prev) => {
+        if (prev && eligibleEvents.some((e) => e.id === prev)) {
+          return prev;
+        }
+        return eligibleEvents[0].id;
+      });
+    }
+  }, [eligibleEvents]);
 
   // Fetch summary across all events
   const fetchSummary = useCallback(async () => {
@@ -133,9 +154,9 @@ export function AdminUtmSection({
     fetchActiveEventLinks();
   }, [fetchActiveEventLinks]);
 
-  // Filter events on left
+  // Filter events on left (excluding rejected)
   const filteredEvents = useMemo(() => {
-    return events.filter((ev) => {
+    return eligibleEvents.filter((ev) => {
       const q = eventSearch.toLowerCase().trim();
       if (!q) return true;
       return (
@@ -144,7 +165,7 @@ export function AdminUtmSection({
         ev.organizer_name?.toLowerCase().includes(q)
       );
     });
-  }, [events, eventSearch]);
+  }, [eligibleEvents, eventSearch]);
 
   // Filter promoters on right
   const filteredPromoterLinks = useMemo(() => {
@@ -294,7 +315,7 @@ export function AdminUtmSection({
                 </div>
               </div>
               <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-300">
-                {events.length}
+                {eligibleEvents.length}
               </span>
             </div>
 
