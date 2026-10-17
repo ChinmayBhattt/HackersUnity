@@ -217,8 +217,7 @@ export function mapDbEventToExtended(item: any): ExtendedEvent {
       return undefined;
     })(),
     submissionsEnabled: (() => {
-      if (typeof item.submissions_enabled === 'boolean') return item.submissions_enabled;
-      if (typeof item.submissionsEnabled === 'boolean') return item.submissionsEnabled;
+      // 1. Check tags schedule tag first (most authoritative from host editor)
       if (Array.isArray(item.tags)) {
         const scTag = item.tags.find((t: string) => typeof t === 'string' && t.startsWith('hu_sub_schedule:'));
         if (scTag) {
@@ -228,36 +227,44 @@ export function mapDbEventToExtended(item: any): ExtendedEvent {
           } catch {}
         }
       }
+      // 2. Check direct columns
+      if (item.submissions_enabled === false || item.submissionsEnabled === false) return false;
+      if (typeof item.submissions_enabled === 'boolean') return item.submissions_enabled;
+      if (typeof item.submissionsEnabled === 'boolean') return item.submissionsEnabled;
       return true;
     })(),
     submissionStartDate: (() => {
-      if (item.submission_start_date) return item.submission_start_date;
-      if (item.submissionStartDate) return item.submissionStartDate;
       if (Array.isArray(item.tags)) {
         const scTag = item.tags.find((t: string) => typeof t === 'string' && t.startsWith('hu_sub_schedule:'));
         if (scTag) {
           try {
             const p = JSON.parse(scTag.substring('hu_sub_schedule:'.length));
-            return p.startIso || (p.startDate ? `${p.startDate}T${p.startTime || '09:00'}:00Z` : null);
+            if (p.startIso || p.startDate) {
+              return p.startIso || `${p.startDate}T${p.startTime || '09:00'}:00Z`;
+            }
           } catch {}
         }
       }
+      if (item.submission_start_date) return item.submission_start_date;
+      if (item.submissionStartDate) return item.submissionStartDate;
       return null;
     })(),
     submissionDeadline: (() => {
+      if (Array.isArray(item.tags)) {
+        const scTag = item.tags.find((t: string) => typeof t === 'string' && t.startsWith('hu_sub_schedule:'));
+        if (scTag) {
+          try {
+            const p = JSON.parse(scTag.substring('hu_sub_schedule:'.length));
+            if (p.endIso || p.endDate) {
+              return p.endIso || `${p.endDate}T${p.endTime || '18:00'}:00Z`;
+            }
+          } catch {}
+        }
+      }
       if (item.submission_deadline) return item.submission_deadline;
       if (item.submissionDeadline) return item.submissionDeadline;
       if (item.submission_end_date) return item.submission_end_date;
       if (item.submissionEndDate) return item.submissionEndDate;
-      if (Array.isArray(item.tags)) {
-        const scTag = item.tags.find((t: string) => typeof t === 'string' && t.startsWith('hu_sub_schedule:'));
-        if (scTag) {
-          try {
-            const p = JSON.parse(scTag.substring('hu_sub_schedule:'.length));
-            return p.endIso || (p.endDate ? `${p.endDate}T${p.endTime || '18:00'}:00Z` : null) || p.deadline || null;
-          } catch {}
-        }
-      }
       return null;
     })(),
     previewToken: item.preview_token || item.previewToken || (item.slug ? getEventPreviewToken(item) : undefined),
@@ -1049,6 +1056,9 @@ export async function createEventInSupabase(
       custom_questions: event.customQuestions || [],
       registration_fields: event.registrationFields || ['name', 'email', 'phone', 'college', 'city', 'github', 'linkedin', 'skills'],
       registration_link: event.registrationLink || null,
+      submissions_enabled: typeof event.submissionsEnabled === 'boolean' ? event.submissionsEnabled : true,
+      submission_start_date: event.submissionStartDate || null,
+      submission_deadline: event.submissionDeadline || null,
     };
 
     if (
@@ -1102,10 +1112,15 @@ export async function createEventInSupabase(
       .select('*')
       .single();
 
-    // Resilient fallback: If database schema lacks registration_fields column (code 42703)
-    if (error && (error.code === '42703' || error.message?.includes('registration_fields'))) {
-      console.warn('DB missing registration_fields column, retrying with tags fallback');
+    // Resilient fallback: If database schema lacks optional columns (code 42703 or PGRST204)
+    if (error && (error.code === '42703' || error.code === 'PGRST204' || error.message?.includes('column'))) {
+      console.warn('DB missing columns on insert, retrying with tags fallback:', error.message);
       delete insertPayload.registration_fields;
+      delete insertPayload.submissions_enabled;
+      delete insertPayload.submission_start_date;
+      delete insertPayload.submission_deadline;
+      delete insertPayload.allow_external_redirect;
+      delete insertPayload.registration_link;
       const retryCol = await supabase.from('events').insert(insertPayload).select('*').single();
       data = retryCol.data;
       error = retryCol.error;
@@ -1264,6 +1279,9 @@ export async function updateEventInSupabase(
     if (updates.registrationFields !== undefined) updatePayload.registration_fields = updates.registrationFields;
     if (updates.registrationLink !== undefined) updatePayload.registration_link = updates.registrationLink;
     if (updates.allowExternalRedirect !== undefined) updatePayload.allow_external_redirect = updates.allowExternalRedirect;
+    if (updates.submissionsEnabled !== undefined) updatePayload.submissions_enabled = updates.submissionsEnabled;
+    if (updates.submissionStartDate !== undefined) updatePayload.submission_start_date = updates.submissionStartDate;
+    if (updates.submissionDeadline !== undefined) updatePayload.submission_deadline = updates.submissionDeadline;
 
     if (
       updates.registrationFields !== undefined ||
@@ -1343,6 +1361,9 @@ export async function updateEventInSupabase(
         delete updatePayload.allow_external_redirect;
         delete updatePayload.registration_link;
         delete updatePayload.registration_fields;
+        delete updatePayload.submissions_enabled;
+        delete updatePayload.submission_start_date;
+        delete updatePayload.submission_deadline;
       }
       let retryQuery = supabase.from('events').update(updatePayload);
       if (isUuid) retryQuery = retryQuery.eq('id', eventId);

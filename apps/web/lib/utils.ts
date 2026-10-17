@@ -311,12 +311,15 @@ export function getSubmissionPortalStatus(
     }
   }
 
-  if (typeof event.submissionsEnabled === 'boolean') {
+  // Priority: If explicitly disabled anywhere (object, DB, or tags schedule), it MUST be disabled
+  if (event.submissionsEnabled === false || (event as any).submissions_enabled === false) {
+    enabled = false;
+  } else if (parsedSchedule && typeof parsedSchedule.enabled === 'boolean') {
+    enabled = parsedSchedule.enabled;
+  } else if (typeof event.submissionsEnabled === 'boolean') {
     enabled = event.submissionsEnabled;
   } else if (typeof (event as any).submissions_enabled === 'boolean') {
     enabled = (event as any).submissions_enabled;
-  } else if (parsedSchedule && typeof parsedSchedule.enabled === 'boolean') {
-    enabled = parsedSchedule.enabled;
   }
 
   if (!enabled) {

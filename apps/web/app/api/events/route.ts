@@ -185,6 +185,9 @@ export async function POST(req: Request) {
       registration_fields: event.registrationFields || ['name', 'email', 'phone', 'college', 'city', 'github', 'linkedin', 'skills'],
       registration_count: 0,
       registration_link: event.registrationLink || null,
+      submissions_enabled: typeof event.submissionsEnabled === 'boolean' ? event.submissionsEnabled : true,
+      submission_start_date: event.submissionStartDate || null,
+      submission_deadline: event.submissionDeadline || null,
     };
 
     if (
@@ -259,6 +262,9 @@ export async function POST(req: Request) {
         delete insertPayload.allow_external_redirect;
         delete insertPayload.registration_link;
         delete insertPayload.registration_fields;
+        delete insertPayload.submissions_enabled;
+        delete insertPayload.submission_start_date;
+        delete insertPayload.submission_deadline;
       }
       const retryCol = await serverSupabase.from('events').insert(insertPayload).select('*').single();
       data = retryCol.data;
@@ -455,6 +461,9 @@ export async function PATCH(req: Request) {
     if (updates.registrationFields !== undefined) updatePayload.registration_fields = updates.registrationFields;
     if (updates.registrationLink !== undefined) updatePayload.registration_link = updates.registrationLink;
     if (updates.allowExternalRedirect !== undefined) updatePayload.allow_external_redirect = updates.allowExternalRedirect;
+    if (updates.submissionsEnabled !== undefined) updatePayload.submissions_enabled = updates.submissionsEnabled;
+    if (updates.submissionStartDate !== undefined) updatePayload.submission_start_date = updates.submissionStartDate;
+    if (updates.submissionDeadline !== undefined) updatePayload.submission_deadline = updates.submissionDeadline;
 
     if (
       updates.registrationFields !== undefined ||
@@ -565,6 +574,9 @@ export async function PATCH(req: Request) {
         delete updatePayload.allow_external_redirect;
         delete updatePayload.registration_link;
         delete updatePayload.registration_fields;
+        delete updatePayload.submissions_enabled;
+        delete updatePayload.submission_start_date;
+        delete updatePayload.submission_deadline;
       }
 
       if (targetId) {

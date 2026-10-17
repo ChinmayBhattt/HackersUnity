@@ -2980,21 +2980,47 @@ ${organizerName || 'Organizer'}`;
                                 Submission window: <strong>{submissionStartDate} {submissionStartTime}</strong> → <strong>{submissionEndDate} {submissionEndTime}</strong> ({timezone})
                               </span>
                             </div>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#0099e6] bg-sky-100 dark:bg-sky-900/50 px-2 py-0.5 rounded-md">
-                              Auto-Closes at End
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-[#0099e6] bg-sky-100 dark:bg-sky-900/50 px-2 py-0.5 rounded-md">
+                                Auto-Closes at End
+                              </span>
+                              {isEditMode && (
+                                <button
+                                  type="button"
+                                  onClick={handlePublish}
+                                  disabled={isSaving || Boolean(submissionDateError)}
+                                  className="px-3 py-1 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-bold text-[11px] flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                                >
+                                  {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                                  <span>Save Schedule</span>
+                                </button>
+                              )}
+                            </div>
                           </div>
                         ) : null}
                       </div>
                     ) : (
-                      <div className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 text-amber-800 dark:text-amber-300 text-xs flex items-center gap-2.5">
-                        <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                        <div>
-                          <p className="font-bold">Submissions Currently Disabled</p>
-                          <p className="text-[11px] opacity-90 mt-0.5">
-                            Participants cannot submit projects or access the submission form. Enable this toggle when you want to open or schedule submissions.
-                          </p>
+                      <div className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 text-amber-800 dark:text-amber-300 text-xs flex items-center justify-between flex-wrap gap-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                          <div>
+                            <p className="font-bold">Submissions Currently Disabled</p>
+                            <p className="text-[11px] opacity-90 mt-0.5">
+                              Participants cannot submit projects or access the submission form.
+                            </p>
+                          </div>
                         </div>
+                        {isEditMode && (
+                          <button
+                            type="button"
+                            onClick={handlePublish}
+                            disabled={isSaving}
+                            className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                          >
+                            {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                            <span>Save & Apply Now</span>
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
