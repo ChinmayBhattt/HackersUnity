@@ -48,6 +48,7 @@ import {
   ShieldAlert,
   Crown,
   Flame,
+  Link2,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
@@ -60,6 +61,8 @@ import { AdminTeamManagement, CsapRole } from '@/components/admin-team-managemen
 import { RichDescription } from '@/components/rich-description';
 import { AdminEditEventModal } from '@/components/admin-edit-event-modal';
 import { AdminShowcaseReorder } from '@/components/admin-showcase-reorder';
+import { AdminUtmSection } from '@/components/admin-utm-section';
+import { AdminUtmModal } from '@/components/admin-utm-modal';
 
 interface AdminEvent {
   id: string;
@@ -132,9 +135,11 @@ export default function AdminCsapPortal() {
   const [events, setEvents] = useState<AdminEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'SHOWCASE' | 'REJECTED' | 'DRAFT'>('PENDING');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'SHOWCASE' | 'UTM' | 'REJECTED' | 'DRAFT'>('PENDING');
   const [selectedEvent, setSelectedEvent] = useState<AdminEvent | null>(null);
   const [editingEvent, setEditingEvent] = useState<AdminEvent | null>(null);
+  const [utmModalEvent, setUtmModalEvent] = useState<AdminEvent | null>(null);
+  const [utmLinksTotalCount, setUtmLinksTotalCount] = useState<number>(0);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [notificationMsg, setNotificationMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [rejectModalEvent, setRejectModalEvent] = useState<AdminEvent | null>(null);
@@ -172,6 +177,22 @@ export default function AdminCsapPortal() {
         if (data.team) {
           setTeamCount(data.team.length);
         }
+      }
+    } catch {}
+  }, []);
+
+  // ─── Fetch UTM Summary Total Count ──────────────────────────────────────────
+  const fetchUtmSummary = useCallback(async () => {
+    try {
+      const res = await fetch('/api/utm?summary=true');
+      if (res.ok) {
+        const data = await res.json();
+        const map = data.summary || {};
+        let total = 0;
+        Object.values(map).forEach((s: any) => {
+          total += Number(s.totalLinks || 0);
+        });
+        setUtmLinksTotalCount(total);
       }
     } catch {}
   }, []);
@@ -250,6 +271,7 @@ export default function AdminCsapPortal() {
           setEvents(data.events || []);
           fetchMentorCount();
           fetchTeamCount();
+          fetchUtmSummary();
         }
       }
     } catch (err) {
@@ -257,7 +279,7 @@ export default function AdminCsapPortal() {
     } finally {
       setLoadingEvents(false);
     }
-  }, [fetchMentorCount, fetchTeamCount]);
+  }, [fetchMentorCount, fetchTeamCount, fetchUtmSummary]);
 
   // ─── 3. Realtime Supabase Subscription ──────────────────────────────────────
   useEffect(() => {
@@ -1032,6 +1054,7 @@ export default function AdminCsapPortal() {
                   { key: 'PENDING', label: 'Pending Review', count: stats.pending },
                   { key: 'APPROVED', label: 'Approved & Live', count: stats.approved },
                   { key: 'SHOWCASE', label: 'Showcase Order', count: stats.approved },
+                  { key: 'UTM', label: 'UTM Tracking', count: utmLinksTotalCount },
                   { key: 'REJECTED', label: 'Rejected', count: stats.rejected },
                   { key: 'DRAFT', label: 'Drafts', count: stats.draft },
                   { key: 'ALL', label: 'All Submissions', count: stats.total },
@@ -1107,7 +1130,7 @@ export default function AdminCsapPortal() {
             </div>
           )}
 
-      {/* ─── SHOWCASE REORDER VIEW OR SUBMISSIONS LIST ────────────────────── */}
+      {/* ─── SHOWCASE REORDER VIEW OR UTM VIEW OR SUBMISSIONS LIST ───────── */}
       {statusFilter === 'SHOWCASE' ? (
         <AdminShowcaseReorder
           events={events}
@@ -1121,6 +1144,13 @@ export default function AdminCsapPortal() {
               })
             );
           }}
+        />
+      ) : statusFilter === 'UTM' ? (
+        <AdminUtmSection
+          events={events}
+          initialSelectedEventId={selectedEvent?.id || events[0]?.id}
+          onNotification={(msg) => setNotificationMsg(msg)}
+          isViewer={isViewer}
         />
       ) : loadingEvents ? (
         <div className="py-20 text-center bg-white dark:bg-[#0c1017] border border-slate-200/90 dark:border-white/[0.08] rounded-3xl p-8">
@@ -1394,6 +1424,17 @@ export default function AdminCsapPortal() {
                         <Globe className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                       )}
                       <span>{event.allow_external_redirect ? 'Disable Redirect' : 'Allow Redirect'}</span>
+                    </button>
+
+                    {/* Quick UTM Referral Link Button */}
+                    <button
+                      type="button"
+                      onClick={() => setUtmModalEvent(event)}
+                      className="px-3 py-2 rounded-2xl border text-xs font-bold transition flex items-center gap-1.5 bg-sky-50 hover:bg-sky-100 dark:bg-sky-500/10 dark:hover:bg-sky-500/20 border-sky-200 dark:border-sky-500/30 text-[#0099e6] dark:text-[#38bdf8] cursor-pointer shadow-2xs shrink-0"
+                      title="Create & Copy Custom UTM Referral Link"
+                    >
+                      <Link2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>UTM Link</span>
                     </button>
 
                     <div className="flex items-center gap-2 justify-end ml-auto">
@@ -1965,6 +2006,24 @@ export default function AdminCsapPortal() {
         onClose={() => setEditingEvent(null)}
         onSave={handleAdminEditSave}
       />
+
+      {/* ─── Admin UTM Referral Modal ──────────────────────────────────── */}
+      {utmModalEvent && (
+        <AdminUtmModal
+          isOpen={Boolean(utmModalEvent)}
+          onClose={() => setUtmModalEvent(null)}
+          event={utmModalEvent}
+          onUtmCreated={() => {
+            fetchUtmSummary();
+          }}
+          onViewInUtmSection={(ev) => {
+            setUtmModalEvent(null);
+            setSelectedEvent(ev);
+            setStatusFilter('UTM');
+          }}
+          onNotification={(msg) => setNotificationMsg(msg)}
+        />
+      )}
         </>
       )}
     </div>

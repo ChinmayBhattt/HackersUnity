@@ -180,6 +180,32 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
 
+  // Capture active UTM referral code from URL / cookie / localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const activeCode = (
+        urlParams.get('ref') ||
+        urlParams.get('utm') ||
+        urlParams.get('utm_source') ||
+        urlParams.get('ref_code') ||
+        localStorage.getItem('hu_utm_code') ||
+        (resolvedParams.slug ? localStorage.getItem(`hu_utm_event_${resolvedParams.slug}`) : null)
+      );
+
+      if (activeCode) {
+        const clean = activeCode.trim().toLowerCase();
+        setCustomAnswers((prev) => ({
+          ...prev,
+          utm_code: clean,
+          utmCode: clean,
+          ref: clean,
+        }));
+      }
+    } catch {}
+  }, [resolvedParams.slug]);
+
   // Check live payment status from Supabase
   useEffect(() => {
     if (!event) return;

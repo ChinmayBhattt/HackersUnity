@@ -135,6 +135,43 @@ function HackathonDetailContent({ params }: PageProps) {
     });
   }, [event?.id, event?.slug, event?.participantsCount]);
 
+  // ─── Capture UTM Referral Tracking ─────────────────────────────────
+  useEffect(() => {
+    if (!resolvedParams.slug) return;
+    const refCode = (
+      searchParams.get('ref') ||
+      searchParams.get('utm_source') ||
+      searchParams.get('utm') ||
+      searchParams.get('ref_code')
+    );
+
+    if (refCode) {
+      const clean = refCode.trim().toLowerCase();
+      try {
+        if (typeof window !== 'undefined') {
+          const sessionKey = `hu_utm_tracked_${resolvedParams.slug}_${clean}`;
+          if (!sessionStorage.getItem(sessionKey)) {
+            sessionStorage.setItem(sessionKey, '1');
+            fetch('/api/utm/click', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                eventSlug: resolvedParams.slug,
+                code: clean,
+                referrer: typeof document !== 'undefined' ? document.referrer : '',
+              }),
+            }).catch(() => {});
+          }
+
+          localStorage.setItem('hu_utm_code', clean);
+          localStorage.setItem(`hu_utm_event_${resolvedParams.slug}`, clean);
+          document.cookie = `hu_utm_${resolvedParams.slug}=${encodeURIComponent(clean)}; path=/; max-age=2592000; SameSite=Lax`;
+          document.cookie = `hu_utm_code=${encodeURIComponent(clean)}; path=/; max-age=2592000; SameSite=Lax`;
+        }
+      } catch {}
+    }
+  }, [searchParams, resolvedParams.slug]);
+
   useEffect(() => {
     setUserSquad(null);
     if (!event) return;

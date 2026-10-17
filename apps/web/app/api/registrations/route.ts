@@ -141,8 +141,18 @@ export async function POST(req: Request) {
       }
     }
 
+    const detectedUtmCode = (
+      input.utmCode ||
+      input.utm_code ||
+      input.ref ||
+      input.customAnswers?.utm_code ||
+      input.customAnswers?.utmCode ||
+      input.customAnswers?.ref
+    );
+
     const packedCustomAnswers: Record<string, any> = {
       ...(input.customAnswers || {}),
+      ...(detectedUtmCode ? { utm_code: String(detectedUtmCode).trim().toLowerCase() } : {}),
       ...(input.portfolioUrl ? { portfolioUrl: input.portfolioUrl, portfolio_url: input.portfolioUrl } : {}),
       ...(input.resumeUrl ? { resumeUrl: input.resumeUrl, resume_url: input.resumeUrl } : {}),
       ...(input.discordHandle ? { discordHandle: input.discordHandle, discord_handle: input.discordHandle } : {}),
@@ -199,6 +209,43 @@ export async function POST(req: Request) {
     if (insertErr) {
       console.error('Server Supabase registration error:', insertErr.message);
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
+    }
+
+    // ─── Attribute UTM Referral Conversion ──────────────────────────────
+    if (detectedUtmCode) {
+      const cleanCode = String(detectedUtmCode).trim().toLowerCase();
+      try {
+        const { data: utmLink } = await serverSupabase
+          .from('event_utm_links')
+          .select('id, confirmed_registrations_count')
+          .eq('event_id', targetEventId)
+          .eq('code', cleanCode)
+          .maybeSingle();
+
+        if (utmLink) {
+          const newRegCount = Number(utmLink.confirmed_registrations_count || 0) + 1;
+          await serverSupabase
+            .from('event_utm_links')
+            .update({
+              confirmed_registrations_count: newRegCount,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', utmLink.id);
+
+          try {
+            await serverSupabase.from('event_utm_registrations').insert({
+              utm_link_id: utmLink.id,
+              event_id: targetEventId,
+              user_id: validUserId || null,
+              user_name: payload.user_name,
+              user_email: userEmail,
+              status: payload.status || 'CONFIRMED',
+            });
+          } catch {}
+        }
+      } catch (utmErr) {
+        console.warn('[Registrations] UTM attribution warning:', utmErr);
+      }
     }
 
     // Sync exact live registration count to events table
