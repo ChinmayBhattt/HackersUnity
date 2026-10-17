@@ -16,7 +16,7 @@ export default function UtmRedirectPage({ params }: UtmRedirectPageProps) {
     if (!slug || !code) return;
 
     // Avoid intercepting reserved Next.js routes if accessed directly
-    if (code === 'register' || code === 'invite') return;
+    if (code === 'register' || code === 'invite' || code === 'promoter' || code === 'partner') return;
 
     const cleanCode = decodeURIComponent(code).trim().toLowerCase();
 

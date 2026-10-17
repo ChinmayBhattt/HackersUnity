@@ -85,6 +85,29 @@ export function AdminUtmSection({
 
   // Copied state
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [copiedGeneral, setCopiedGeneral] = useState(false);
+
+  // Copy General Promoter Invite Link
+  const handleCopyGeneralInvite = async (event: any) => {
+    if (!event) return;
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://hackersunity.com';
+    const inviteUrl = `${origin}/hackathons/${event.slug || event.id}/promoter`;
+
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopiedGeneral(true);
+      setTimeout(() => setCopiedGeneral(false), 2000);
+      onNotification?.({
+        type: 'success',
+        text: `General Promoter Invite Link copied: ${inviteUrl}`,
+      });
+    } catch {
+      onNotification?.({
+        type: 'error',
+        text: 'Failed to copy link',
+      });
+    }
+  };
 
   // Resolve currently active event object from eligibleEvents
   const activeEvent = useMemo(() => {
@@ -462,8 +485,8 @@ export function AdminUtmSection({
                     </div>
                   </div>
 
-                  {/* Create Custom UTM Link CTA */}
-                  <div className="flex items-center gap-2.5 shrink-0">
+                  {/* Action CTAs */}
+                  <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
                     <button
                       type="button"
                       onClick={() => fetchActiveEventLinks()}
@@ -472,6 +495,28 @@ export function AdminUtmSection({
                       title="Refresh statistics"
                     >
                       <RefreshCw className={`w-4 h-4 ${loadingLinks ? 'animate-spin' : ''}`} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyGeneralInvite(activeEvent)}
+                      className={`px-3.5 py-2.5 rounded-xl border text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                        copiedGeneral
+                          ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                          : 'border-sky-500/30 hover:border-sky-500/60 bg-sky-500/10 hover:bg-sky-500/15 text-[#0099e6] dark:text-[#38bdf8]'
+                      }`}
+                      title="Copy general link to share with users to onboard them as promoters"
+                    >
+                      {copiedGeneral ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          <span>Copied Invite Link!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Share2 className="w-4 h-4" />
+                          <span>Copy General Invite Link</span>
+                        </>
+                      )}
                     </button>
                     <button
                       type="button"

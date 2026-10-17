@@ -85,6 +85,7 @@ export function AdminUtmModal({
 
   // Copy state
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [copiedGeneral, setCopiedGeneral] = useState(false);
 
   const baseUrl = useMemo(() => {
     if (typeof window !== 'undefined') {
@@ -92,6 +93,25 @@ export function AdminUtmModal({
     }
     return `https://hackersunity.com/hackathons/${event?.slug || event?.id || ''}/`;
   }, [event?.slug, event?.id]);
+
+  const generalInviteUrl = `${baseUrl}promoter`;
+
+  const handleCopyGeneralInvite = async () => {
+    try {
+      await navigator.clipboard.writeText(generalInviteUrl);
+      setCopiedGeneral(true);
+      setTimeout(() => setCopiedGeneral(false), 2000);
+      onNotification?.({
+        type: 'success',
+        text: `General Promoter Invite Link copied: ${generalInviteUrl}`,
+      });
+    } catch {
+      onNotification?.({
+        type: 'error',
+        text: 'Failed to copy link',
+      });
+    }
+  };
 
   // Clean custom slug generator
   const cleanSlug = useMemo(() => {
@@ -321,6 +341,41 @@ export function AdminUtmModal({
 
         {/* Modal Body */}
         <div className="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1">
+          {/* General Promoter Invite Link Box */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-sky-500/10 via-blue-500/5 to-transparent border border-sky-500/20 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[#0099e6]" />
+                <span className="text-xs font-black text-slate-900 dark:text-white">
+                  General Promoter Invite Link
+                </span>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/15 text-[#0099e6] dark:text-[#38bdf8] border border-sky-500/20">
+                Self-Claimable Link
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Share this general link with users to onboard them as promoters. When they open it, an acceptance card will let them accept with 1-click and automatically generate their personalized referral link!
+            </p>
+            <div className="flex items-center gap-2 bg-white dark:bg-[#070b12] p-2 rounded-xl border border-sky-500/20">
+              <span className="text-xs font-mono font-bold text-[#0099e6] dark:text-[#38bdf8] truncate flex-1 select-all">
+                {generalInviteUrl}
+              </span>
+              <button
+                type="button"
+                onClick={handleCopyGeneralInvite}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 shrink-0 ${
+                  copiedGeneral
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-[#0099e6] hover:bg-[#0284c7] text-white shadow-xs cursor-pointer'
+                }`}
+              >
+                {copiedGeneral ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedGeneral ? 'Copied!' : 'Copy Link'}</span>
+              </button>
+            </div>
+          </div>
+
           {/* Section 1: Create Link */}
           <div className="space-y-4">
             <div>
