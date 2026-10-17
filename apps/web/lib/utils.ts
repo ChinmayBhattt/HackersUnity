@@ -254,6 +254,164 @@ export function getEffectiveEventStatus(event?: {
   return currentStatus;
 }
 
+export interface SubmissionPortalStatus {
+  enabled: boolean;
+  isOpen: boolean;
+  isUpcoming: boolean;
+  isClosed: boolean;
+  startIso: string | null;
+  endIso: string | null;
+  statusLabel: string;
+  badgeColor: 'emerald' | 'amber' | 'rose' | 'slate';
+  buttonText: string;
+  subtext: string;
+  formattedStart: string | null;
+  formattedEnd: string | null;
+}
+
+export function getSubmissionPortalStatus(
+  event?: {
+    submissionsEnabled?: boolean;
+    submissionStartDate?: string | null;
+    submissionDeadline?: string | null;
+    startDate?: string | null;
+    endDate?: string | null;
+    timezone?: string | null;
+    tags?: string[];
+  } | null,
+  nowDate: Date = new Date()
+): SubmissionPortalStatus {
+  if (!event) {
+    return {
+      enabled: false,
+      isOpen: false,
+      isUpcoming: false,
+      isClosed: true,
+      startIso: null,
+      endIso: null,
+      statusLabel: 'Submissions Closed',
+      badgeColor: 'slate',
+      buttonText: 'Submissions Closed',
+      subtext: 'Event details not available.',
+      formattedStart: null,
+      formattedEnd: null,
+    };
+  }
+
+  // 1. Check enabled/disabled
+  let enabled = true;
+  let parsedSchedule: any = null;
+
+  if (Array.isArray(event.tags)) {
+    const sTag = event.tags.find((t: string) => typeof t === 'string' && t.startsWith('hu_sub_schedule:'));
+    if (sTag) {
+      try {
+        parsedSchedule = JSON.parse(sTag.substring('hu_sub_schedule:'.length));
+      } catch {}
+    }
+  }
+
+  if (typeof event.submissionsEnabled === 'boolean') {
+    enabled = event.submissionsEnabled;
+  } else if (typeof (event as any).submissions_enabled === 'boolean') {
+    enabled = (event as any).submissions_enabled;
+  } else if (parsedSchedule && typeof parsedSchedule.enabled === 'boolean') {
+    enabled = parsedSchedule.enabled;
+  }
+
+  if (!enabled) {
+    return {
+      enabled: false,
+      isOpen: false,
+      isUpcoming: false,
+      isClosed: true,
+      startIso: null,
+      endIso: null,
+      statusLabel: 'Submissions Disabled',
+      badgeColor: 'rose',
+      buttonText: 'Submissions Closed',
+      subtext: 'Submissions are currently disabled for this hackathon by the host.',
+      formattedStart: null,
+      formattedEnd: null,
+    };
+  }
+
+  // 2. Resolve Start and End Date
+  const startIso =
+    event.submissionStartDate ||
+    (event as any).submission_start_date ||
+    parsedSchedule?.startIso ||
+    (parsedSchedule?.startDate ? `${parsedSchedule.startDate}T${parsedSchedule.startTime || '09:00'}:00Z` : null) ||
+    null;
+
+  const endIso =
+    event.submissionDeadline ||
+    (event as any).submission_deadline ||
+    (event as any).submission_end_date ||
+    parsedSchedule?.endIso ||
+    (parsedSchedule?.endDate ? `${parsedSchedule.endDate}T${parsedSchedule.endTime || '18:00'}:00Z` : null) ||
+    null;
+
+  const nowMs = nowDate.getTime();
+  const startMs = startIso ? new Date(startIso).getTime() : null;
+  const endMs = endIso ? new Date(endIso).getTime() : null;
+
+  const formattedStart = startIso ? formatDateTime(startIso, event.timezone) : null;
+  const formattedEnd = endIso ? formatDateTime(endIso, event.timezone) : null;
+
+  // 3. Check Upcoming
+  if (startMs && !isNaN(startMs) && nowMs < startMs) {
+    return {
+      enabled: true,
+      isOpen: false,
+      isUpcoming: true,
+      isClosed: false,
+      startIso,
+      endIso,
+      statusLabel: `Opens ${formattedStart}`,
+      badgeColor: 'amber',
+      buttonText: `Submissions Open ${formattedStart}`,
+      subtext: `Submissions will open on ${formattedStart}.`,
+      formattedStart,
+      formattedEnd,
+    };
+  }
+
+  // 4. Check Closed (Deadline passed)
+  if (endMs && !isNaN(endMs) && nowMs > endMs) {
+    return {
+      enabled: true,
+      isOpen: false,
+      isUpcoming: false,
+      isClosed: true,
+      startIso,
+      endIso,
+      statusLabel: 'Submissions Closed',
+      badgeColor: 'rose',
+      buttonText: 'Submissions Closed',
+      subtext: `The submission deadline ended on ${formattedEnd}.`,
+      formattedStart,
+      formattedEnd,
+    };
+  }
+
+  // 5. Open!
+  return {
+    enabled: true,
+    isOpen: true,
+    isUpcoming: false,
+    isClosed: false,
+    startIso,
+    endIso,
+    statusLabel: 'Submissions Open',
+    badgeColor: 'emerald',
+    buttonText: 'Submission Portal',
+    subtext: formattedEnd ? `Submissions close on ${formattedEnd}.` : 'Submissions are currently open.',
+    formattedStart,
+    formattedEnd,
+  };
+}
+
 export function getDaysLeft(dateString?: string | null): { text: string; urgent: boolean; past: boolean } {
   if (!dateString) {
     return { text: 'TBA', urgent: false, past: false };

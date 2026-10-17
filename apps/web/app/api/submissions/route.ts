@@ -6,6 +6,7 @@ import {
   forbiddenResponse,
   unauthorizedResponse,
 } from '@/lib/api-auth';
+import { getSubmissionPortalStatus } from '@/lib/utils';
 
 // SELINE: default allowed webhook hosts for Google Apps Script
 const DEFAULT_WEBHOOK_HOSTS = new Set([
@@ -206,18 +207,30 @@ export async function POST(req: Request) {
     if (submission) {
       let targetEventId = submission.eventId;
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(submission.eventId);
-      if (!isUuid) {
-        const { data: ev } = await serverSupabase
-          .from('events')
-          .select('id')
-          .eq('slug', submission.eventId)
-          .maybeSingle();
-        if (ev?.id) {
-          targetEventId = ev.id;
-        } else {
-          // Event not in DB, client storage handles it
-          return NextResponse.json({ success: true, localOnly: true });
+      
+      const { data: ev } = await serverSupabase
+        .from('events')
+        .select('id, slug, tags, start_date, end_date')
+        .eq(isUuid ? 'id' : 'slug', submission.eventId)
+        .maybeSingle();
+
+      if (ev) {
+        targetEventId = ev.id;
+        const portalStatus = getSubmissionPortalStatus({
+          startDate: ev.start_date,
+          endDate: ev.end_date,
+          tags: ev.tags,
+        });
+
+        if (!portalStatus.isOpen) {
+          return NextResponse.json(
+            { error: portalStatus.subtext || 'Project submissions are currently closed for this hackathon.' },
+            { status: 403 }
+          );
         }
+      } else if (!isUuid) {
+        // Event not in DB, client storage handles it
+        return NextResponse.json({ success: true, localOnly: true });
       }
 
       // Bind submission to authenticated user ID

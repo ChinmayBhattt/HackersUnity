@@ -293,6 +293,11 @@ function HostHackathonContent() {
   const [registrationLink, setRegistrationLink] = useState('');
 
   // Step 6: Project Submission Settings
+  const [submissionsEnabled, setSubmissionsEnabled] = useState(true);
+  const [submissionStartDate, setSubmissionStartDate] = useState('');
+  const [submissionStartTime, setSubmissionStartTime] = useState('09:00');
+  const [submissionEndDate, setSubmissionEndDate] = useState('');
+  const [submissionEndTime, setSubmissionEndTime] = useState('18:00');
   const [submissionGuidelines, setSubmissionGuidelines] = useState(
     'Ensure all GitHub repositories are set to public during the judging window. Demo videos should be 2-3 minutes highlighting key user workflows.'
   );
@@ -660,6 +665,55 @@ function HostHackathonContent() {
             setSubmissionFieldConfigs(configs);
           }
 
+          // Load submission schedule settings
+          let parsedSchedule: any = null;
+          if (Array.isArray(found.tags)) {
+            const scTag = found.tags.find((t: string) => typeof t === 'string' && t.startsWith('hu_sub_schedule:'));
+            if (scTag) {
+              try {
+                parsedSchedule = JSON.parse(scTag.substring('hu_sub_schedule:'.length));
+              } catch {}
+            }
+          }
+
+          if (typeof found.submissionsEnabled === 'boolean') {
+            setSubmissionsEnabled(found.submissionsEnabled);
+          } else if (typeof (found as any).submissions_enabled === 'boolean') {
+            setSubmissionsEnabled((found as any).submissions_enabled);
+          } else if (parsedSchedule && typeof parsedSchedule.enabled === 'boolean') {
+            setSubmissionsEnabled(parsedSchedule.enabled);
+          } else {
+            setSubmissionsEnabled(true);
+          }
+
+          const rawStart = found.submissionStartDate || (found as any).submission_start_date || parsedSchedule?.startIso;
+          if (rawStart) {
+            const { date, time } = fromUTCISO(rawStart, found.timezone || 'Asia/Kolkata');
+            setSubmissionStartDate(date);
+            setSubmissionStartTime(time || '09:00');
+          } else if (parsedSchedule?.startDate) {
+            setSubmissionStartDate(parsedSchedule.startDate);
+            setSubmissionStartTime(parsedSchedule.startTime || '09:00');
+          } else if (found.startDate) {
+            const { date, time } = fromUTCISO(found.startDate, found.timezone || 'Asia/Kolkata');
+            setSubmissionStartDate(date);
+            setSubmissionStartTime(time || '09:00');
+          }
+
+          const rawEnd = found.submissionDeadline || (found as any).submission_deadline || (found as any).submission_end_date || parsedSchedule?.endIso;
+          if (rawEnd) {
+            const { date, time } = fromUTCISO(rawEnd, found.timezone || 'Asia/Kolkata');
+            setSubmissionEndDate(date);
+            setSubmissionEndTime(time || '18:00');
+          } else if (parsedSchedule?.endDate) {
+            setSubmissionEndDate(parsedSchedule.endDate);
+            setSubmissionEndTime(parsedSchedule.endTime || '18:00');
+          } else if (found.endDate) {
+            const { date, time } = fromUTCISO(found.endDate, found.timezone || 'Asia/Kolkata');
+            setSubmissionEndDate(date);
+            setSubmissionEndTime(time || '18:00');
+          }
+
           const stepParam = searchParams?.get('step');
           if (stepParam) {
             const s = parseInt(stepParam, 10);
@@ -706,6 +760,17 @@ function HostHackathonContent() {
     }
     return errors;
   }, [registrationStart, registrationDeadline, startDate, startTime, endDate, endTime, timezone]);
+
+  const submissionDateError = useMemo(() => {
+    if (!submissionsEnabled) return null;
+    if (!submissionStartDate || !submissionEndDate) return null;
+    const sIso = toUTCISO(submissionStartDate, submissionStartTime || '09:00', timezone);
+    const eIso = toUTCISO(submissionEndDate, submissionEndTime || '18:00', timezone);
+    if (sIso && eIso && new Date(sIso) >= new Date(eIso)) {
+      return 'Submission deadline must be after submission start date & time.';
+    }
+    return null;
+  }, [submissionsEnabled, submissionStartDate, submissionStartTime, submissionEndDate, submissionEndTime, timezone]);
 
   const eventDuration = useMemo(() => {
     if (!startDate || !endDate) return null;
@@ -899,7 +964,21 @@ function HostHackathonContent() {
       createdAt: new Date().toISOString(),
       participantsCount: 1,
       featured: true,
-      tags: tagsInput.split(',').map((t) => t.trim()).filter(Boolean),
+      tags: (() => {
+        const base = tagsInput.split(',').map((t: string) => t.trim()).filter((t: string) => t && !t.startsWith('hu_sub_schedule:'));
+        const subStartIso = submissionsEnabled && submissionStartDate ? toUTCISO(submissionStartDate, submissionStartTime || '09:00', timezone) : null;
+        const subEndIso = submissionsEnabled && submissionEndDate ? toUTCISO(submissionEndDate, submissionEndTime || '18:00', timezone) : null;
+        base.push('hu_sub_schedule:' + JSON.stringify({
+          enabled: submissionsEnabled,
+          startDate: submissionStartDate || null,
+          startTime: submissionStartTime || '09:00',
+          startIso: subStartIso,
+          endDate: submissionEndDate || null,
+          endTime: submissionEndTime || '18:00',
+          endIso: subEndIso,
+        }));
+        return base;
+      })(),
       bannerGradient: 'from-slate-900 via-sky-950 to-[#0c1017]',
       tracks,
       currency,
@@ -923,6 +1002,9 @@ function HostHackathonContent() {
         ...selectedOptionalFields,
       ],
       customQuestions,
+      submissionsEnabled,
+      submissionStartDate: submissionsEnabled && submissionStartDate ? toUTCISO(submissionStartDate, submissionStartTime || '09:00', timezone) : null,
+      submissionDeadline: submissionsEnabled && submissionEndDate ? toUTCISO(submissionEndDate, submissionEndTime || '18:00', timezone) : null,
       submissionGuidelines: submissionGuidelines.trim(),
       submissionFields: OPTIONAL_SUBMISSION_FIELDS.map((f) => ({
         id: f.id,
@@ -1006,6 +1088,11 @@ function HostHackathonContent() {
     allowExternalRedirect,
     registrationMode,
     registrationLink,
+    submissionsEnabled,
+    submissionStartDate,
+    submissionStartTime,
+    submissionEndDate,
+    submissionEndTime,
     submissionGuidelines,
     submissionFieldConfigs,
   ]);
@@ -1308,6 +1395,8 @@ ${organizerName || 'Organizer'}`;
         return !!title.trim() && !!organizerName.trim() && !!description.trim();
       case 2:
         return !!startDate && !!endDate && !!registrationDeadline && isDatesValid;
+      case 6:
+        return !submissionsEnabled || !submissionDateError;
       default:
         return true;
     }
@@ -1315,6 +1404,7 @@ ${organizerName || 'Organizer'}`;
 
   const goNext = () => {
     if (step === 2 && !isDatesValid) return;
+    if (step === 6 && submissionsEnabled && submissionDateError) return;
     if (step < TOTAL_STEPS) setStep((prev) => prev + 1);
   };
   const goBack = () => {
@@ -2736,6 +2826,179 @@ ${organizerName || 'Organizer'}`;
                     </p>
                   </div>
 
+                  {/* Section 0: Portal Enable/Disable & Submission Schedule */}
+                  <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] space-y-4 shadow-2xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2.5 h-2.5 rounded-full ${submissionsEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                          <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                            Submission Portal Status
+                          </h4>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase border ${
+                            submissionsEnabled
+                              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/40'
+                              : 'bg-slate-100 dark:bg-white/[0.06] text-slate-500 dark:text-slate-400 border-slate-200 dark:border-white/[0.08]'
+                          }`}>
+                            {submissionsEnabled ? 'Enabled' : 'Disabled'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-1">
+                          Control whether participants can submit projects and set the scheduled submission time window.
+                        </p>
+                      </div>
+
+                      {/* Enable / Disable Switch */}
+                      <div className="flex items-center gap-2.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = !submissionsEnabled;
+                            setSubmissionsEnabled(next);
+                            if (next) {
+                              if (!submissionStartDate && startDate) {
+                                setSubmissionStartDate(startDate);
+                                setSubmissionStartTime(startTime || '09:00');
+                              }
+                              if (!submissionEndDate && endDate) {
+                                setSubmissionEndDate(endDate);
+                                setSubmissionEndTime(endTime || '18:00');
+                              }
+                            }
+                          }}
+                          className={`relative inline-flex h-6 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            submissionsEnabled ? 'bg-[#0099e6]' : 'bg-slate-300 dark:bg-slate-700'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                              submissionsEnabled ? 'translate-x-6' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          {submissionsEnabled ? 'Submissions Enabled' : 'Submissions Disabled'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* When Enabled: Date & Time Pickers */}
+                    {submissionsEnabled ? (
+                      <div className="pt-3 border-t border-slate-100 dark:border-white/[0.06] space-y-3.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          {/* Start Date & Time */}
+                          <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/[0.06] space-y-2">
+                            <div className="flex items-center justify-between gap-1">
+                              <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5 text-[#0099e6]" />
+                                <span>Submissions Open (Start)</span>
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (startDate) {
+                                    setSubmissionStartDate(startDate);
+                                    setSubmissionStartTime(startTime || '09:00');
+                                  }
+                                }}
+                                className="text-[10px] text-[#0099e6] font-semibold hover:underline cursor-pointer"
+                              >
+                                Sync Hackathon Start
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-5 gap-2">
+                              <input
+                                type="date"
+                                value={submissionStartDate}
+                                onChange={(e) => setSubmissionStartDate(e.target.value)}
+                                className="col-span-3 px-2.5 py-1.5 bg-white dark:bg-[#121824] border border-slate-200 dark:border-white/[0.1] rounded-lg text-xs text-slate-900 dark:text-white outline-none focus:border-[#0099e6]"
+                              />
+                              <input
+                                type="time"
+                                value={submissionStartTime}
+                                onChange={(e) => setSubmissionStartTime(e.target.value)}
+                                className="col-span-2 px-2.5 py-1.5 bg-white dark:bg-[#121824] border border-slate-200 dark:border-white/[0.1] rounded-lg text-xs text-slate-900 dark:text-white outline-none focus:border-[#0099e6]"
+                              />
+                            </div>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                              Participants will not be able to submit projects prior to this date & time.
+                            </p>
+                          </div>
+
+                          {/* End Date & Time (Deadline) */}
+                          <div className="p-3.5 rounded-xl bg-slate-50/70 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/[0.06] space-y-2">
+                            <div className="flex items-center justify-between gap-1">
+                              <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 text-rose-500" />
+                                <span>Submission Deadline (End)</span>
+                                <span className="text-[9px] text-rose-500 font-black uppercase">*</span>
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (endDate) {
+                                    setSubmissionEndDate(endDate);
+                                    setSubmissionEndTime(endTime || '18:00');
+                                  }
+                                }}
+                                className="text-[10px] text-[#0099e6] font-semibold hover:underline cursor-pointer"
+                              >
+                                Sync Hackathon End
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-5 gap-2">
+                              <input
+                                type="date"
+                                value={submissionEndDate}
+                                onChange={(e) => setSubmissionEndDate(e.target.value)}
+                                className="col-span-3 px-2.5 py-1.5 bg-white dark:bg-[#121824] border border-slate-200 dark:border-white/[0.1] rounded-lg text-xs text-slate-900 dark:text-white outline-none focus:border-[#0099e6]"
+                              />
+                              <input
+                                type="time"
+                                value={submissionEndTime}
+                                onChange={(e) => setSubmissionEndTime(e.target.value)}
+                                className="col-span-2 px-2.5 py-1.5 bg-white dark:bg-[#121824] border border-slate-200 dark:border-white/[0.1] rounded-lg text-xs text-slate-900 dark:text-white outline-none focus:border-[#0099e6]"
+                              />
+                            </div>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                              As soon as this date & time ends, the submission portal closes automatically.
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Inline schedule preview / error alert */}
+                        {submissionDateError ? (
+                          <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/40 text-rose-700 dark:text-rose-400 text-xs font-semibold flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 shrink-0" />
+                            <span>{submissionDateError}</span>
+                          </div>
+                        ) : submissionStartDate && submissionEndDate ? (
+                          <div className="p-3 rounded-xl bg-sky-50/70 dark:bg-sky-950/20 border border-sky-200/70 dark:border-sky-800/40 text-sky-800 dark:text-sky-300 text-xs flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex items-center gap-2 font-medium">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                              <span>
+                                Submission window: <strong>{submissionStartDate} {submissionStartTime}</strong> → <strong>{submissionEndDate} {submissionEndTime}</strong> ({timezone})
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#0099e6] bg-sky-100 dark:bg-sky-900/50 px-2 py-0.5 rounded-md">
+                              Auto-Closes at End
+                            </span>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 text-amber-800 dark:text-amber-300 text-xs flex items-center gap-2.5">
+                        <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                        <div>
+                          <p className="font-bold">Submissions Currently Disabled</p>
+                          <p className="text-[11px] opacity-90 mt-0.5">
+                            Participants cannot submit projects or access the submission form. Enable this toggle when you want to open or schedule submissions.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Section 1: Required Submission Fields (Locked) */}
                   <div className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/[0.08] space-y-3">
                     <div className="flex items-center justify-between">
@@ -3333,9 +3596,23 @@ ${organizerName || 'Organizer'}`;
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                           <Rocket className="w-3.5 h-3.5 text-[#0099e6]" />
-                          <span>Submission Requirements</span>
+                          <span>Submission Portal & Schedule</span>
                         </span>
                         <button type="button" onClick={() => setStep(6)} className="text-[10px] text-[#0099e6] font-bold cursor-pointer hover:underline">Edit</button>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
+                          submissionsEnabled
+                            ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400'
+                            : 'bg-slate-200 dark:bg-white/[0.08] text-slate-600 dark:text-slate-400'
+                        }`}>
+                          {submissionsEnabled ? 'Submissions Enabled' : 'Submissions Disabled'}
+                        </span>
+                        {submissionsEnabled && submissionStartDate && submissionEndDate && (
+                          <span className="text-[11px] text-slate-600 dark:text-slate-400">
+                            {submissionStartDate} {submissionStartTime} → {submissionEndDate} {submissionEndTime}
+                          </span>
+                        )}
                       </div>
                       <div className="space-y-1.5 text-xs">
                         <div className="flex items-center gap-1.5 flex-wrap">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Rocket,
   X,
@@ -23,8 +23,11 @@ import {
   User,
   Mail,
   HelpCircle,
+  Lock,
+  Clock,
 } from 'lucide-react';
 import { SubmissionFieldSetting } from '@hackers-unity/shared-types';
+import { getSubmissionPortalStatus } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
 import {
   ProjectSubmission,
@@ -43,6 +46,11 @@ interface ProjectSubmissionModalProps {
   tracks?: string[];
   submissionFields?: SubmissionFieldSetting[];
   submissionGuidelines?: string;
+  submissionsEnabled?: boolean;
+  submissionStartDate?: string | null;
+  submissionDeadline?: string | null;
+  timezone?: string | null;
+  tags?: string[];
   onSuccess?: () => void;
   onDelete?: () => void;
 }
@@ -55,6 +63,11 @@ export function ProjectSubmissionModal({
   tracks = [],
   submissionFields,
   submissionGuidelines,
+  submissionsEnabled,
+  submissionStartDate,
+  submissionDeadline,
+  timezone,
+  tags,
   onSuccess,
   onDelete,
 }: ProjectSubmissionModalProps) {
@@ -98,6 +111,17 @@ export function ProjectSubmissionModal({
     'Cloud, DevOps & Systems',
     'FinTech & Consumer Applications',
   ];
+
+  // Submission Schedule Status
+  const portalStatus = useMemo(() => {
+    return getSubmissionPortalStatus({
+      submissionsEnabled,
+      submissionStartDate,
+      submissionDeadline,
+      timezone,
+      tags,
+    });
+  }, [submissionsEnabled, submissionStartDate, submissionDeadline, timezone, tags]);
 
   // Load existing submission if already submitted
   useEffect(() => {
@@ -271,6 +295,10 @@ export function ProjectSubmissionModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!portalStatus.isOpen) {
+      setErrors({ form: portalStatus.subtext });
+      return;
+    }
     setTouched({
       title: true,
       description: true,
@@ -311,7 +339,11 @@ export function ProjectSubmissionModal({
         score: submissionData?.score || 0,
       };
 
-      await saveSubmissionSupabase(newSubmission);
+      const res = await saveSubmissionSupabase(newSubmission);
+      if (res && res.error) {
+        setErrors({ form: res.error });
+        return;
+      }
       setSubmissionData(newSubmission);
       setIsSubmitted(true);
       if (onSuccess) onSuccess();
@@ -413,8 +445,21 @@ export function ProjectSubmissionModal({
           </div>
         )}
 
+        {/* Submission Schedule Warning Banner */}
+        {!portalStatus.isOpen && (
+          <div className="px-6 py-3 bg-rose-50 dark:bg-rose-950/40 border-b border-rose-200 dark:border-rose-900/40 flex items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2 text-rose-800 dark:text-rose-300 font-semibold">
+              <Lock className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+              <span>{portalStatus.subtext}</span>
+            </div>
+            <span className="px-2.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900/50 text-rose-800 dark:text-rose-300 text-[10px] font-black uppercase shrink-0">
+              {portalStatus.statusLabel}
+            </span>
+          </div>
+        )}
+
         {/* Informational Guidance Banner */}
-        {!isSubmitted && (
+        {!isSubmitted && portalStatus.isOpen && (
           <div className="px-6 py-3 bg-amber-50/80 dark:bg-amber-500/[0.08] border-b border-amber-100 dark:border-amber-500/20 flex items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-medium">
               <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
@@ -544,23 +589,32 @@ export function ProjectSubmissionModal({
 
             {/* Modal Actions */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setIsSubmitted(false)}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/[0.06] text-slate-700 dark:text-slate-200 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <Edit3 className="w-3.5 h-3.5 text-[#0099e6] dark:text-sky-400" />
-                <span>Edit Submission Details</span>
-              </button>
+              {!portalStatus.isOpen ? (
+                <div className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.08] text-slate-500 dark:text-slate-400 text-xs font-semibold flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Submissions Closed • Locked for Evaluation</span>
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsSubmitted(false)}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/[0.06] text-slate-700 dark:text-slate-200 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-[#0099e6] dark:text-sky-400" />
+                    <span>Edit Submission Details</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => setShowDeleteConfirm(true)}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-rose-200 dark:border-rose-500/30 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Delete Submission</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-rose-200 dark:border-rose-500/30 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Submission</span>
+                  </button>
+                </>
+              )}
 
               <button
                 type="button"
@@ -1001,14 +1055,23 @@ export function ProjectSubmissionModal({
                 </button>
 
                 <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-6 py-2.5 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] disabled:opacity-50 text-white font-extrabold text-xs shadow-md shadow-sky-500/20 transition-all flex items-center gap-2 cursor-pointer"
+                  type={portalStatus.isOpen ? 'submit' : 'button'}
+                  disabled={isSubmitting || !portalStatus.isOpen}
+                  className={`px-6 py-2.5 rounded-xl font-extrabold text-xs shadow-md transition-all flex items-center gap-2 ${
+                    portalStatus.isOpen
+                      ? 'bg-[#0099e6] hover:bg-[#0284c7] disabled:opacity-50 text-white shadow-sky-500/20 cursor-pointer'
+                      : 'bg-slate-200 dark:bg-white/[0.08] text-slate-400 dark:text-slate-500 cursor-not-allowed border border-slate-300 dark:border-white/10'
+                  }`}
                 >
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <span>{submissionData ? 'Updating...' : 'Submitting...'}</span>
+                    </>
+                  ) : !portalStatus.isOpen ? (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>Submissions Closed</span>
                     </>
                   ) : (
                     <>

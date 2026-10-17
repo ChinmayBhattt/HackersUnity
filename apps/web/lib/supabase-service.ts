@@ -216,6 +216,50 @@ export function mapDbEventToExtended(item: any): ExtendedEvent {
       }
       return undefined;
     })(),
+    submissionsEnabled: (() => {
+      if (typeof item.submissions_enabled === 'boolean') return item.submissions_enabled;
+      if (typeof item.submissionsEnabled === 'boolean') return item.submissionsEnabled;
+      if (Array.isArray(item.tags)) {
+        const scTag = item.tags.find((t: string) => typeof t === 'string' && t.startsWith('hu_sub_schedule:'));
+        if (scTag) {
+          try {
+            const p = JSON.parse(scTag.substring('hu_sub_schedule:'.length));
+            if (typeof p.enabled === 'boolean') return p.enabled;
+          } catch {}
+        }
+      }
+      return true;
+    })(),
+    submissionStartDate: (() => {
+      if (item.submission_start_date) return item.submission_start_date;
+      if (item.submissionStartDate) return item.submissionStartDate;
+      if (Array.isArray(item.tags)) {
+        const scTag = item.tags.find((t: string) => typeof t === 'string' && t.startsWith('hu_sub_schedule:'));
+        if (scTag) {
+          try {
+            const p = JSON.parse(scTag.substring('hu_sub_schedule:'.length));
+            return p.startIso || (p.startDate ? `${p.startDate}T${p.startTime || '09:00'}:00Z` : null);
+          } catch {}
+        }
+      }
+      return null;
+    })(),
+    submissionDeadline: (() => {
+      if (item.submission_deadline) return item.submission_deadline;
+      if (item.submissionDeadline) return item.submissionDeadline;
+      if (item.submission_end_date) return item.submission_end_date;
+      if (item.submissionEndDate) return item.submissionEndDate;
+      if (Array.isArray(item.tags)) {
+        const scTag = item.tags.find((t: string) => typeof t === 'string' && t.startsWith('hu_sub_schedule:'));
+        if (scTag) {
+          try {
+            const p = JSON.parse(scTag.substring('hu_sub_schedule:'.length));
+            return p.endIso || (p.endDate ? `${p.endDate}T${p.endTime || '18:00'}:00Z` : null) || p.deadline || null;
+          } catch {}
+        }
+      }
+      return null;
+    })(),
     previewToken: item.preview_token || item.previewToken || (item.slug ? getEventPreviewToken(item) : undefined),
     ctaText: item.cta_text || item.ctaText || undefined,
   };
@@ -1007,14 +1051,22 @@ export async function createEventInSupabase(
       registration_link: event.registrationLink || null,
     };
 
-    if (Array.isArray(event.registrationFields) || event.submissionFields || event.submissionGuidelines) {
+    if (
+      Array.isArray(event.registrationFields) ||
+      event.submissionFields ||
+      event.submissionGuidelines ||
+      event.submissionsEnabled !== undefined ||
+      event.submissionStartDate !== undefined ||
+      event.submissionDeadline !== undefined
+    ) {
       if (!Array.isArray(insertPayload.tags)) insertPayload.tags = [];
       insertPayload.tags = insertPayload.tags.filter(
         (t: string) =>
           !t.startsWith('hu_reg_fields:') &&
           !t.startsWith('hu_custom_q:') &&
           !t.startsWith('hu_sub_fields:') &&
-          !t.startsWith('hu_sub_guide:')
+          !t.startsWith('hu_sub_guide:') &&
+          !t.startsWith('hu_sub_schedule:')
       );
       if (Array.isArray(event.registrationFields)) {
         insertPayload.tags.push('hu_reg_fields:' + JSON.stringify(event.registrationFields));
@@ -1027,6 +1079,20 @@ export async function createEventInSupabase(
       }
       if (typeof event.submissionGuidelines === 'string' && event.submissionGuidelines.trim()) {
         insertPayload.tags.push('hu_sub_guide:' + JSON.stringify(event.submissionGuidelines.trim()));
+      }
+      if (
+        event.submissionsEnabled !== undefined ||
+        event.submissionStartDate !== undefined ||
+        event.submissionDeadline !== undefined
+      ) {
+        insertPayload.tags.push(
+          'hu_sub_schedule:' +
+            JSON.stringify({
+              enabled: event.submissionsEnabled !== false,
+              startIso: event.submissionStartDate || null,
+              endIso: event.submissionDeadline || null,
+            })
+        );
       }
     }
 
@@ -1203,7 +1269,10 @@ export async function updateEventInSupabase(
       updates.registrationFields !== undefined ||
       updates.customQuestions !== undefined ||
       updates.submissionFields !== undefined ||
-      updates.submissionGuidelines !== undefined
+      updates.submissionGuidelines !== undefined ||
+      updates.submissionsEnabled !== undefined ||
+      updates.submissionStartDate !== undefined ||
+      updates.submissionDeadline !== undefined
     ) {
       const existingTags = Array.isArray(updates.tags) ? [...updates.tags] : [];
       let newTags = existingTags.filter(
@@ -1211,7 +1280,8 @@ export async function updateEventInSupabase(
           !t.startsWith('hu_reg_fields:') &&
           !t.startsWith('hu_custom_q:') &&
           !t.startsWith('hu_sub_fields:') &&
-          !t.startsWith('hu_sub_guide:')
+          !t.startsWith('hu_sub_guide:') &&
+          !t.startsWith('hu_sub_schedule:')
       );
       if (updates.registrationFields) {
         newTags.push('hu_reg_fields:' + JSON.stringify(updates.registrationFields));
@@ -1224,6 +1294,20 @@ export async function updateEventInSupabase(
       }
       if (typeof updates.submissionGuidelines === 'string' && updates.submissionGuidelines.trim()) {
         newTags.push('hu_sub_guide:' + JSON.stringify(updates.submissionGuidelines.trim()));
+      }
+      if (
+        updates.submissionsEnabled !== undefined ||
+        updates.submissionStartDate !== undefined ||
+        updates.submissionDeadline !== undefined
+      ) {
+        newTags.push(
+          'hu_sub_schedule:' +
+            JSON.stringify({
+              enabled: updates.submissionsEnabled !== false,
+              startIso: updates.submissionStartDate || null,
+              endIso: updates.submissionDeadline || null,
+            })
+        );
       }
       updatePayload.tags = newTags;
     }
@@ -3700,7 +3784,7 @@ export async function saveSubmissionSupabase(
     // 2. Server-side API sync fallback (in case client RLS needs service role or to trigger server actions)
     if (error || typeof window !== 'undefined') {
       try {
-        await fetch('/api/submissions', {
+        const apiRes = await fetch('/api/submissions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -3711,6 +3795,12 @@ export async function saveSubmissionSupabase(
             },
           }),
         });
+        if (!apiRes.ok) {
+          const apiJson = await apiRes.json().catch(() => ({}));
+          if (apiJson?.error) {
+            return { success: false, error: apiJson.error };
+          }
+        }
       } catch (apiErr) {
         console.warn('API submissions sync error:', apiErr);
       }

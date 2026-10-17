@@ -87,7 +87,7 @@ import {
 } from '@/lib/supabase-service';
 import { supabase } from '@/lib/supabase';
 import { HackathonCard } from '@/components/hackathon-card';
-import { formatDate, formatCurrency, getEventPrivateLink, downloadReceiptPdf } from '@/lib/utils';
+import { formatDate, formatCurrency, getEventPrivateLink, downloadReceiptPdf, getSubmissionPortalStatus } from '@/lib/utils';
 import { AuthModal } from '@/components/auth-modal';
 import { EditEventModal } from '@/components/edit-event-modal';
 import { PublicProfileModal } from '@/components/public-profile-modal';
@@ -1711,43 +1711,78 @@ export default function DashboardPage() {
                                         )}
                                       </div>
 
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const targetEvt = matchedEvent || allEvents.find((e) => e.id === reg.eventId) || {
-                                            id: reg.eventId,
-                                            title: reg.eventName || 'Hackathon Event',
-                                            slug: reg.eventId,
-                                          } as any;
-                                          setSubmissionModalEvent(targetEvt);
-                                        }}
-                                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.1] hover:bg-slate-100 dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 text-[11px] font-bold transition-colors cursor-pointer"
-                                      >
-                                        Edit Project
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center justify-between gap-2 pt-0.5">
-                                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">
-                                      Submit repo link, demo & video
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
+                                      {(() => {
                                         const targetEvt = matchedEvent || allEvents.find((e) => e.id === reg.eventId) || {
                                           id: reg.eventId,
                                           title: reg.eventName || 'Hackathon Event',
                                           slug: reg.eventId,
                                         } as any;
-                                        setSubmissionModalEvent(targetEvt);
-                                      }}
-                                      className="px-3 py-1 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white text-[11px] font-extrabold flex items-center gap-1 shadow-2xs transition-all cursor-pointer shrink-0"
-                                    >
-                                      <Rocket className="w-3 h-3" />
-                                      <span>Submit Project</span>
-                                    </button>
+                                        const portalStatus = getSubmissionPortalStatus(targetEvt);
+                                        return (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setSubmissionModalEvent(targetEvt);
+                                            }}
+                                            className="px-2.5 py-1 rounded-lg bg-white dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.1] hover:bg-slate-100 dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 text-[11px] font-bold transition-colors cursor-pointer"
+                                          >
+                                            {portalStatus.isOpen ? 'Edit Project' : 'View Submission'}
+                                          </button>
+                                        );
+                                      })()}
+                                    </div>
                                   </div>
+                                ) : (
+                                  (() => {
+                                    const targetEvt = matchedEvent || allEvents.find((e) => e.id === reg.eventId) || {
+                                      id: reg.eventId,
+                                      title: reg.eventName || 'Hackathon Event',
+                                      slug: reg.eventId,
+                                    } as any;
+                                    const portalStatus = getSubmissionPortalStatus(targetEvt);
+                                    return (
+                                      <div className="flex items-center justify-between gap-2 pt-0.5">
+                                        <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                                          {portalStatus.isOpen
+                                            ? 'Submit repo link, demo & video'
+                                            : portalStatus.isUpcoming
+                                            ? `Submissions open ${portalStatus.formattedStart || 'soon'}`
+                                            : 'Submissions closed for this event'}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            if (portalStatus.isOpen) {
+                                              setSubmissionModalEvent(targetEvt);
+                                            }
+                                          }}
+                                          disabled={!portalStatus.isOpen}
+                                          className={`px-3 py-1 rounded-xl text-[11px] font-extrabold flex items-center gap-1 shadow-2xs transition-all shrink-0 ${
+                                            portalStatus.isOpen
+                                              ? 'bg-[#0099e6] hover:bg-[#0284c7] text-white cursor-pointer'
+                                              : 'bg-slate-200 dark:bg-white/[0.08] text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-75'
+                                          }`}
+                                        >
+                                          {portalStatus.isOpen ? (
+                                            <>
+                                              <Rocket className="w-3 h-3" />
+                                              <span>Submit Project</span>
+                                            </>
+                                          ) : portalStatus.isUpcoming ? (
+                                            <>
+                                              <Clock className="w-3 h-3 text-amber-500" />
+                                              <span>Opens Soon</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Lock className="w-3 h-3 text-slate-400" />
+                                              <span>Closed</span>
+                                            </>
+                                          )}
+                                        </button>
+                                      </div>
+                                    );
+                                  })()
                                 )}
                               </div>
                             );
@@ -2820,6 +2855,11 @@ export default function DashboardPage() {
           tracks={submissionModalEvent.tracks?.map((t: any) => t.title || t.name || t) || []}
           submissionFields={submissionModalEvent.submissionFields}
           submissionGuidelines={submissionModalEvent.submissionGuidelines}
+          submissionsEnabled={submissionModalEvent.submissionsEnabled}
+          submissionStartDate={submissionModalEvent.submissionStartDate}
+          submissionDeadline={submissionModalEvent.submissionDeadline}
+          timezone={submissionModalEvent.timezone}
+          tags={submissionModalEvent.tags}
           onSuccess={() => {
             setSubmissionModalEvent(null);
             loadDashboardData();

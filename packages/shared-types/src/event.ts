@@ -78,6 +78,9 @@ export interface EventPublic {
   allowExternalRedirect?: boolean;
   submissionFields?: SubmissionFieldSetting[];
   submissionGuidelines?: string;
+  submissionsEnabled?: boolean;
+  submissionStartDate?: string | null;
+  submissionDeadline?: string | null;
 }
 
 export interface SubmissionFieldSetting {

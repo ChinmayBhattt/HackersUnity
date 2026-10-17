@@ -187,14 +187,22 @@ export async function POST(req: Request) {
       registration_link: event.registrationLink || null,
     };
 
-    if (Array.isArray(event.registrationFields) || event.submissionFields || event.submissionGuidelines) {
+    if (
+      Array.isArray(event.registrationFields) ||
+      event.submissionFields ||
+      event.submissionGuidelines ||
+      event.submissionsEnabled !== undefined ||
+      event.submissionStartDate !== undefined ||
+      event.submissionDeadline !== undefined
+    ) {
       if (!Array.isArray(insertPayload.tags)) insertPayload.tags = [];
       insertPayload.tags = insertPayload.tags.filter(
         (t: string) =>
           !t.startsWith('hu_reg_fields:') &&
           !t.startsWith('hu_custom_q:') &&
           !t.startsWith('hu_sub_fields:') &&
-          !t.startsWith('hu_sub_guide:')
+          !t.startsWith('hu_sub_guide:') &&
+          !t.startsWith('hu_sub_schedule:')
       );
       if (Array.isArray(event.registrationFields)) {
         insertPayload.tags.push('hu_reg_fields:' + JSON.stringify(event.registrationFields));
@@ -207,6 +215,20 @@ export async function POST(req: Request) {
       }
       if (typeof event.submissionGuidelines === 'string' && event.submissionGuidelines.trim()) {
         insertPayload.tags.push('hu_sub_guide:' + JSON.stringify(event.submissionGuidelines.trim()));
+      }
+      if (
+        event.submissionsEnabled !== undefined ||
+        event.submissionStartDate !== undefined ||
+        event.submissionDeadline !== undefined
+      ) {
+        insertPayload.tags.push(
+          'hu_sub_schedule:' +
+            JSON.stringify({
+              enabled: event.submissionsEnabled !== false,
+              startIso: event.submissionStartDate || null,
+              endIso: event.submissionDeadline || null,
+            })
+        );
       }
     }
 
@@ -438,7 +460,10 @@ export async function PATCH(req: Request) {
       updates.registrationFields !== undefined ||
       updates.customQuestions !== undefined ||
       updates.submissionFields !== undefined ||
-      updates.submissionGuidelines !== undefined
+      updates.submissionGuidelines !== undefined ||
+      updates.submissionsEnabled !== undefined ||
+      updates.submissionStartDate !== undefined ||
+      updates.submissionDeadline !== undefined
     ) {
       const existingTags = Array.isArray(updates.tags) ? [...updates.tags] : [];
       let newTags = existingTags.filter(
@@ -446,7 +471,8 @@ export async function PATCH(req: Request) {
           !t.startsWith('hu_reg_fields:') &&
           !t.startsWith('hu_custom_q:') &&
           !t.startsWith('hu_sub_fields:') &&
-          !t.startsWith('hu_sub_guide:')
+          !t.startsWith('hu_sub_guide:') &&
+          !t.startsWith('hu_sub_schedule:')
       );
       if (updates.registrationFields) {
         newTags.push('hu_reg_fields:' + JSON.stringify(updates.registrationFields));
@@ -459,6 +485,20 @@ export async function PATCH(req: Request) {
       }
       if (typeof updates.submissionGuidelines === 'string' && updates.submissionGuidelines.trim()) {
         newTags.push('hu_sub_guide:' + JSON.stringify(updates.submissionGuidelines.trim()));
+      }
+      if (
+        updates.submissionsEnabled !== undefined ||
+        updates.submissionStartDate !== undefined ||
+        updates.submissionDeadline !== undefined
+      ) {
+        newTags.push(
+          'hu_sub_schedule:' +
+            JSON.stringify({
+              enabled: updates.submissionsEnabled !== false,
+              startIso: updates.submissionStartDate || null,
+              endIso: updates.submissionDeadline || null,
+            })
+        );
       }
       updatePayload.tags = newTags;
     }
