@@ -1488,32 +1488,6 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
       {/* ─── Form Container ────────────────────────────────────────────── */}
       <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-8">
         <div className="bg-white dark:bg-[#0c1017] rounded-3xl border border-slate-200 dark:border-white/[0.08] shadow-xl overflow-hidden">
-          {/* Unauthenticated Step 4 Banner */}
-          {typeof window !== 'undefined' &&
-            new URLSearchParams(window.location.search).get('step') === '4' &&
-            !supabaseUser?.id &&
-            !user?.id && (
-              <div className="m-6 p-4 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/30 border border-amber-200 dark:border-amber-800/50 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
-                    <CreditCard className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-slate-900 dark:text-white">Already Registered Your Squad?</h4>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                      Sign in to your Hacker&apos;s Unity account to automatically load your squad details and complete the entry fee payment.
-                    </p>
-                  </div>
-                </div>
-                <Link
-                  href={`/login?redirectTo=${encodeURIComponent(`/hackathons/${event.slug || resolvedParams.slug}/register?step=4`)}`}
-                  className="px-4 py-2 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white text-xs font-bold shrink-0 shadow-md shadow-sky-500/20 transition-all cursor-pointer text-center w-full sm:w-auto"
-                >
-                  Sign In to Pay
-                </Link>
-              </div>
-            )}
-
           {errorMsg && (
             <div className="m-6 p-4 rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 text-xs text-red-700 dark:text-red-400 font-medium flex items-center gap-3">
               <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />

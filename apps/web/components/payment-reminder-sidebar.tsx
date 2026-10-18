@@ -104,13 +104,11 @@ export function PaymentReminderSidebar({
         return false;
       });
       if (matched?.slug && !matched.slug.startsWith('evt_')) return matched.slug;
-      if (matched?.slug) return matched.slug;
     }
 
     if (targetTitle.includes('sphinx')) return 'sphinx-26';
-    if (p.slug) return p.slug;
-    if (p.events?.slug) return p.events.slug;
-    if (targetId) return targetId;
+    if (p.slug && !p.slug.startsWith('evt_')) return p.slug;
+    if (targetId && !targetId.startsWith('evt_')) return targetId;
     return 'sphinx-26';
   };
 
