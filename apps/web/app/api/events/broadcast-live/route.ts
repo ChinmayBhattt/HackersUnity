@@ -47,8 +47,19 @@ export async function POST(req: Request) {
       userEmail === 'info@hackersunity.com' ||
       Boolean(adminEmail && userEmail === adminEmail);
 
+    let isCoHost = false;
     if (!isOwner && !isAdmin) {
-      return forbiddenResponse('Only the event organizer or platform admins can broadcast this event.');
+      const { data: coHostRecord } = await serverSupabase
+        .from('event_admins')
+        .select('id')
+        .eq('event_id', event.id)
+        .eq('user_id', auth.userId)
+        .maybeSingle();
+      isCoHost = Boolean(coHostRecord);
+    }
+
+    if (!isOwner && !isCoHost && !isAdmin) {
+      return forbiddenResponse('Only the event organizer, co-host, or platform admins can broadcast this event.');
     }
 
     const result = await sendLiveEventAnnouncementToAllUsers(event, {

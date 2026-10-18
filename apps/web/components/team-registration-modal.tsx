@@ -14,6 +14,27 @@ interface TeamRegistrationModalProps {
   onSuccess?: () => void;
 }
 
+function getSquadMemberCount(squad: any, maxCap: number = 4): number {
+  if (!squad) return 0;
+  const uniqueMemberIds = new Set<string>();
+  if (squad.leader_id) {
+    uniqueMemberIds.add(squad.leader_id);
+  }
+  if (Array.isArray(squad.team_members)) {
+    squad.team_members.forEach((m: any) => {
+      const uid = m?.user_id || m?.id;
+      if (uid) uniqueMemberIds.add(uid);
+    });
+  }
+  const count =
+    uniqueMemberIds.size > 0
+      ? uniqueMemberIds.size
+      : Array.isArray(squad.team_members)
+      ? squad.team_members.length
+      : 1;
+  return Math.min(count, maxCap);
+}
+
 export function TeamRegistrationModal({ event, isOpen, onClose, onSuccess }: TeamRegistrationModalProps) {
   const { user, supabaseUser } = useAuth();
   const { teams, loading: teamsLoading, createTeam, joinTeam, requestJoinTeam, refresh } = useEventTeams(event.id);
@@ -116,6 +137,16 @@ export function TeamRegistrationModal({ event, isOpen, onClose, onSuccess }: Tea
     setSubmitting(true);
 
     try {
+      const targetSquad = teams.find((t) => t.id === selectedTeamId);
+      if (targetSquad) {
+        const count = getSquadMemberCount(targetSquad, maxTeam);
+        if (count >= maxTeam) {
+          setErrorMsg(`This squad has already reached its maximum capacity of ${maxTeam} members.`);
+          setSubmitting(false);
+          return;
+        }
+      }
+
       const userId = supabaseUser?.id || user?.id;
       const userEmail = supabaseUser?.email || user?.email || email;
 
@@ -373,7 +404,7 @@ export function TeamRegistrationModal({ event, isOpen, onClose, onSuccess }: Tea
                   ) : (
                     <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                       {teams.map((t) => {
-                        const memberCount = (t.team_members?.length || 0) + 1;
+                        const memberCount = getSquadMemberCount(t, maxTeam);
                         const isFull = memberCount >= maxTeam;
                         const isSelected = selectedTeamId === t.id;
 
@@ -381,23 +412,35 @@ export function TeamRegistrationModal({ event, isOpen, onClose, onSuccess }: Tea
                           <div
                             key={t.id}
                             onClick={() => !isFull && setSelectedTeamId(t.id)}
-                            className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+                            className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between ${
                               isFull
                                 ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed'
                                 : isSelected
-                                ? 'bg-sky-50/70 border-[#0099e6] shadow-2xs'
-                                : 'bg-white border-slate-200 hover:border-slate-300'
+                                ? 'bg-sky-50/70 border-[#0099e6] shadow-2xs cursor-pointer'
+                                : 'bg-white border-slate-200 hover:border-slate-300 cursor-pointer'
                             }`}
                           >
                             <div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <h4 className="text-xs font-bold text-slate-900">{t.name}</h4>
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-semibold">
+                                <span
+                                  className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                                    isFull
+                                      ? 'bg-rose-100 text-rose-700'
+                                      : 'bg-slate-100 text-slate-600'
+                                  }`}
+                                >
                                   {memberCount}/{maxTeam} Members
                                 </span>
-                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold border border-amber-200/60">
-                                  Approval Required
-                                </span>
+                                {isFull ? (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-700 font-bold border border-rose-200/60">
+                                    Squad Full
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold border border-amber-200/60">
+                                    Approval Required
+                                  </span>
+                                )}
                               </div>
                               <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
                                 Leader: {t.profiles?.name || 'Hacker'} {t.description && `• ${t.description}`}

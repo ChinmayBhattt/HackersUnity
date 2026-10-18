@@ -828,6 +828,24 @@ export async function fetchEventBySlug(slugOrId: string): Promise<ExtendedEvent 
           }
         } catch {}
       }
+      if (typeof window !== 'undefined') {
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const currentUserId = sessionData?.session?.user?.id;
+          if (currentUserId && currentUserId !== (data.organizer_id || (data as any).organizerId)) {
+            const { data: adminRecord } = await supabase
+              .from('event_admins')
+              .select('id')
+              .eq('event_id', mapped.id)
+              .eq('user_id', currentUserId)
+              .maybeSingle();
+
+            if (adminRecord) {
+              (mapped as any).isCoHost = true;
+            }
+          }
+        } catch {}
+      }
       return mapped;
     }
 
@@ -2150,13 +2168,25 @@ export async function joinTeamSupabase(
       console.warn('Profile ensure before join warning:', profErr);
     }
 
-    const { data: members } = await supabase
-      .from('team_members')
-      .select('id')
-      .eq('team_id', teamId);
+    const { data: teamData } = await supabase
+      .from('teams')
+      .select('id, leader_id, max_members, team_members(id, user_id)')
+      .eq('id', teamId)
+      .maybeSingle();
 
-    if (members && members.length >= maxMembers) {
-      return { success: false, error: 'This team has already reached its maximum capacity.' };
+    if (teamData) {
+      const uniqueMemberIds = new Set<string>();
+      if (teamData.leader_id) uniqueMemberIds.add(teamData.leader_id);
+      if (Array.isArray(teamData.team_members)) {
+        teamData.team_members.forEach((m: any) => {
+          if (m?.user_id) uniqueMemberIds.add(m.user_id);
+        });
+      }
+      const count = uniqueMemberIds.size > 0 ? uniqueMemberIds.size : (teamData.team_members?.length || 0);
+      const effectiveMax = teamData.max_members || maxMembers || 4;
+      if (count >= effectiveMax) {
+        return { success: false, error: `This squad has already reached its maximum capacity of ${effectiveMax} members.` };
+      }
     }
 
     const { error } = await supabase.from('team_members').insert({
@@ -2915,10 +2945,17 @@ export async function acceptTeamInvite(
     }
 
     // 3. Check team capacity
-    const currentMembers = team.team_members?.length || 0;
+    const uniqueMemberIds = new Set<string>();
+    if (team.leader_id) uniqueMemberIds.add(team.leader_id);
+    if (Array.isArray(team.team_members)) {
+      team.team_members.forEach((m: any) => {
+        if (m?.user_id) uniqueMemberIds.add(m.user_id);
+      });
+    }
+    const currentMembers = uniqueMemberIds.size > 0 ? uniqueMemberIds.size : (team.team_members?.length || 0);
     const maxMembers = team.max_members || 4;
     if (currentMembers >= maxMembers) {
-      return { success: false, error: 'This team has already reached its maximum capacity.' };
+      return { success: false, error: `This squad has already reached its maximum capacity of ${maxMembers} members.` };
     }
 
     // 4. Update invite status to ACCEPTED
@@ -4728,3 +4765,70 @@ export async function checkPaymentStatusSupabase(
     return { isPaid: false };
   }
 }
+
+/**
+ * ─── 16. EVENT ADMIN & CO-HOST ACCESS VERIFICATION ─────────────────────────
+ * Verifies whether the specified user has administrative/host privileges for an event.
+ */
+export async function checkIsUserEventAdminOrHost(
+  eventIdOrSlug: string,
+  userId: string,
+  userEmail?: string
+): Promise<boolean> {
+  if (!eventIdOrSlug || !userId) return false;
+
+  try {
+    // 1. Resolve event UUID if given a slug
+    let targetEventId = eventIdOrSlug;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventIdOrSlug);
+
+    if (!isUuid) {
+      const { data: eventRow } = await supabase
+        .from('events')
+        .select('id, organizer_id')
+        .eq('slug', eventIdOrSlug)
+        .maybeSingle();
+
+      if (eventRow) {
+        if (eventRow.organizer_id === userId) return true;
+        targetEventId = eventRow.id;
+      }
+    } else {
+      const { data: eventRow } = await supabase
+        .from('events')
+        .select('id, organizer_id')
+        .eq('id', eventIdOrSlug)
+        .maybeSingle();
+
+      if (eventRow?.organizer_id === userId) return true;
+    }
+
+    // 2. Query event_admins table directly
+    if (targetEventId) {
+      const { data: adminRow } = await supabase
+        .from('event_admins')
+        .select('id')
+        .eq('event_id', targetEventId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (adminRow?.id) return true;
+    }
+
+    // 3. Fallback: Query backend team API which runs with service role admin client
+    try {
+      const teamRes = await fetch(`/api/events/team?eventId=${encodeURIComponent(targetEventId || eventIdOrSlug)}`);
+      if (teamRes.ok) {
+        const teamData = await teamRes.json();
+        if (teamData?.isOwner || teamData?.isCoHost) {
+          return true;
+        }
+      }
+    } catch {}
+  } catch (err) {
+    console.warn('Error verifying event admin access:', err);
+  }
+
+  return false;
+}
+

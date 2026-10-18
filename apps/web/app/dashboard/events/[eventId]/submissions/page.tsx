@@ -54,6 +54,7 @@ import {
   deleteSubmissionSupabase,
   subscribeToEventSubmissions,
   mapDbEventToExtended,
+  checkIsUserEventAdminOrHost,
 } from '@/lib/supabase-service';
 import { supabase } from '@/lib/supabase';
 import { ExtendedEvent } from '@/lib/mock-data';
@@ -110,11 +111,18 @@ export default function EventSubmissionsManagerPage({ params }: PageProps) {
   const { user, supabaseUser, loading: authLoading } = useAuth();
   const currentUserId = supabaseUser?.id || user?.id;
 
-  // Authorization check: only event host/organizer and admins can access
+  // Co-host state & async verification
+  const [isCoHost, setIsCoHost] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(true);
+
+  // Authorization check: only event host/organizer, co-hosts, and admins can access
   const isEventHost = useMemo(() => {
     if (typeof document !== 'undefined' && document.cookie.includes('is_admin_csap=1')) return true;
     if (user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN) return true;
+    if (isCoHost) return true;
     if (!currentUserId || !event) return false;
+
+    if ((event as any).isCoHost) return true;
 
     // Check direct organizer match
     if (
@@ -151,7 +159,82 @@ export default function EventSubmissionsManagerPage({ params }: PageProps) {
     }
 
     return false;
-  }, [user?.role, currentUserId, event, user?.id, supabaseUser?.id]);
+  }, [user?.role, currentUserId, event, user?.id, supabaseUser?.id, isCoHost]);
+
+  // Verify Co-Host and Organizer permissions in real time
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function verifyAccess() {
+      if (typeof document !== 'undefined' && document.cookie.includes('is_admin_csap=1')) {
+        setCheckingAccess(false);
+        return;
+      }
+      if (user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN) {
+        setCheckingAccess(false);
+        return;
+      }
+
+      // Check sessionStorage cache from Dashboard navigation for instant unlock
+      if (typeof window !== 'undefined') {
+        try {
+          const cached = sessionStorage.getItem('hackers_unity_current_event');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && (parsed.id === resolvedParams.eventId || parsed.slug === resolvedParams.eventId)) {
+              if (parsed.isCoHost) {
+                setIsCoHost(true);
+                setCheckingAccess(false);
+                return;
+              }
+            }
+          }
+        } catch {}
+      }
+
+      const uid = currentUserId;
+      if (!uid) {
+        if (!authLoading) {
+          setCheckingAccess(false);
+        }
+        return;
+      }
+
+      if (
+        event &&
+        (event.organizerId === uid ||
+          (event as any).organizer_id === uid ||
+          (event as any).created_by === uid ||
+          (event as any).isCoHost)
+      ) {
+        if (!isCancelled) {
+          setIsCoHost(true);
+          setCheckingAccess(false);
+        }
+        return;
+      }
+
+      const targetParam = event?.id || resolvedParams.eventId;
+      if (targetParam && uid) {
+        const authorized = await checkIsUserEventAdminOrHost(targetParam, uid, user?.email);
+        if (!isCancelled) {
+          if (authorized) {
+            setIsCoHost(true);
+            if (event) (event as any).isCoHost = true;
+          }
+          setCheckingAccess(false);
+        }
+      } else {
+        if (!isCancelled) setCheckingAccess(false);
+      }
+    }
+
+    verifyAccess();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [event?.id, resolvedParams.eventId, currentUserId, authLoading, user?.role, user?.email]);
 
   // Load event and submissions data
   const loadData = async (silent = false) => {
@@ -183,6 +266,9 @@ export default function EventSubmissionsManagerPage({ params }: PageProps) {
 
     const targetEventId = found ? found.id : resolvedParams.eventId;
     if (found) {
+      if ((found as any).isCoHost) {
+        setIsCoHost(true);
+      }
       setEvent(found);
     }
 
@@ -206,7 +292,7 @@ export default function EventSubmissionsManagerPage({ params }: PageProps) {
       loadData(true);
     });
     return () => cleanup();
-  }, [resolvedParams.eventId]);
+  }, [resolvedParams.eventId, currentUserId]);
 
   // Derived unique tracks for filtering
   const availableTracks = Array.from(
@@ -704,7 +790,7 @@ export default function EventSubmissionsManagerPage({ params }: PageProps) {
   };
 
   // Show loading spinner while loading event and checking auth
-  if (loading || authLoading) {
+  if (loading || authLoading || checkingAccess) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3">
         <RefreshCw className="w-7 h-7 text-[#0099e6] animate-spin" />

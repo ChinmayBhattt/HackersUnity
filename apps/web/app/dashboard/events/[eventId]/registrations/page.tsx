@@ -49,7 +49,7 @@ import { formatDate } from '@/lib/utils';
 import { BulkRegistrationModal } from '@/components/bulk-registration-modal';
 import { EventEmailModal } from '@/components/event-email-modal';
 import { EventLiveBroadcastModal } from '@/components/event-live-broadcast-modal';
-import { fetchEventBySlug } from '@/lib/supabase-service';
+import { fetchEventBySlug, checkIsUserEventAdminOrHost } from '@/lib/supabase-service';
 import { useAuth } from '@/lib/auth-context';
 import { UserRole } from '@hackers-unity/shared-types';
 
@@ -88,11 +88,18 @@ export default function EventRegistrationsPage({ params }: PageProps) {
   const { user, supabaseUser, loading: authLoading } = useAuth();
   const currentUserId = supabaseUser?.id || user?.id;
 
-  // Authorization check: only event host/organizer and admins can access
+  // Co-host state & async verification
+  const [isCoHost, setIsCoHost] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(true);
+
+  // Authorization check: only event host/organizer, co-hosts, and admins can access
   const isEventHost = useMemo(() => {
     if (typeof document !== 'undefined' && document.cookie.includes('is_admin_csap=1')) return true;
     if (user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN) return true;
+    if (isCoHost) return true;
     if (!currentUserId || !event) return false;
+
+    if ((event as any).isCoHost) return true;
 
     if (
       event.organizerId &&
@@ -126,7 +133,82 @@ export default function EventRegistrationsPage({ params }: PageProps) {
     }
 
     return false;
-  }, [user?.role, currentUserId, event, user?.id, supabaseUser?.id]);
+  }, [user?.role, currentUserId, event, user?.id, supabaseUser?.id, isCoHost]);
+
+  // Verify Co-Host and Organizer permissions in real time
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function verifyAccess() {
+      if (typeof document !== 'undefined' && document.cookie.includes('is_admin_csap=1')) {
+        setCheckingAccess(false);
+        return;
+      }
+      if (user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN) {
+        setCheckingAccess(false);
+        return;
+      }
+
+      // Check sessionStorage cache from Dashboard navigation for instant unlock
+      if (typeof window !== 'undefined') {
+        try {
+          const cached = sessionStorage.getItem('hackers_unity_current_event');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && (parsed.id === resolvedParams.eventId || parsed.slug === resolvedParams.eventId)) {
+              if (parsed.isCoHost) {
+                setIsCoHost(true);
+                setCheckingAccess(false);
+                return;
+              }
+            }
+          }
+        } catch {}
+      }
+
+      const uid = currentUserId;
+      if (!uid) {
+        if (!authLoading) {
+          setCheckingAccess(false);
+        }
+        return;
+      }
+
+      if (
+        event &&
+        (event.organizerId === uid ||
+          (event as any).organizer_id === uid ||
+          (event as any).created_by === uid ||
+          (event as any).isCoHost)
+      ) {
+        if (!isCancelled) {
+          setIsCoHost(true);
+          setCheckingAccess(false);
+        }
+        return;
+      }
+
+      const targetParam = event?.id || resolvedParams.eventId;
+      if (targetParam && uid) {
+        const authorized = await checkIsUserEventAdminOrHost(targetParam, uid, user?.email);
+        if (!isCancelled) {
+          if (authorized) {
+            setIsCoHost(true);
+            if (event) (event as any).isCoHost = true;
+          }
+          setCheckingAccess(false);
+        }
+      } else {
+        if (!isCancelled) setCheckingAccess(false);
+      }
+    }
+
+    verifyAccess();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [event?.id, resolvedParams.eventId, currentUserId, authLoading, user?.role, user?.email]);
 
   // Selection state for bulk operations
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -166,6 +248,9 @@ export default function EventRegistrationsPage({ params }: PageProps) {
       found = (await fetchEventBySlug(resolvedParams.eventId)) || undefined;
     }
     if (found) {
+      if ((found as any).isCoHost) {
+        setIsCoHost(true);
+      }
       setEvent(found);
 
       // 1. Fetch live participant registrations from database via API
@@ -224,7 +309,7 @@ export default function EventRegistrationsPage({ params }: PageProps) {
     };
     window.addEventListener('hackers_unity_storage_change', handleStorage);
     return () => window.removeEventListener('hackers_unity_storage_change', handleStorage);
-  }, [resolvedParams.eventId]);
+  }, [resolvedParams.eventId, currentUserId]);
 
   // Status changes
   const handleStatusChange = async (regId: string, newStatus: 'APPROVED' | 'REJECTED' | 'PENDING') => {
@@ -923,7 +1008,7 @@ export default function EventRegistrationsPage({ params }: PageProps) {
     );
   };
 
-  if (loading || authLoading) {
+  if (loading || authLoading || checkingAccess) {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3">
         <div className="w-7 h-7 border-2 border-[#0099e6] border-t-transparent rounded-full animate-spin" />

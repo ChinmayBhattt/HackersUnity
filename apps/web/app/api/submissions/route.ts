@@ -128,9 +128,21 @@ export async function GET(req: Request) {
     }
 
     const isOrganizer = eventData.organizer_id === auth.userId;
-    // SELINE: only admin/super-admin can view submissions for events they don't organize
+    // SELINE: only admin/super-admin or verified co-hosts can view submissions for this event
     const isAdmin = callerProfile?.role === 'ADMIN' || callerProfile?.role === 'SUPER_ADMIN';
+
+    let isCoHost = false;
     if (!isOrganizer && !isAdmin) {
+      const { data: adminRecord } = await serverSupabase
+        .from('event_admins')
+        .select('id')
+        .eq('event_id', resolvedEventId)
+        .eq('user_id', auth.userId)
+        .maybeSingle();
+      isCoHost = Boolean(adminRecord);
+    }
+
+    if (!isOrganizer && !isCoHost && !isAdmin) {
       return forbiddenResponse('You are not authorized to view submissions for this event.');
     }
 

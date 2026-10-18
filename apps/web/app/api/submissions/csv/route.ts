@@ -37,12 +37,23 @@ export async function GET(req: Request) {
       return new Response('Error: Event not found', { status: 404 });
     }
 
-    // Verify organizer or admin authorization
+    // Verify organizer, co-host, or admin authorization
     const isOwner = eventData.organizer_id === auth.userId;
     const isAdmin = auth.user.user_metadata?.role === 'ADMIN' || auth.email === process.env.ADMIN_EMAIL;
 
+    let isCoHost = false;
     if (!isOwner && !isAdmin) {
-      return new Response('Forbidden: Only the event organizer or admin can export submissions.', { status: 403 });
+      const { data: coHostRecord } = await serverSupabase
+        .from('event_admins')
+        .select('id')
+        .eq('event_id', resolvedEventId)
+        .eq('user_id', auth.userId)
+        .maybeSingle();
+      isCoHost = Boolean(coHostRecord);
+    }
+
+    if (!isOwner && !isCoHost && !isAdmin) {
+      return new Response('Forbidden: Only the event organizer, co-host, or admin can export submissions.', { status: 403 });
     }
 
     let submissions: any[] = [];

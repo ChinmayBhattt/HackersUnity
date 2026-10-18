@@ -86,6 +86,27 @@ interface RegisterPageProps {
 
 type RegistrationMode = 'CREATE_TEAM' | 'JOIN_TEAM' | 'SOLO';
 
+export function getSquadMemberCount(squad: any, maxCap: number = 4): number {
+  if (!squad) return 0;
+  const uniqueMemberIds = new Set<string>();
+  if (squad.leader_id) {
+    uniqueMemberIds.add(squad.leader_id);
+  }
+  if (Array.isArray(squad.team_members)) {
+    squad.team_members.forEach((m: any) => {
+      const uid = m?.user_id || m?.id;
+      if (uid) uniqueMemberIds.add(uid);
+    });
+  }
+  const count =
+    uniqueMemberIds.size > 0
+      ? uniqueMemberIds.size
+      : Array.isArray(squad.team_members)
+      ? squad.team_members.length
+      : 1;
+  return Math.min(count, maxCap);
+}
+
 export default function HackathonRegistrationPage({ params }: RegisterPageProps) {
   const resolvedParams = use(params);
   const router = useRouter();
@@ -94,7 +115,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
   const { teams, loading: teamsLoading, createTeam, joinTeam, refresh: refreshTeams } = useEventTeams(event?.id || '');
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
-  const [mode, setMode] = useState<RegistrationMode>('SOLO');
+  const [mode, setMode] = useState<RegistrationMode>('CREATE_TEAM');
 
 
 
@@ -677,13 +698,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
   // Set default mode based on event config
   useEffect(() => {
     if (event && !isAlreadyRegistered) {
-      const minTeamSize = event.minTeamSize || 1;
-      const isSoloAllowed = minTeamSize <= 1 && (!event.isTeamEvent || minTeamSize === 1);
-      if (!isSoloAllowed || event.isTeamEvent) {
-        setMode('CREATE_TEAM');
-      } else {
-        setMode('SOLO');
-      }
+      setMode('CREATE_TEAM');
     }
   }, [event, isAlreadyRegistered]);
 
@@ -856,17 +871,29 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
     e.preventDefault();
     setErrorMsg(null);
 
-    if (mode === 'SOLO' && !isSoloAllowed) {
-      setErrorMsg(`Solo participation is not allowed for this hackathon. Minimum squad size is ${minTeam} members.`);
+    if (mode === 'SOLO') {
+      setErrorMsg('Solo participation is not available for this hackathon. Please create or join a squad.');
       return;
     }
     if (mode === 'CREATE_TEAM' && !teamName.trim()) {
       setErrorMsg('Please enter a team name to create your squad.');
       return;
     }
-    if (mode === 'JOIN_TEAM' && !selectedTeamId) {
-      setErrorMsg('Please select a squad from the list to join.');
-      return;
+    if (mode === 'JOIN_TEAM') {
+      if (!selectedTeamId) {
+        setErrorMsg('Please select a squad from the list or enter a verified invitation link to join.');
+        return;
+      }
+      const targetSquad =
+        teams.find((t) => t.id === selectedTeamId) ||
+        (resolvedSquadFromLink?.id === selectedTeamId ? resolvedSquadFromLink : null);
+      if (targetSquad) {
+        const count = getSquadMemberCount(targetSquad, maxTeam);
+        if (count >= maxTeam) {
+          setErrorMsg(`This squad has already reached its maximum capacity of ${maxTeam} members. Please choose or create another squad.`);
+          return;
+        }
+      }
     }
 
     setCurrentStep(2);
@@ -973,6 +1000,15 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
         }
 
         const teamObj = teams.find((t) => t.id === selectedTeamId) || resolvedSquadFromLink;
+        if (teamObj) {
+          const currentCount = getSquadMemberCount(teamObj, maxTeam);
+          if (currentCount >= maxTeam) {
+            setErrorMsg(`This squad has already reached its maximum capacity of ${maxTeam} members.`);
+            setSubmitting(false);
+            return;
+          }
+        }
+
         const isDirectVerifiedLink = Boolean(
           resolvedSquadFromLink && resolvedSquadFromLink.id === selectedTeamId
         );
@@ -1199,7 +1235,13 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
       const res = await fetchTeamByInviteCode(event.slug || event.id, code);
       if (res.success && res.team) {
         setResolvedSquadFromLink(res.team);
-        setSelectedTeamId(res.team.id);
+        const count = getSquadMemberCount(res.team, maxTeam);
+        if (count >= maxTeam) {
+          setLinkResolveError(`This squad has already reached its maximum capacity of ${maxTeam} members.`);
+          setSelectedTeamId(null);
+        } else {
+          setSelectedTeamId(res.team.id);
+        }
       } else {
         setLinkResolveError(res.error || 'Squad not found with this invitation link. Please check and try again.');
       }
@@ -1459,7 +1501,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
               <div>
                 <h2 className="text-xl font-black text-slate-900 dark:text-white">Choose How You Want to Participate</h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Select whether you want to create a new squad as a team lead, join an open team, or hack solo.
+                  Select whether you want to create a new squad as a team lead or join an existing team.
                 </p>
               </div>
 
@@ -1617,31 +1659,54 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                             </p>
                           )}
 
-                          {resolvedSquadFromLink && (
-                            <div className="mt-3 p-3.5 rounded-xl border-2 border-emerald-500/80 bg-emerald-50/60 dark:bg-emerald-950/30 flex items-center justify-between">
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <h4 className="text-xs font-bold text-slate-900 dark:text-white">{resolvedSquadFromLink.name}</h4>
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold flex items-center gap-1">
-                                    <CheckCircle2 className="w-3 h-3" /> Verified Squad
-                                  </span>
-                                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/[0.08] text-slate-600 dark:text-slate-300 font-semibold">
-                                    {((resolvedSquadFromLink.team_members?.length || 0) + 1)}/{maxTeam} Members
-                                  </span>
+                          {resolvedSquadFromLink && (() => {
+                            const resolvedMemberCount = getSquadMemberCount(resolvedSquadFromLink, maxTeam);
+                            const isResolvedSquadFull = resolvedMemberCount >= maxTeam;
+
+                            return (
+                              <div
+                                className={`mt-3 p-3.5 rounded-xl border-2 flex items-center justify-between transition-all ${
+                                  isResolvedSquadFull
+                                    ? 'border-rose-300 dark:border-rose-900/60 bg-rose-50/50 dark:bg-rose-950/20 opacity-80'
+                                    : 'border-emerald-500/80 bg-emerald-50/60 dark:bg-emerald-950/30'
+                                }`}
+                              >
+                                <div>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h4 className="text-xs font-bold text-slate-900 dark:text-white">{resolvedSquadFromLink.name}</h4>
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold flex items-center gap-1">
+                                      <CheckCircle2 className="w-3 h-3" /> Verified Squad
+                                    </span>
+                                    <span
+                                      className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                                        isResolvedSquadFull
+                                          ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300'
+                                          : 'bg-slate-100 dark:bg-white/[0.08] text-slate-600 dark:text-slate-300'
+                                      }`}
+                                    >
+                                      {resolvedMemberCount}/{maxTeam} Members
+                                    </span>
+                                    {isResolvedSquadFull && (
+                                      <span className="text-[9px] px-2 py-0.5 rounded-full bg-rose-200 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200 font-bold">
+                                        Squad Full
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Leader: {resolvedSquadFromLink.profiles?.name || 'Squad Leader'} {resolvedSquadFromLink.description && `• ${resolvedSquadFromLink.description}`}
+                                  </p>
                                 </div>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                  Leader: {resolvedSquadFromLink.profiles?.name || 'Squad Leader'} {resolvedSquadFromLink.description && `• ${resolvedSquadFromLink.description}`}
-                                </p>
+                                <input
+                                  type="radio"
+                                  name="selectedSquad"
+                                  disabled={isResolvedSquadFull}
+                                  checked={selectedTeamId === resolvedSquadFromLink.id}
+                                  onChange={() => !isResolvedSquadFull && setSelectedTeamId(resolvedSquadFromLink.id)}
+                                  className="text-emerald-600 w-4 h-4 disabled:opacity-30 cursor-pointer"
+                                />
                               </div>
-                              <input
-                                type="radio"
-                                name="selectedSquad"
-                                checked={selectedTeamId === resolvedSquadFromLink.id}
-                                onChange={() => setSelectedTeamId(resolvedSquadFromLink.id)}
-                                className="text-emerald-600 w-4 h-4"
-                              />
-                            </div>
-                          )}
+                            );
+                          })()}
                         </div>
 
                         {teams.length > 0 && (
@@ -1651,7 +1716,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                             </label>
                             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                               {teams.map((t) => {
-                                const memberCount = (t.team_members?.length || 0) + 1;
+                                const memberCount = getSquadMemberCount(t, maxTeam);
                                 const isFull = memberCount >= maxTeam;
                                 const isSelected = selectedTeamId === t.id;
 
@@ -1659,23 +1724,35 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                                   <div
                                     key={t.id}
                                     onClick={() => !isFull && setSelectedTeamId(t.id)}
-                                    className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+                                    className={`p-3 rounded-xl border transition-all flex items-center justify-between ${
                                       isFull
                                         ? 'bg-slate-50 dark:bg-white/[0.02] border-slate-200 dark:border-white/[0.06] opacity-60 cursor-not-allowed'
                                         : isSelected
-                                        ? 'bg-white dark:bg-[#121824] border-[#0099e6] shadow-sm ring-1 ring-[#0099e6]'
-                                        : 'bg-white dark:bg-[#121824] border-slate-200 dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-white/[0.15]'
+                                        ? 'bg-white dark:bg-[#121824] border-[#0099e6] shadow-sm ring-1 ring-[#0099e6] cursor-pointer'
+                                        : 'bg-white dark:bg-[#121824] border-slate-200 dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-white/[0.15] cursor-pointer'
                                     }`}
                                   >
                                     <div>
                                       <div className="flex items-center gap-2 flex-wrap">
                                         <h4 className="text-xs font-bold text-slate-900 dark:text-white">{t.name}</h4>
-                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-white/[0.08] text-slate-600 dark:text-slate-300 font-semibold">
+                                        <span
+                                          className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                                            isFull
+                                              ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300'
+                                              : 'bg-slate-100 dark:bg-white/[0.08] text-slate-600 dark:text-slate-300'
+                                          }`}
+                                        >
                                           {memberCount}/{maxTeam} Members
                                         </span>
-                                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 font-bold border border-amber-200 dark:border-amber-900/40">
-                                          Requires Approval
-                                        </span>
+                                        {isFull ? (
+                                          <span className="text-[9px] px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400 font-bold border border-rose-200 dark:border-rose-900/40">
+                                            Squad Full
+                                          </span>
+                                        ) : (
+                                          <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 font-bold border border-amber-200 dark:border-amber-900/40">
+                                            Requires Approval
+                                          </span>
+                                        )}
                                       </div>
                                       <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                                         Leader: {t.profiles?.name || 'Builder'} {t.description && `• ${t.description}`}
@@ -1686,8 +1763,8 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                                       name="selectedSquad"
                                       checked={isSelected}
                                       disabled={isFull}
-                                      onChange={() => setSelectedTeamId(t.id)}
-                                      className="text-[#0099e6]"
+                                      onChange={() => !isFull && setSelectedTeamId(t.id)}
+                                      className="text-[#0099e6] disabled:opacity-30 cursor-pointer"
                                     />
                                   </div>
                                 );
@@ -1708,70 +1785,6 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                     )}
                   </div>
                 )}
-
-                {/* Option 3: Solo Participant */}
-                <div
-                  onClick={() => {
-                    if (!isSoloAllowed) {
-                      setErrorMsg(
-                        `Solo participation is locked. This hackathon requires squads with a minimum of ${minTeam} builders.`
-                      );
-                      return;
-                    }
-                    setMode('SOLO');
-                    setErrorMsg(null);
-                  }}
-                  className={`p-5 rounded-2xl border-2 transition-all relative ${
-                    !isSoloAllowed
-                      ? 'border-slate-200 dark:border-white/[0.08] bg-slate-50/80 dark:bg-white/[0.02] opacity-60 cursor-not-allowed select-none'
-                      : mode === 'SOLO'
-                      ? 'border-[#0099e6] bg-sky-50/50 dark:bg-sky-950/30 shadow-md ring-2 ring-[#0099e6]/20 cursor-pointer'
-                      : 'border-slate-200 dark:border-white/[0.08] hover:border-slate-300 dark:hover:border-white/[0.15] bg-white dark:bg-transparent cursor-pointer'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-4">
-                      <div
-                        className={`w-12 h-12 rounded-2xl border flex items-center justify-center shrink-0 ${
-                          !isSoloAllowed
-                            ? 'bg-slate-200/80 dark:bg-white/[0.06] border-slate-300 dark:border-white/[0.1] text-slate-400 dark:text-slate-500'
-                            : 'bg-emerald-100 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/40 text-emerald-600 dark:text-emerald-400'
-                        }`}
-                      >
-                        {!isSoloAllowed ? <Lock className="w-6 h-6" /> : <User className="w-6 h-6" />}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="text-base font-bold text-slate-900 dark:text-white">Solo Participant / Individual Hacker</h3>
-                          {!isSoloAllowed ? (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400 flex items-center gap-1 border border-rose-200 dark:border-rose-800/40">
-                              <Lock className="w-3 h-3" />
-                              <span>Locked (Min {minTeam} Builders)</span>
-                            </span>
-                          ) : (
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
-                              Solo
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
-                          {!isSoloAllowed
-                            ? `This hackathon requires team participation (minimum ${minTeam} members). Solo submissions are not permitted by the organizer.`
-                            : 'Participate on your own. You can build, ship, and submit your project independently.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <input
-                      type="radio"
-                      name="mode"
-                      checked={mode === 'SOLO'}
-                      disabled={!isSoloAllowed}
-                      onChange={() => isSoloAllowed && setMode('SOLO')}
-                      className="w-4 h-4 text-[#0099e6] mt-1 disabled:opacity-40"
-                    />
-                  </div>
-                </div>
               </div>
 
               {/* Next CTA */}

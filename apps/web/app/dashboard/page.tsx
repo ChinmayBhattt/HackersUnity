@@ -2120,6 +2120,11 @@ export default function DashboardPage() {
                             {/* Submissions Button */}
                             <Link
                               href={`/dashboard/events/${evt.id || evt.slug}/submissions`}
+                              onClick={() => {
+                                try {
+                                  sessionStorage.setItem('hackers_unity_current_event', JSON.stringify(evt));
+                                } catch (e) {}
+                              }}
                               className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
                               title="View and Manage Submissions in Google Sheets Table"
                             >
@@ -2692,6 +2697,11 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2">
                 <Link
                   href={`/dashboard/events/${viewingHackersEvent.id || viewingHackersEvent.slug}/registrations`}
+                  onClick={() => {
+                    try {
+                      sessionStorage.setItem('hackers_unity_current_event', JSON.stringify(viewingHackersEvent));
+                    } catch (e) {}
+                  }}
                   className="px-3.5 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 dark:hover:bg-sky-900/50 text-[#0099e6] border border-sky-200 dark:border-sky-800/40 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
                   title="Manage attendees in full-page table"
                 >

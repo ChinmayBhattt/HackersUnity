@@ -427,12 +427,16 @@ export async function POST(req: Request) {
       // Check team capacity and existing membership
       const { data: team, error: teamFetchErr } = await serverSupabase
         .from('teams')
-        .select('id, name, event_id, max_members, team_members(id, user_id)')
+        .select('id, name, event_id, leader_id, max_members, team_members(id, user_id)')
         .eq('id', targetTeamId)
         .maybeSingle();
 
       if (teamFetchErr || !team) {
         return NextResponse.json({ error: 'Squad not found or invitation link is invalid' }, { status: 404 });
+      }
+
+      if (team.leader_id === validUserId) {
+        return NextResponse.json({ success: true, alreadyMember: true, team });
       }
 
       const members = (team.team_members as any[]) || [];
@@ -441,8 +445,15 @@ export async function POST(req: Request) {
         return NextResponse.json({ success: true, alreadyMember: true, team });
       }
 
+      const uniqueMemberIds = new Set<string>();
+      if (team.leader_id) uniqueMemberIds.add(team.leader_id);
+      members.forEach((m) => {
+        if (m.user_id) uniqueMemberIds.add(m.user_id);
+      });
+
+      const currentCount = uniqueMemberIds.size > 0 ? uniqueMemberIds.size : members.length;
       const limit = team.max_members || Number(maxMembers) || 4;
-      if (members.length >= limit) {
+      if (currentCount >= limit) {
         return NextResponse.json(
           { error: `This squad has already reached its maximum capacity of ${limit} members.` },
           { status: 400 }
@@ -560,8 +571,15 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'You are already a member of this squad.' }, { status: 400 });
       }
 
+      const uniqueMemberIds = new Set<string>();
+      if (team.leader_id) uniqueMemberIds.add(team.leader_id);
+      members.forEach((m) => {
+        if (m.user_id) uniqueMemberIds.add(m.user_id);
+      });
+
+      const currentCount = uniqueMemberIds.size > 0 ? uniqueMemberIds.size : members.length;
       const limit = team.max_members || 4;
-      if (members.length >= limit) {
+      if (currentCount >= limit) {
         return NextResponse.json({ error: `This squad has reached its maximum limit of ${limit} members.` }, { status: 400 });
       }
 
@@ -777,8 +795,15 @@ export async function POST(req: Request) {
       }
 
       const members = (team.team_members as any[]) || [];
+      const uniqueMemberIds = new Set<string>();
+      if (team.leader_id) uniqueMemberIds.add(team.leader_id);
+      members.forEach((m) => {
+        if (m.user_id) uniqueMemberIds.add(m.user_id);
+      });
+
+      const currentCount = uniqueMemberIds.size > 0 ? uniqueMemberIds.size : members.length;
       const limit = team.max_members || 4;
-      if (members.length >= limit) {
+      if (currentCount >= limit) {
         return NextResponse.json({ error: `Squad has reached its capacity limit of ${limit} members.` }, { status: 400 });
       }
 
