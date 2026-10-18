@@ -83,6 +83,8 @@ import {
   fetchEventRegistrations,
   fetchAllSubmissionCounts,
   subscribeToAllSubmissions,
+  fetchAllRegistrationCounts,
+  subscribeToAllRegistrations,
   fetchUserPaymentsSupabase,
 } from '@/lib/supabase-service';
 import { supabase } from '@/lib/supabase';
@@ -161,6 +163,7 @@ export default function DashboardPage() {
   const [hostFilter, setHostFilter] = useState<'ALL' | 'LIVE' | 'COMPLETED' | 'DRAFT'>('ALL');
   const [hostSearch, setHostSearch] = useState('');
   const [submissionCounts, setSubmissionCounts] = useState<Record<string, number>>({});
+  const [registrationCounts, setRegistrationCounts] = useState<Record<string, number>>({});
 
   // Chart State
   const [activeChartPoint, setActiveChartPoint] = useState<number>(5);
@@ -297,6 +300,11 @@ export default function DashboardPage() {
       fetchAllSubmissionCounts().then((counts) => {
         setSubmissionCounts(counts);
       }).catch(() => {});
+
+      // 6. Registration Counts (non-blocking realtime)
+      fetchAllRegistrationCounts().then((counts) => {
+        setRegistrationCounts(counts);
+      }).catch(() => {});
     } catch (err) {
       console.warn('Dashboard data load warning:', err);
     } finally {
@@ -333,6 +341,7 @@ export default function DashboardPage() {
         { event: '*', schema: 'public', table: 'registrations' },
         () => {
           loadDashboardData();
+          fetchAllRegistrationCounts().then((counts) => setRegistrationCounts(counts)).catch(() => {});
         }
       )
       .on(
@@ -358,9 +367,15 @@ export default function DashboardPage() {
       )
       .on('broadcast', { event: 'registration_created' }, () => {
         loadDashboardData();
+        fetchAllRegistrationCounts().then((counts) => setRegistrationCounts(counts)).catch(() => {});
+      })
+      .on('broadcast', { event: 'registration_deleted' }, () => {
+        loadDashboardData();
+        fetchAllRegistrationCounts().then((counts) => setRegistrationCounts(counts)).catch(() => {});
       })
       .on('broadcast', { event: 'event_created' }, () => {
         loadDashboardData();
+        fetchAllRegistrationCounts().then((counts) => setRegistrationCounts(counts)).catch(() => {});
       })
       .on('broadcast', { event: 'submission_created' }, () => {
         fetchAllSubmissionCounts().then((counts) => setSubmissionCounts(counts)).catch(() => {});
@@ -371,11 +386,16 @@ export default function DashboardPage() {
       fetchAllSubmissionCounts().then((counts) => setSubmissionCounts(counts)).catch(() => {});
     });
 
+    const unsubAllRegs = subscribeToAllRegistrations(() => {
+      fetchAllRegistrationCounts().then((counts) => setRegistrationCounts(counts)).catch(() => {});
+    });
+
     return () => {
       if (storageTimer) clearTimeout(storageTimer);
       window.removeEventListener('hackers_unity_storage_change', handleStorage);
       supabase.removeChannel(eventsChannel);
       unsubAllSubs();
+      unsubAllRegs();
     };
   }, [loadDashboardData]);
 
@@ -2044,7 +2064,15 @@ export default function DashboardPage() {
                               const localRegCount =
                                 (evt.id ? getEventRegistrationsCount(evt.id) : 0) +
                                 (evt.slug && evt.slug !== evt.id ? getEventRegistrationsCount(evt.slug) : 0);
-                              const count = isPending ? localRegCount : (typeof evt.participantsCount === 'number' ? evt.participantsCount : localRegCount);
+                              const liveCount = Math.max(
+                                evt.id && registrationCounts[evt.id] ? registrationCounts[evt.id] : 0,
+                                evt.slug && registrationCounts[evt.slug] ? registrationCounts[evt.slug] : 0,
+                                typeof evt.registrationCount === 'number' ? evt.registrationCount : 0,
+                                typeof evt.participantsCount === 'number' ? evt.participantsCount : 0,
+                                (evt as any).registration_count || 0,
+                                localRegCount
+                              );
+                              const count = isPending ? localRegCount : liveCount;
                               const displayBuilders = `${count} Builder${count === 1 ? '' : 's'}`;
 
                               return (
@@ -2106,13 +2134,21 @@ export default function DashboardPage() {
                               const localRegCount =
                                 (evt.id ? getEventRegistrationsCount(evt.id) : 0) +
                                 (evt.slug && evt.slug !== evt.id ? getEventRegistrationsCount(evt.slug) : 0);
+                              const regCount = Math.max(
+                                evt.id && registrationCounts[evt.id] ? registrationCounts[evt.id] : 0,
+                                evt.slug && registrationCounts[evt.slug] ? registrationCounts[evt.slug] : 0,
+                                typeof evt.registrationCount === 'number' ? evt.registrationCount : 0,
+                                typeof evt.participantsCount === 'number' ? evt.participantsCount : 0,
+                                (evt as any).registration_count || 0,
+                                localRegCount
+                              );
                               return (
                                 <button
                                   onClick={() => setViewingHackersEvent(evt)}
                                   className="px-3 py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/50 text-[#0099e6] border border-sky-200 dark:border-sky-800/40 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
                                 >
                                   <Users className="w-3.5 h-3.5 shrink-0" />
-                                  <span>Registrations ({localRegCount || (isPending ? 0 : evt.registrationCount || 0)})</span>
+                                  <span>Registrations ({isPending ? 0 : regCount})</span>
                                 </button>
                               );
                             })()}

@@ -359,12 +359,44 @@ export async function GET(req: Request) {
     const eventId = searchParams.get('eventId');
     const slug = searchParams.get('slug');
     const list = searchParams.get('list');
+    const allCounts = searchParams.get('allCounts') === 'true' || searchParams.get('allCounts') === '1' || searchParams.get('counts') === 'all';
+
+    const serverSupabase = createAdminClient();
+
+    if (allCounts) {
+      const { data: events } = await serverSupabase
+        .from('events')
+        .select('id, slug, registration_count, participants_count');
+
+      const { data: regRows } = await serverSupabase
+        .from('registrations')
+        .select('event_id');
+
+      const counts: Record<string, number> = {};
+      const regCountByEvent: Record<string, number> = {};
+      regRows?.forEach((r: any) => {
+        if (r.event_id) {
+          regCountByEvent[r.event_id] = (regCountByEvent[r.event_id] || 0) + 1;
+        }
+      });
+
+      events?.forEach((e: any) => {
+        const dbRowsCount = regCountByEvent[e.id] || 0;
+        const baseline = Math.max(
+          typeof e.registration_count === 'number' ? e.registration_count : 0,
+          typeof e.participants_count === 'number' ? e.participants_count : 0,
+          dbRowsCount
+        );
+        if (e.id) counts[e.id] = baseline;
+        if (e.slug) counts[e.slug] = baseline;
+      });
+
+      return NextResponse.json({ success: true, counts });
+    }
 
     if (!eventId && !slug) {
       return NextResponse.json({ error: 'Missing eventId or slug' }, { status: 400 });
     }
-
-    const serverSupabase = createAdminClient();
 
     let targetEventId = eventId;
     let eventSlug = slug;

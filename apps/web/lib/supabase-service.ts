@@ -33,6 +33,7 @@ import {
   getLocalInviteByToken,
   updateLocalInviteStatus,
   getLocalPendingInvitesForEmail,
+  getEventRegistrationsCount,
 } from './storage';
 
 /**
@@ -112,6 +113,11 @@ export function mapDbEventToExtended(item: any): ExtendedEvent {
       typeof item.registration_count === 'number' ? item.registration_count : 0,
       typeof item.participants_count === 'number' ? item.participants_count : 0
     ),
+    registrationCount: Math.max(
+      typeof item.registration_count === 'number' ? item.registration_count : 0,
+      typeof item.participants_count === 'number' ? item.participants_count : 0
+    ),
+    registration_count: typeof item.registration_count === 'number' ? item.registration_count : 0,
     participantsDisplay: `${Math.max(
       typeof item.registration_count === 'number' ? item.registration_count : 0,
       typeof item.participants_count === 'number' ? item.participants_count : 0
@@ -1757,20 +1763,40 @@ export async function fetchEventRegistrations(eventId: string): Promise<any[]> {
       }
     }
 
-    const fetchPromise = supabase
-      .from('registrations')
-      .select('*')
-      .eq('event_id', targetId)
-      .order('registered_at', { ascending: false });
+    let data: any[] | null = null;
+    try {
+      const fetchPromise = supabase
+        .from('registrations')
+        .select('*')
+        .eq('event_id', targetId)
+        .order('registered_at', { ascending: false });
 
-    const timeoutPromise = new Promise<{ data: null; error: any }>((resolve) =>
-      setTimeout(() => resolve({ data: null, error: 'timeout' }), 1200)
-    );
+      const timeoutPromise = new Promise<{ data: null; error: any }>((resolve) =>
+        setTimeout(() => resolve({ data: null, error: 'timeout' }), 3000)
+      );
 
-    const { data, error } = (await Promise.race([fetchPromise, timeoutPromise])) as any;
+      const res = (await Promise.race([fetchPromise, timeoutPromise])) as any;
+      if (res && res.data && Array.isArray(res.data) && res.data.length > 0) {
+        data = res.data;
+      }
+    } catch {}
 
-    if (error || !data) return [];
-    return data;
+    // Fallback: If direct query returned empty/null or timed out, fetch from server API
+    if (!data || data.length === 0) {
+      try {
+        if (typeof window !== 'undefined') {
+          const apiRes = await fetch(`/api/registrations?eventId=${encodeURIComponent(targetId)}&list=true`);
+          if (apiRes.ok) {
+            const json = await apiRes.json();
+            if (json.success && Array.isArray(json.registrations)) {
+              data = json.registrations;
+            }
+          }
+        }
+      } catch {}
+    }
+
+    return data || [];
   } catch {
     return [];
   }
@@ -4199,6 +4225,116 @@ export function subscribeToAllSubmissions(onUpdate: () => void): () => void {
       .on('broadcast', { event: 'submission_created' }, () => onUpdate())
       .on('broadcast', { event: 'submission_updated' }, () => onUpdate())
       .on('broadcast', { event: 'submission_deleted' }, () => onUpdate())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  } catch {
+    return () => {};
+  }
+}
+
+export async function fetchAllRegistrationCounts(): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {};
+
+  // 1. Check local storage registrations as initial baseline
+  if (typeof window !== 'undefined') {
+    try {
+      const allEvents = getAllEvents();
+      allEvents.forEach((ev) => {
+        const idCount = ev.id ? getEventRegistrationsCount(ev.id) : 0;
+        const slugCount = ev.slug ? getEventRegistrationsCount(ev.slug) : 0;
+        const localMax = Math.max(idCount, slugCount);
+        if (localMax > 0) {
+          if (ev.id) counts[ev.id] = Math.max(counts[ev.id] || 0, localMax);
+          if (ev.slug) counts[ev.slug] = Math.max(counts[ev.slug] || 0, localMax);
+        }
+      });
+    } catch {}
+  }
+
+  // 2. Try fetching server-side admin counts via API route (fast, accurate & bypasses RLS)
+  if (typeof window !== 'undefined') {
+    try {
+      const res = await fetch('/api/registrations?allCounts=true', { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.counts) {
+          Object.entries(json.counts).forEach(([k, v]) => {
+            counts[k] = Math.max(counts[k] || 0, Number(v) || 0);
+          });
+          return counts;
+        }
+      }
+    } catch {}
+  }
+
+  // 3. Fallback direct client query from Supabase
+  try {
+    const { data: eventRows } = await supabase
+      .from('events')
+      .select('id, slug, registration_count, participants_count');
+
+    const idToSlug = new Map<string, string>();
+    eventRows?.forEach((e: any) => {
+      if (e.id) {
+        if (e.slug) idToSlug.set(e.id, e.slug);
+        const baseline = Math.max(
+          typeof e.registration_count === 'number' ? e.registration_count : 0,
+          typeof e.participants_count === 'number' ? e.participants_count : 0
+        );
+        counts[e.id] = Math.max(counts[e.id] || 0, baseline);
+        if (e.slug) counts[e.slug] = Math.max(counts[e.slug] || 0, baseline);
+      }
+    });
+
+    const { data: regRows } = await supabase
+      .from('registrations')
+      .select('event_id');
+
+    if (regRows && regRows.length > 0) {
+      const dbCounts: Record<string, number> = {};
+      regRows.forEach((r: any) => {
+        if (r.event_id) {
+          dbCounts[r.event_id] = (dbCounts[r.event_id] || 0) + 1;
+        }
+      });
+
+      Object.entries(dbCounts).forEach(([eventId, count]) => {
+        counts[eventId] = Math.max(counts[eventId] || 0, count);
+        const slug = idToSlug.get(eventId);
+        if (slug) {
+          counts[slug] = Math.max(counts[slug] || 0, count);
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('Error fetching registration counts from Supabase:', err);
+  }
+
+  return counts;
+}
+
+export function subscribeToAllRegistrations(onUpdate: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+
+  try {
+    const channel = supabase
+      .channel(`registrations_all_realtime_${Date.now()}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'registrations' },
+        () => onUpdate()
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'events' },
+        () => onUpdate()
+      )
+      .on('broadcast', { event: 'registration_created' }, () => onUpdate())
+      .on('broadcast', { event: 'registration_updated' }, () => onUpdate())
+      .on('broadcast', { event: 'registration_deleted' }, () => onUpdate())
       .subscribe();
 
     return () => {

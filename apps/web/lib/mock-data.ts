@@ -28,6 +28,7 @@ export interface ExtendedEvent extends EventPublic {
   participantsCount: number;
   participantsDisplay?: string;
   registrationCount?: number;
+  registration_count?: number;
   featured?: boolean;
   mode?: string;
   domain?: string;
