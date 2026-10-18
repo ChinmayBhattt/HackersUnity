@@ -85,7 +85,33 @@ export async function GET(req: Request) {
       } else {
         query = query.eq('slug', slug);
       }
-      const { data, error } = await query.maybeSingle();
+      let { data, error } = await query.maybeSingle();
+
+      if (!data && !isUuid) {
+        const lowerSlug = slug.toLowerCase().trim();
+        if (
+          lowerSlug === 'sphinx-26' ||
+          lowerSlug === 'sphinx' ||
+          lowerSlug === 'evt_ai_1791373781895' ||
+          lowerSlug === 'sphinx-2026' ||
+          lowerSlug === 'ee511926-1089-4171-9090-684e6d179826'
+        ) {
+          const aliasRes = await serverSupabase
+            .from('events')
+            .select('*')
+            .or('slug.eq.sphinx-26,slug.eq.evt_ai_1791373781895,id.eq.ee511926-1089-4171-9090-684e6d179826')
+            .maybeSingle();
+          if (aliasRes.data) data = aliasRes.data;
+        } else {
+          const ilikeRes = await serverSupabase
+            .from('events')
+            .select('*')
+            .ilike('slug', slug)
+            .maybeSingle();
+          if (ilikeRes.data) data = ilikeRes.data;
+        }
+      }
+
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }

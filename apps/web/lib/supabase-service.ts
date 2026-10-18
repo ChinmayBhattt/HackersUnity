@@ -783,13 +783,30 @@ export async function fetchEventBySlug(slugOrId: string): Promise<ExtendedEvent 
         data = aliasRes.data;
       }
 
+      // Fallback for Sphinx '26 aliases
+      if (
+        !data &&
+        (lowerDecoded === 'sphinx-26' ||
+          lowerDecoded === 'sphinx' ||
+          lowerDecoded === 'evt_ai_1791373781895' ||
+          lowerDecoded === 'sphinx-2026' ||
+          lowerDecoded === 'ee511926-1089-4171-9090-684e6d179826')
+      ) {
+        const aliasRes = await supabase
+          .from('events')
+          .select('*')
+          .or('slug.eq.sphinx-26,slug.eq.evt_ai_1791373781895,id.eq.ee511926-1089-4171-9090-684e6d179826')
+          .maybeSingle();
+        data = aliasRes.data;
+      }
+
       // Fallback: title normalized match if slug was custom or ai-generated
       if (!data) {
-        const titleNormalized = decoded.replace(/-/g, ' ').trim();
+        const titleNormalized = decoded.replace(/-/g, ' ').replace(/'/g, '').trim();
         const titleRes = await supabase
           .from('events')
           .select('*')
-          .ilike('title', titleNormalized)
+          .or(`title.ilike.%${titleNormalized}%,title.ilike.%${decoded}%`)
           .maybeSingle();
         data = titleRes.data;
       }
