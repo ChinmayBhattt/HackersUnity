@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useAnimationControls, type PanInfo } from 'framer-motion';
 import {
   Sparkles,
   X,
@@ -45,7 +45,7 @@ export function GuideBot() {
     {
       id: 'welcome-msg',
       sender: 'bot',
-      text: "Hey there! I'm HUe 👋 Powered by Groq AI. Ask me anything about Hacker's Unity, hackathons, or tap below to start a tour!",
+      text: "Hey there! I'm HUe 👋 Powered by Hacker's Unity. Ask me anything about Hacker's Unity, hackathons, or tap below to start a tour!",
       timestamp: 'Just now',
       cta: {
         label: '🚀 Tour Hacker\'s Unity platform',
@@ -58,6 +58,13 @@ export function GuideBot() {
   const [botPos, setBotPos] = useState<Point>({ x: 0, y: 0 });
   const [thoughtPos, setThoughtPos] = useState<Point>({ x: 0, y: 0 });
 
+  // User-draggable resting position along borders/corners
+  const [restPos, setRestPos] = useState<Point>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [isAngry, setIsAngry] = useState(false);
+  const dragOccurredRef = useRef(false);
+  const restControls = useAnimationControls();
+
   const avatarRef = useRef<AvatarHandle>(null);
   const autoGreetingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const stepTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -66,14 +73,107 @@ export function GuideBot() {
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const rafIdRef = useRef<number | null>(null);
 
+  // Magnetic border/corner snapping logic:
+  // Can only rest along the borders of the screen.
+  // If user drops in the center, automatically glides to the nearest corner!
+  const snapToBorderOrCorner = useCallback((currentX: number, currentY: number): Point => {
+    if (typeof window === 'undefined') return { x: currentX, y: currentY };
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const avatarSize = 80;
+    const minX = 20;
+    const maxX = vw - avatarSize - 20;
+    const minY = 75; // Stay below top navbar
+    const maxY = vh - avatarSize - 20;
+
+    const distLeft = Math.abs(currentX - minX);
+    const distRight = Math.abs(maxX - currentX);
+    const distTop = Math.abs(currentY - minY);
+    const distBottom = Math.abs(maxY - currentY);
+
+    // Border zone threshold: within 110px of any screen border
+    const borderZoneThreshold = 110;
+    const isNearBorder =
+      distLeft <= borderZoneThreshold ||
+      distRight <= borderZoneThreshold ||
+      distTop <= borderZoneThreshold ||
+      distBottom <= borderZoneThreshold;
+
+    // If placed in the center zone, snap to the CLOSEST CORNER!
+    if (!isNearBorder) {
+      const corners = [
+        { x: minX, y: minY }, // Top-Left
+        { x: maxX, y: minY }, // Top-Right
+        { x: minX, y: maxY }, // Bottom-Left
+        { x: maxX, y: maxY }, // Bottom-Right
+      ];
+
+      let closestCorner = corners[0];
+      let minCornerDist = Infinity;
+      for (const corner of corners) {
+        const d = Math.hypot(currentX - corner.x, currentY - corner.y);
+        if (d < minCornerDist) {
+          minCornerDist = d;
+          closestCorner = corner;
+        }
+      }
+      return closestCorner;
+    }
+
+    // Otherwise snap onto the nearest border
+    const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+    if (minDist === distLeft) {
+      return { x: minX, y: Math.max(minY, Math.min(currentY, maxY)) };
+    }
+    if (minDist === distRight) {
+      return { x: maxX, y: Math.max(minY, Math.min(currentY, maxY)) };
+    }
+    if (minDist === distTop) {
+      return { x: Math.max(minX, Math.min(currentX, maxX)), y: minY };
+    }
+    // Bottom border
+    return { x: Math.max(minX, Math.min(currentX, maxX)), y: maxY };
+  }, []);
+
   // Initialize positions on mount
   useEffect(() => {
     setMounted(true);
     const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;
     const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-    setBotPos({ x: vw - 110, y: vh - 110 });
+    const defaultX = vw - 80 - 24;
+    const defaultY = vh - 80 - 24;
+
+    let initialPos = { x: defaultX, y: defaultY };
+    try {
+      const saved = localStorage.getItem('hue_resting_pos');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+          initialPos = snapToBorderOrCorner(parsed.x, parsed.y);
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
+    setRestPos(initialPos);
+    setBotPos(initialPos);
     setThoughtPos({ x: vw - 340, y: vh - 260 });
-  }, []);
+    restControls.set({ x: initialPos.x, y: initialPos.y, scale: 1 });
+  }, [snapToBorderOrCorner, restControls]);
+
+  // Window resize listener to keep HUe within screen bounds
+  useEffect(() => {
+    const handleResize = () => {
+      setRestPos((prev) => {
+        const snapped = snapToBorderOrCorner(prev.x, prev.y);
+        restControls.set({ x: snapped.x, y: snapped.y, scale: 1 });
+        return snapped;
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [snapToBorderOrCorner, restControls]);
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -93,10 +193,11 @@ export function GuideBot() {
       const thoughtH = 150;
 
       if (!isTourActive || !targetElement) {
-        const restBotX = vw - avatarSize - 24;
-        const restBotY = vh - avatarSize - 24;
-        setBotPos({ x: restBotX, y: restBotY });
-        setThoughtPos({ x: Math.max(16, restBotX - thoughtW + 40), y: restBotY - thoughtH - 16 });
+        setBotPos({ x: restPos.x, y: restPos.y });
+        setThoughtPos({
+          x: Math.max(16, Math.min(restPos.x - thoughtW + 40, vw - thoughtW - 16)),
+          y: Math.max(80, restPos.y - thoughtH - 16),
+        });
         return;
       }
 
@@ -194,7 +295,7 @@ export function GuideBot() {
       setBotPos({ x: newBotX, y: newBotY });
       setThoughtPos({ x: newThoughtX, y: newThoughtY });
     },
-    [isTourActive, currentStepIndex]
+    [isTourActive, currentStepIndex, restPos]
   );
 
   // Update position continuously on scroll
@@ -244,10 +345,11 @@ export function GuideBot() {
     setCurrentAnimation('idle');
     avatarRef.current?.play('idle');
     calculatePositionForTarget(null);
+    restControls.set({ x: restPos.x, y: restPos.y, scale: 1 });
     if (openChatAfter) {
       setIsChatOpen(true);
     }
-  }, [calculatePositionForTarget]);
+  }, [calculatePositionForTarget, restControls, restPos]);
 
   // Apply step with AUTO-ADVANCE TIMER (3-5 sec per step)
   const applyStep = useCallback(
@@ -492,8 +594,59 @@ export function GuideBot() {
     avatarRef.current?.play('sleeping');
   };
 
-  // Wake up when sleeping avatar is clicked
+  // Dragging handlers for resting mascot
+  const handleDragStart = () => {
+    dragOccurredRef.current = true;
+    setIsDragging(true);
+    setIsAngry(true);
+    setIsSleeping(false);
+    if (isChatOpen) setIsChatOpen(false);
+    setCurrentAnimation('angry');
+    avatarRef.current?.play('angry');
+  };
+
+  const handleDragEnd = (_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+    const rawX = restPos.x + info.offset.x;
+    const rawY = restPos.y + info.offset.y;
+    const snapped = snapToBorderOrCorner(rawX, rawY);
+
+    setRestPos(snapped);
+    setBotPos(snapped);
+    try {
+      localStorage.setItem('hue_resting_pos', JSON.stringify(snapped));
+    } catch {
+      // Ignore
+    }
+
+    // Smoothly spring / glide to the snapped border or corner
+    restControls.start({
+      x: snapped.x,
+      y: snapped.y,
+      scale: 1,
+      transition: { type: 'spring', damping: 22, stiffness: 280 },
+    });
+
+    setIsDragging(false);
+
+    // Return to calm idle cyan state after landing
+    setTimeout(() => {
+      setIsAngry(false);
+      setCurrentAnimation('idle');
+      avatarRef.current?.play('idle');
+    }, 650);
+
+    // Release drag click suppression shortly after
+    setTimeout(() => {
+      dragOccurredRef.current = false;
+    }, 200);
+  };
+
+  // Wake up when sleeping avatar is clicked, or toggle chat
   const handleAvatarClick = () => {
+    if (dragOccurredRef.current || isDragging) {
+      return;
+    }
+
     if (isTourActive) {
       togglePauseTour();
       return;
@@ -523,22 +676,41 @@ export function GuideBot() {
     ? TOUR_STEPS[currentStepIndex]
     : undefined;
 
+  const isRightSide =
+    mounted && typeof window !== 'undefined'
+      ? restPos.x > window.innerWidth / 2
+      : true;
+  const isBottomSide =
+    mounted && typeof window !== 'undefined'
+      ? restPos.y > window.innerHeight / 2
+      : true;
+
   // Reusable mascot trigger button
   const renderMascotButton = () => (
     <div className="relative flex items-center justify-center">
       {/* Ambient Glowing Halo */}
       <div
         className={`absolute -inset-3 rounded-full blur-xl transition-all duration-500 pointer-events-none ${
-          isSleeping
+          isAngry
+            ? 'bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 opacity-100 scale-125 animate-pulse'
+            : isSleeping
             ? 'bg-slate-500/20 opacity-40'
             : 'bg-gradient-to-r from-cyan-400/50 via-sky-500/40 to-orange-500/40 opacity-90 animate-pulse'
         }`}
       />
 
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={handleAvatarClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleAvatarClick();
+          }
+        }}
         onMouseEnter={() => {
+          if (isAngry || isDragging) return;
           setIsHovered(true);
           if (!isSleeping && currentAnimation === 'idle') {
             setCurrentAnimation('curious');
@@ -546,6 +718,7 @@ export function GuideBot() {
           }
         }}
         onMouseLeave={() => {
+          if (isAngry || isDragging) return;
           setIsHovered(false);
           if (!isSleeping && currentAnimation === 'curious' && !isTourActive) {
             setCurrentAnimation('idle');
@@ -553,10 +726,24 @@ export function GuideBot() {
           }
         }}
         aria-label={isSleeping ? 'Wake up HUe' : 'Chat with HUe guide bot'}
-        className="group relative flex items-center justify-center transition-transform hover:scale-110 active:scale-95 cursor-pointer focus:outline-none"
+        className={`group relative flex items-center justify-center transition-transform focus:outline-none select-none ${
+          isDragging ? 'cursor-grabbing scale-110' : 'cursor-grab active:cursor-grabbing hover:scale-110'
+        }`}
       >
         {/* Mascot Container */}
-        <div className="relative w-18 h-18 sm:w-20 sm:h-20 flex items-center justify-center filter drop-shadow-xl">
+        <div
+          className={`relative w-18 h-18 sm:w-20 sm:h-20 flex items-center justify-center transition-all duration-300 ${
+            isAngry ? 'hue-angry-shake' : 'drop-shadow-xl'
+          }`}
+          style={
+            isAngry
+              ? {
+                  filter:
+                    'hue-rotate(168deg) saturate(2.6) brightness(1.05) drop-shadow(0 0 18px rgba(239, 68, 68, 0.95))',
+                }
+              : undefined
+          }
+        >
           <Unknown
             ref={avatarRef}
             animation={currentAnimation}
@@ -565,16 +752,29 @@ export function GuideBot() {
             size="100%"
           />
 
+          {/* Angry anime vein popup mark 💢 */}
+          {isAngry && (
+            <div className="absolute -top-3 -right-2 text-xl select-none animate-bounce drop-shadow-[0_0_8px_rgba(239,68,68,0.9)] z-20">
+              💢
+            </div>
+          )}
+
+          {/* Angry dialogue pill when dragging */}
+          {isDragging && (
+            <div className="absolute -top-9 whitespace-nowrap px-2.5 py-1 rounded-full bg-red-600/95 text-white font-black text-[10px] tracking-wide border border-red-300 shadow-lg shadow-red-900/50 animate-pulse pointer-events-none select-none">
+              Hey! Put me down! 😡
+            </div>
+          )}
+
           {/* Sleeping Zzz Badge */}
-          {isSleeping && (
+          {isSleeping && !isAngry && (
             <div className="absolute -top-1 -right-1 px-1.5 py-0.5 rounded-full bg-slate-800 text-[10px] font-mono text-cyan-300 font-bold border border-cyan-400/30 animate-bounce shadow-md">
               zzz
             </div>
           )}
 
-
           {/* Tour playing badge */}
-          {isTourActive && (
+          {isTourActive && !isAngry && (
             <span className="absolute -bottom-1 -right-1 p-1 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md border-2 border-white dark:border-[#0c1017] animate-pulse">
               <Compass className="w-2.5 h-2.5" />
             </span>
@@ -582,13 +782,13 @@ export function GuideBot() {
         </div>
 
         {/* Hover Tooltip when resting */}
-        {!isChatOpen && !isTourActive && (
+        {!isChatOpen && !isTourActive && !isDragging && !isAngry && (
           <div className="absolute right-full mr-3 whitespace-nowrap px-3 py-1.5 rounded-2xl bg-white/95 dark:bg-[#0c1017]/95 border border-slate-200/90 dark:border-white/[0.1] shadow-xl text-slate-800 dark:text-slate-200 text-xs font-bold pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-cyan-500" />
-            <span>{isSleeping ? 'Click to wake HUe 😴' : 'Chat with HUe or Take Tour 🚀'}</span>
+            <span>{isSleeping ? 'Click to wake HUe 😴' : 'Drag me anywhere or Click to chat 🚀'}</span>
           </div>
         )}
-      </button>
+      </div>
     </div>
   );
 
@@ -617,17 +817,43 @@ export function GuideBot() {
           z-index: 25 !important;
           scroll-margin-top: 6rem;
         }
+        @keyframes hueAngryShake {
+          0%, 100% {
+            transform: rotate(0deg) translate(0, 0);
+          }
+          20% {
+            transform: rotate(-5deg) translate(-2px, 1px);
+          }
+          40% {
+            transform: rotate(5deg) translate(2px, -1px);
+          }
+          60% {
+            transform: rotate(-4deg) translate(-1px, -1px);
+          }
+          80% {
+            transform: rotate(4deg) translate(1px, 1px);
+          }
+        }
+        .hue-angry-shake {
+          animation: hueAngryShake 0.2s ease-in-out infinite;
+        }
       `}</style>
 
       {/* ─── MODE A: AI CHAT WINDOW (RESTING / SUMMONED) ──────────── */}
       <AnimatePresence>
         {isChatOpen && !isTourActive && (
           <motion.div
-            initial={{ opacity: 0, y: 15, scale: 0.92 }}
+            initial={{ opacity: 0, y: isBottomSide ? 15 : -15, scale: 0.92 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 12, scale: 0.92 }}
+            exit={{ opacity: 0, y: isBottomSide ? 12 : -12, scale: 0.92 }}
             transition={{ type: 'spring', damping: 25, stiffness: 320 }}
-            className="fixed bottom-24 right-4 sm:right-6 z-50 w-[calc(100vw-32px)] sm:w-[380px] md:w-[410px] h-[520px] max-h-[80vh] rounded-3xl backdrop-blur-2xl bg-white/95 dark:bg-[#0c1017]/95 border border-slate-200/90 dark:border-white/[0.12] shadow-2xl shadow-cyan-950/25 dark:shadow-black/80 flex flex-col overflow-hidden text-slate-900 dark:text-white"
+            style={{
+              position: 'fixed',
+              [isRightSide ? 'right' : 'left']: '16px',
+              [isBottomSide ? 'bottom' : 'top']: '96px',
+              zIndex: 50,
+            }}
+            className="w-[calc(100vw-32px)] sm:w-[380px] md:w-[410px] h-[520px] max-h-[80vh] rounded-3xl backdrop-blur-2xl bg-white/95 dark:bg-[#0c1017]/95 border border-slate-200/90 dark:border-white/[0.12] shadow-2xl shadow-cyan-950/25 dark:shadow-black/80 flex flex-col overflow-hidden text-slate-900 dark:text-white"
           >
             {/* Header with Cute HUe Avatar Logo */}
             <div className="p-4 border-b border-slate-100 dark:border-white/[0.08] flex items-center justify-between bg-slate-50/60 dark:bg-white/[0.02]">
@@ -644,14 +870,14 @@ export function GuideBot() {
                 <div>
                   <div className="flex items-center gap-1.5">
                     <h3 className="text-sm font-black text-slate-900 dark:text-white tracking-tight">
-                      HUe AI Assistant
+                      HUE AI Agent
                     </h3>
                     <span className="flex h-2 w-2 relative">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-400 font-medium">Powered by Groq • Hacker&apos;s Unity</p>
+                  <p className="text-[10px] text-slate-400 font-medium">Powered by Hacker&apos;s Unity</p>
                 </div>
               </div>
 
@@ -874,11 +1100,29 @@ export function GuideBot() {
         )}
       </AnimatePresence>
 
-      {/* ─── MASCOT: RESTING CORNER (WHEN TOUR IS INACTIVE) ───────── */}
+      {/* ─── MASCOT: RESTING CORNER / DRAGGABLE (WHEN TOUR IS INACTIVE) ───────── */}
       {!isTourActive && (
-        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 pointer-events-auto select-none">
+        <motion.div
+          animate={restControls}
+          drag
+          dragMomentum={false}
+          dragElastic={0}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          initial={{
+            x: restPos.x,
+            y: restPos.y,
+          }}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            zIndex: 60,
+          }}
+          className="pointer-events-auto select-none touch-none"
+        >
           {renderMascotButton()}
-        </div>
+        </motion.div>
       )}
 
       {/* ─── MASCOT: DYNAMIC FLYING (ONLY WHEN TOUR IS ACTIVE) ────── */}
