@@ -66,7 +66,6 @@ export function GuideBot() {
   const restControls = useAnimationControls();
 
   const avatarRef = useRef<AvatarHandle>(null);
-  const autoGreetingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const stepTimerRef = useRef<NodeJS.Timeout | null>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const activeSpotlightElRef = useRef<HTMLElement | null>(null);
@@ -460,31 +459,11 @@ export function GuideBot() {
     }
   };
 
-  // Initial Auto-Greeting after 2.5s (opens chat with welcome)
+  // Mascot starts in calm idle animation; chat remains closed until user clicks
   useEffect(() => {
     if (!mounted) return;
-
-    const storedDismissed = localStorage.getItem('hu_bot_greeting_dismissed');
-    if (storedDismissed) {
-      setCurrentAnimation('idle');
-      return;
-    }
-
-    autoGreetingTimerRef.current = setTimeout(() => {
-      setIsSleeping(false);
-      setCurrentAnimation('waking');
-      avatarRef.current?.play('waking');
-
-      setTimeout(() => {
-        setCurrentAnimation('happy');
-        avatarRef.current?.play('happy');
-        setIsChatOpen(true);
-      }, 1100);
-    }, 2500);
-
-    return () => {
-      if (autoGreetingTimerRef.current) clearTimeout(autoGreetingTimerRef.current);
-    };
+    setCurrentAnimation('idle');
+    avatarRef.current?.play('idle');
   }, [mounted]);
 
   // Send a chat message using GROQ AI API with local fallback
