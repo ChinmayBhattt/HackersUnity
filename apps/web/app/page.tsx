@@ -30,6 +30,7 @@ import { TestimonialsSection } from '@/components/testimonials-section';
 import { JoinTeamSection } from '@/components/join-team-section';
 import { CampusAmbassadorSection } from '@/components/campus-ambassador-section';
 import { MetallicGlassCard } from '@/components/ui/metallic-glass-card';
+import { GuideBot } from '@/components/guide-bot';
 
 // Event gallery photos
 import galleryStage from '@/assets/hackstorm_stage.jpg';
@@ -173,14 +174,14 @@ export default function HomePage() {
   return (
     <div className="flex flex-col flex-1">
       {/* ─── Hero Section ────────────────────────────────────────── */}
-      <section className="relative overflow-hidden pt-12 pb-20 md:pt-20 md:pb-28 border-b border-slate-200/80 dark:border-white/[0.08] bg-grid-pattern">
+      <section id="hero" className="relative overflow-hidden pt-12 pb-20 md:pt-20 md:pb-28 border-b border-slate-200/80 dark:border-white/[0.08] bg-grid-pattern">
         {/* Soft Ambient Brand Mesh */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#0099e6]/10 dark:bg-[#0099e6]/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute top-1/3 left-1/3 w-80 h-80 bg-[#f97316]/10 dark:bg-[#f97316]/15 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center flex flex-col items-center">
           {/* Top Pill */}
-          <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] text-slate-800 dark:text-slate-200 text-[11px] sm:text-xs font-bold mb-6 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500 max-w-full justify-center">
+          <div id="hero-pill" className="inline-flex items-center gap-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] text-slate-800 dark:text-slate-200 text-[11px] sm:text-xs font-bold mb-6 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500 max-w-full justify-center">
             <span className="flex h-2 w-2 relative shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0099e6] opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-[#0099e6]" />
@@ -202,12 +203,14 @@ export default function HomePage() {
           </p>
 
           {/* AI Command Center: Find & Build with Groq */}
-          <AiHeroPanel />
+          <div id="ai-command" className="w-full flex justify-center">
+            <AiHeroPanel />
+          </div>
 
 
 
           {/* Metrics Ticker */}
-          <div className="w-full max-w-5xl grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-5 pt-8 border-t border-slate-200/80 dark:border-white/[0.08]">
+          <div id="metrics-ticker" className="w-full max-w-5xl grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-5 pt-8 border-t border-slate-200/80 dark:border-white/[0.08]">
             {/* Stat 1: Hackathons */}
             <div className="group relative p-3 sm:p-5 rounded-2xl bg-white/90 dark:bg-[#0c1017]/90 backdrop-blur-sm border border-slate-200/90 dark:border-white/[0.08] shadow-xs hover:shadow-lg dark:hover:shadow-black/70 hover:border-slate-300 dark:hover:border-white/[0.18] hover:-translate-y-0.5 transition-all duration-300 flex flex-col items-center justify-center text-center">
               <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.08] flex items-center justify-center text-slate-800 dark:text-slate-200 mb-2 group-hover:scale-110 transition-transform">
@@ -350,7 +353,7 @@ export default function HomePage() {
       </section>
 
       {/* ─── Featured & Trending Hackathons (Horizontal Manual Carousel) ─── */}
-      <section className="py-16 md:py-24 w-full overflow-hidden">
+      <section id="hackathons" className="py-16 md:py-24 w-full overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
             <div>
@@ -437,8 +440,12 @@ export default function HomePage() {
               ref={eventsScrollRef}
               className="flex gap-6 items-stretch overflow-x-auto py-4 scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden snap-x snap-mandatory"
             >
-              {events.map((event) => (
-                <div key={event.id} className="w-[84vw] max-w-[340px] sm:w-[380px] shrink-0 snap-start">
+              {events.map((event, idx) => (
+                <div
+                  key={event.id}
+                  id={idx === 0 ? "first-hackathon-card" : undefined}
+                  className="w-[84vw] max-w-[340px] sm:w-[380px] shrink-0 snap-start"
+                >
                   <HackathonCard event={event} />
                 </div>
               ))}
@@ -457,6 +464,7 @@ export default function HomePage() {
 
       {/* ─── Event Gallery ─────────────────────────────────────────── */}
       <section
+        id="gallery"
         ref={gallerySectionRef}
         className={`relative py-20 md:py-28 overflow-hidden ${galleryVisible ? 'gallery-section-visible' : 'gallery-section-hidden'
           }`}
@@ -607,7 +615,7 @@ export default function HomePage() {
       </section>
 
       {/* ─── Why Hacker's Unity Matrix ─────────────────────────────── */}
-      <section className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+      <section id="builder-standard" className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
         <div className="text-center max-w-2xl mx-auto mb-14">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs font-bold uppercase tracking-wider mb-3">
             <ShieldCheck className="w-3.5 h-3.5" />
@@ -622,15 +630,17 @@ export default function HomePage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <MetallicGlassCard glowColor="rgba(0, 153, 230, 0.25)">
-            <div className="w-10 h-10 rounded-xl bg-sky-50 dark:bg-sky-500/10 border border-sky-200/80 dark:border-sky-500/25 flex items-center justify-center text-[#0099e6] shadow-sm">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">A Platform to Showcase Your Talent</h3>
-            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-              Hacker’s Unity gives students the right platform to showcase their skills, ideas, creativity, and technical talent to a wider community and industry.
-            </p>
-          </MetallicGlassCard>
+          <div id="builder-card-1">
+            <MetallicGlassCard glowColor="rgba(0, 153, 230, 0.25)">
+              <div className="w-10 h-10 rounded-xl bg-sky-50 dark:bg-sky-500/10 border border-sky-200/80 dark:border-sky-500/25 flex items-center justify-center text-[#0099e6] shadow-sm">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">A Platform to Showcase Your Talent</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                Hacker’s Unity gives students the right platform to showcase their skills, ideas, creativity, and technical talent to a wider community and industry.
+              </p>
+            </MetallicGlassCard>
+          </div>
 
           <MetallicGlassCard glowColor="rgba(234, 88, 12, 0.25)">
             <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-500/10 border border-orange-200/80 dark:border-orange-500/25 flex items-center justify-center text-[#ea580c] shadow-sm">
@@ -655,12 +665,14 @@ export default function HomePage() {
       </section>
 
       {/* ─── Industry Leaders Podcast Section ──────────────────────── */}
-      <PodcastSection />
+      <div id="podcasts">
+        <PodcastSection />
+      </div>
 
       {/* ─── AI & Blockchain Workshops — Manual Carousel (Responsive) ── */}
-      <section className="relative w-full py-10 sm:py-16">
+      <section id="workshops" className="relative w-full py-10 sm:py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          <div className="w-full rounded-2xl sm:rounded-3xl bg-[#090d16] border border-slate-800/90 shadow-2xl p-5 sm:p-7 lg:p-10 relative overflow-hidden my-4 lg:my-0">
+          <div id="workshop-card" className="w-full rounded-2xl sm:rounded-3xl bg-[#090d16] border border-slate-800/90 shadow-2xl p-5 sm:p-7 lg:p-10 relative overflow-hidden my-4 lg:my-0">
             {/* Decorative subtle ambient glows */}
             <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
             <div className="absolute bottom-0 left-0 w-80 h-80 bg-orange-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -853,8 +865,8 @@ export default function HomePage() {
       </section>
 
       {/* ─── Host Hackathon CTA ───────────────────────────────────── */}
-      <section className="pb-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-        <div className="p-6 sm:p-10 md:p-12 rounded-3xl bg-gradient-to-r from-[#0099e6] via-[#0284c7] to-[#f97316] text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8">
+      <section id="host-hackathon" className="pb-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <div id="host-cta-card" className="p-6 sm:p-10 md:p-12 rounded-3xl bg-gradient-to-r from-[#0099e6] via-[#0284c7] to-[#f97316] text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="space-y-3 max-w-xl">
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-white/20 text-white border border-white/30 backdrop-blur-md">
               ORGANIZER SUITE
@@ -887,12 +899,17 @@ export default function HomePage() {
       <JoinTeamSection />
 
       {/* ─── Become Campus Ambassador (3D Scroll Media Expansion Hero) ─ */}
-      <CampusAmbassadorSection />
+      <div id="campus-ambassador">
+        <CampusAmbassadorSection />
+      </div>
 
       {/* ─── Industry Leader Testimonials (H2S Style) ─────────────── */}
       <TestimonialsSection />
 
       <AuthModal isOpen={authOpen} onClose={() => setAuthOpen(false)} />
+
+      {/* ─── HUe Navigator Guide Bot (Home Page Exclusive) ─────────── */}
+      <GuideBot />
     </div>
   );
 }

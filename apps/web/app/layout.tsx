@@ -33,13 +33,15 @@ export const metadata: Metadata = {
     template: "%s | Hacker's Unity",
   },
   description:
-    "Hacker’s Unity is India’s Fastest Growing community, uniting developers, innovators, founded by Jha Suraj Kumar and Chinmay Bhatt. Join us to build, learn & innovate! Top 1 India's fastest growing hackathon community.",
+    "Hacker’s Unity is India’s Fastest Growing community, uniting developers, innovators, founded by Jha Suraj Kumar and Chinmay Bhatt. Join us to build, learn & innovate! Top 1 India's fastest growing hackathon community., India's fastest growing hackathon community., India's fastest growing hackathon organization.",
   keywords: [
     "Hackers Unity",
     "Hackathon Community",
     "Hackathon Community India",
     "Hackathon Community UK",
     "Co-Founder Chinmay Bhatt",
+    "Founder Chinmay Bhatt",
+    "CEO Chinmay Bhatt",
     "Founder Jha Suraj Kumar",
     "Tech Community",
     "HackStorm",
