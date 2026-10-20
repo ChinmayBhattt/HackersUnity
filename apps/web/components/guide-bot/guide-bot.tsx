@@ -64,6 +64,29 @@ function parseOptionsFromText(text: string): BotChatOption[] {
   return extracted.length >= 2 ? extracted.slice(0, 5) : [];
 }
 
+const EXPRESSION_PRESETS: Array<{
+  id: string;
+  name: string;
+  emoji: string;
+  label: string;
+  animation: AnimationName;
+  dialogue: string;
+}> = [
+  { id: 'happy', name: 'Happy', emoji: '😊', label: 'Happy', animation: 'happy', dialogue: 'Feeling great and ready to hack! 🚀' },
+  { id: 'wink', name: 'Wink', emoji: '😉', label: 'Wink', animation: 'wink', dialogue: 'Always got your back! ✨' },
+  { id: 'love', name: 'Love', emoji: '💖', label: 'Love', animation: 'love', dialogue: "Hacker's Unity ❤️ you! Keep innovating!" },
+  { id: 'starstruck', name: 'Starstruck', emoji: '🤩', label: 'Starstruck', animation: 'starstruck', dialogue: 'Whoa! $350K+ in prizes?! 🏆' },
+  { id: 'cool', name: 'Cool', emoji: '😎', label: 'Cool', animation: 'cool', dialogue: "Chill vibes & clean code. Let's build! 😎" },
+  { id: 'focus', name: 'Focus', emoji: '⚡', label: 'Focus', animation: 'determined', dialogue: 'Locked in! Ultra-focused builder mode! 💻' },
+  { id: 'dance', name: 'Dance', emoji: '🕺', label: 'Dance', animation: 'dance', dialogue: 'Hackathon victory dance! 🕺🎉' },
+  { id: 'celebrate', name: 'Celebrate', emoji: '🥳', label: 'Celebrate', animation: 'celebrate', dialogue: 'Winner vibes! Celebration time! 🏆' },
+  { id: 'giggle', name: 'Giggle', emoji: '🤭', label: 'Giggle', animation: 'giggle', dialogue: 'Hehehe that tickles! 🤭' },
+  { id: 'dizzy', name: 'Dizzy', emoji: '😵‍💫', label: 'Dizzy', animation: 'dizzy', dialogue: 'Whoa... too many recursive loops! 💫' },
+  { id: 'yawn', name: 'Yawn', emoji: '🥱', label: 'Yawn', animation: 'yawn', dialogue: 'A quick stretch... ready to code! 🥱' },
+  { id: 'curious', name: 'Curious', emoji: '👀', label: 'Curious', animation: 'curious', dialogue: 'Hmm, what are we building today?' },
+  { id: 'angry', name: 'Angry', emoji: '😡', label: 'Angry', animation: 'angry', dialogue: 'Grrr! Squash those production bugs! 🐛🔥' },
+];
+
 export function GuideBot() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -75,6 +98,31 @@ export function GuideBot() {
   const [isSleeping, setIsSleeping] = useState(false);
   const [currentAnimation, setCurrentAnimation] = useState<AnimationName>('idle');
   const [isHovered, setIsHovered] = useState(false);
+
+  // Floating speech toast message over mascot
+  const [mascotSpeech, setMascotSpeech] = useState<string | null>(null);
+  const speechTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pokeCountRef = useRef(0);
+  const lastPokeTimeRef = useRef(0);
+
+  const showMascotSpeech = useCallback((text: string, duration = 2800) => {
+    if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current);
+    setMascotSpeech(text);
+    speechTimeoutRef.current = setTimeout(() => {
+      setMascotSpeech(null);
+    }, duration);
+  }, []);
+
+  const triggerExpression = useCallback(
+    (anim: AnimationName, dialogue?: string) => {
+      setCurrentAnimation(anim);
+      avatarRef.current?.play(anim);
+      if (dialogue) {
+        showMascotSpeech(dialogue);
+      }
+    },
+    [showMascotSpeech]
+  );
 
   // Chat conversation state
   const [inputQuery, setInputQuery] = useState('');
@@ -242,6 +290,42 @@ export function GuideBot() {
       chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isChatOpen]);
+
+  // Autonomous living companion: periodic lively micro-expressions while resting
+  useEffect(() => {
+    if (!mounted || isSleeping || isTourActive || isChatOpen || isDragging) return;
+
+    const idlePool: Array<{ anim: AnimationName; dialogue?: string }> = [
+      { anim: 'wink', dialogue: 'Psst! Need help building? 😉' },
+      { anim: 'curious', dialogue: 'Checking out hackathons? 👀' },
+      { anim: 'love', dialogue: "Hacker's Unity loves builders! 💖" },
+      { anim: 'cool', dialogue: 'Keep building cool stuff. 😎' },
+      { anim: 'starstruck', dialogue: '$350K+ in prize money! 🤩' },
+      { anim: 'playful', dialogue: 'Boop! Ready when you are! 🚀' },
+      { anim: 'giggle', dialogue: 'Hehehe happy coding! 🤭' },
+      { anim: 'yawn', dialogue: 'A quick stretch... 🥱' },
+      { anim: 'dance', dialogue: 'Builder victory vibes! 🕺' },
+      { anim: 'determined', dialogue: 'Time to ship production code! ⚡' },
+    ];
+
+    const timer = setInterval(() => {
+      // Pick random micro-expression
+      const item = idlePool[Math.floor(Math.random() * idlePool.length)];
+      setCurrentAnimation(item.anim);
+      avatarRef.current?.play(item.anim);
+      showMascotSpeech(item.dialogue || '', 2600);
+
+      // Smoothly return to idle after 3.2s
+      setTimeout(() => {
+        if (!isTourActive && !isChatOpen && !isSleeping && !isDragging) {
+          setCurrentAnimation('idle');
+          avatarRef.current?.play('idle');
+        }
+      }, 3400);
+    }, 13000 + Math.random() * 5000);
+
+    return () => clearInterval(timer);
+  }, [mounted, isSleeping, isTourActive, isChatOpen, isDragging, showMascotSpeech]);
 
   // Compute DYNAMIC & VARIED positions relative to target element
   const calculatePositionForTarget = useCallback(
@@ -639,6 +723,10 @@ export function GuideBot() {
       query.toLowerCase().includes('create hackathon') ||
       query.toLowerCase().includes('sprint');
 
+    const thinkingAnim: AnimationName = isExplicitBuild ? 'working' : 'thinking';
+    setCurrentAnimation(thinkingAnim);
+    avatarRef.current?.play(thinkingAnim);
+
     if (isExplicitBuild) {
       setBuildStepMessage(
         currentFile?.isImage ? 'Scanning poster with AI OCR...' : 'Architecting hackathon with AI...'
@@ -820,17 +908,42 @@ export function GuideBot() {
       setIsSleeping(false);
       setCurrentAnimation('waking');
       avatarRef.current?.play('waking');
+      showMascotSpeech("Good morning! Let's build! ☀️", 2200);
       setTimeout(() => {
         setCurrentAnimation('happy');
         avatarRef.current?.play('happy');
         setIsChatOpen(true);
       }, 900);
-    } else {
-      setIsChatOpen((prev) => !prev);
-      if (!isChatOpen) {
-        setCurrentAnimation('happy');
-        avatarRef.current?.play('happy');
+      return;
+    }
+
+    // Check rapid poking
+    const now = Date.now();
+    if (now - lastPokeTimeRef.current < 650) {
+      const pokes = pokeCountRef.current + 1;
+      pokeCountRef.current = pokes;
+      lastPokeTimeRef.current = now;
+
+      if (pokes === 2) {
+        triggerExpression('giggle', 'Hehehe that tickles! 🤭');
+        return;
+      } else if (pokes === 3) {
+        triggerExpression('wink', 'Boop! You poked me 3 times! 😉');
+        return;
+      } else if (pokes >= 4) {
+        triggerExpression('dizzy', 'Whoa spinning! Too many pokes! 😵‍💫');
+        pokeCountRef.current = 0;
+        return;
       }
+    } else {
+      pokeCountRef.current = 1;
+      lastPokeTimeRef.current = now;
+    }
+
+    setIsChatOpen((prev) => !prev);
+    if (!isChatOpen) {
+      setCurrentAnimation('happy');
+      avatarRef.current?.play('happy');
     }
   };
 
@@ -852,16 +965,39 @@ export function GuideBot() {
   // Reusable mascot trigger button
   const renderMascotButton = () => (
     <div className="relative flex items-center justify-center">
-      {/* Ambient Glowing Halo */}
+      {/* Dynamic Ambient Glowing Halo matching expression */}
       <div
         className={`absolute -inset-3 rounded-full blur-xl transition-all duration-500 pointer-events-none ${
           isAngry
             ? 'bg-gradient-to-r from-red-600 via-rose-500 to-amber-500 opacity-100 scale-125 animate-pulse'
             : isSleeping
             ? 'bg-slate-500/20 opacity-40'
+            : currentAnimation === 'love'
+            ? 'bg-gradient-to-r from-pink-500 via-rose-500 to-purple-500 opacity-90 animate-pulse'
+            : currentAnimation === 'starstruck'
+            ? 'bg-gradient-to-r from-amber-400 via-yellow-400 to-cyan-400 opacity-95 animate-pulse'
+            : currentAnimation === 'determined'
+            ? 'bg-gradient-to-r from-orange-500 via-red-500 to-cyan-500 opacity-90 animate-pulse'
+            : currentAnimation === 'dance' || currentAnimation === 'celebrate'
+            ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-amber-400 opacity-95 animate-pulse'
             : 'bg-gradient-to-r from-cyan-400/50 via-sky-500/40 to-orange-500/40 opacity-90 animate-pulse'
         }`}
       />
+
+      {/* Floating Interactive Speech Toast */}
+      <AnimatePresence>
+        {mascotSpeech && !isDragging && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.85 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.9 }}
+            transition={{ duration: 0.18 }}
+            className="absolute -top-11 whitespace-nowrap px-3 py-1 rounded-2xl bg-white/95 dark:bg-[#0c1017]/95 border border-cyan-400/50 shadow-xl shadow-cyan-950/20 text-slate-800 dark:text-slate-100 font-bold text-[11px] pointer-events-none select-none z-30 flex items-center gap-1.5"
+          >
+            <span>{mascotSpeech}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div
         role="button"
@@ -877,16 +1013,30 @@ export function GuideBot() {
           if (isAngry || isDragging) return;
           setIsHovered(true);
           if (!isSleeping && currentAnimation === 'idle') {
-            setCurrentAnimation('curious');
-            avatarRef.current?.play('curious');
+            const hoverPool: Array<{ anim: AnimationName; dialogue?: string }> = [
+              { anim: 'curious', dialogue: 'Hey builder! 👀' },
+              { anim: 'wink', dialogue: 'Need hackathon advice? 😉' },
+              { anim: 'love', dialogue: 'Glad you are here! 💖' },
+              { anim: 'cool', dialogue: 'Looking sharp! 😎' },
+              { anim: 'starstruck', dialogue: 'Ready to win prizes? 🤩' },
+              { anim: 'playful', dialogue: 'Click me to chat! 🚀' },
+            ];
+            const pick = hoverPool[Math.floor(Math.random() * hoverPool.length)];
+            setCurrentAnimation(pick.anim);
+            avatarRef.current?.play(pick.anim);
+            if (pick.dialogue) showMascotSpeech(pick.dialogue, 2400);
           }
         }}
         onMouseLeave={() => {
           if (isAngry || isDragging) return;
           setIsHovered(false);
-          if (!isSleeping && currentAnimation === 'curious' && !isTourActive) {
-            setCurrentAnimation('idle');
-            avatarRef.current?.play('idle');
+          if (!isSleeping && !isTourActive && !isChatOpen) {
+            setTimeout(() => {
+              if (!isHovered && !isChatOpen && !isTourActive && !isAngry) {
+                setCurrentAnimation('idle');
+                avatarRef.current?.play('idle');
+              }
+            }, 1200);
           }
         }}
         aria-label={isSleeping ? 'Wake up HUe' : 'Chat with HUe guide bot'}
@@ -937,6 +1087,52 @@ export function GuideBot() {
             </div>
           )}
 
+          {/* Expression Accessory Badges */}
+          {!isAngry && !isSleeping && (
+            <>
+              {currentAnimation === 'love' && (
+                <div className="absolute -top-2.5 -right-1 text-base select-none animate-bounce drop-shadow-[0_0_8px_rgba(255,42,112,0.8)] z-20">
+                  💖
+                </div>
+              )}
+              {currentAnimation === 'starstruck' && (
+                <div className="absolute -top-2.5 -right-1 text-base select-none animate-pulse drop-shadow-[0_0_8px_rgba(255,183,3,0.9)] z-20">
+                  ✨
+                </div>
+              )}
+              {currentAnimation === 'cool' && (
+                <div className="absolute -top-2.5 -right-1 text-base select-none drop-shadow-md z-20">
+                  😎
+                </div>
+              )}
+              {currentAnimation === 'determined' && (
+                <div className="absolute -top-2.5 -right-1 text-base select-none animate-bounce drop-shadow-[0_0_8px_rgba(255,77,0,0.9)] z-20">
+                  ⚡
+                </div>
+              )}
+              {(currentAnimation === 'dance' || currentAnimation === 'celebrate') && (
+                <div className="absolute -top-2.5 -right-1 text-base select-none animate-bounce z-20">
+                  🎉
+                </div>
+              )}
+              {currentAnimation === 'giggle' && (
+                <div className="absolute -top-2.5 -right-1 text-base select-none animate-pulse z-20">
+                  🤭
+                </div>
+              )}
+              {currentAnimation === 'dizzy' && (
+                <div className="absolute -top-2.5 -right-1 text-base select-none animate-spin z-20">
+                  💫
+                </div>
+              )}
+              {currentAnimation === 'wink' && (
+                <div className="absolute -top-2.5 -right-1 text-base select-none z-20">
+                  😉
+                </div>
+              )}
+            </>
+          )}
+
           {/* Tour playing badge */}
           {isTourActive && !isAngry && (
             <span className="absolute -bottom-1 -right-1 p-1 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md border-2 border-white dark:border-[#0c1017] animate-pulse">
@@ -946,7 +1142,7 @@ export function GuideBot() {
         </div>
 
         {/* Hover Tooltip when resting */}
-        {!isChatOpen && !isTourActive && !isDragging && !isAngry && (
+        {!isChatOpen && !isTourActive && !isDragging && !isAngry && !mascotSpeech && (
           <div className="absolute right-full mr-3 whitespace-nowrap px-3 py-1.5 rounded-2xl bg-white/95 dark:bg-[#0c1017]/95 border border-slate-200/90 dark:border-white/[0.1] shadow-xl text-slate-800 dark:text-slate-200 text-xs font-bold pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-cyan-500" />
             <span>{isSleeping ? 'Click to wake HUe 😴' : 'Drag me anywhere or Click to chat 🚀'}</span>
@@ -1028,7 +1224,7 @@ export function GuideBot() {
                     size={34}
                     playing={true}
                     loop={true}
-                    animation="happy"
+                    animation={currentAnimation}
                   />
                 </div>
                 <div>
@@ -1039,6 +1235,9 @@ export function GuideBot() {
                     <span className="flex h-2 w-2 relative">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-cyan-500/15 text-cyan-600 dark:text-cyan-300 border border-cyan-400/30">
+                      {currentAnimation}
                     </span>
                   </div>
                   <p className="text-[10px] text-slate-400 font-medium">Powered by Hacker&apos;s Unity</p>
@@ -1083,6 +1282,32 @@ export function GuideBot() {
                   {item.label}
                 </button>
               ))}
+            </div>
+
+            {/* Quick Interactive Expressions & Moods Bar */}
+            <div className="px-3 py-1.5 border-b border-slate-100 dark:border-white/[0.06] bg-slate-50/50 dark:bg-black/30 flex items-center gap-1.5 shrink-0 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1 shrink-0">
+                <Sparkles className="w-3 h-3 text-cyan-500" />
+                Mood:
+              </span>
+              <div className="flex items-center gap-1 shrink-0">
+                {EXPRESSION_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => triggerExpression(preset.animation, preset.dialogue)}
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-all cursor-pointer border flex items-center gap-1 ${
+                      currentAnimation === preset.animation
+                        ? 'bg-gradient-to-r from-cyan-500/25 to-sky-500/25 border-cyan-400 text-cyan-600 dark:text-cyan-300 scale-105 shadow-xs'
+                        : 'bg-white dark:bg-white/[0.04] border-slate-200/80 dark:border-white/[0.08] text-slate-600 dark:text-slate-400 hover:border-cyan-400/60 hover:text-cyan-500'
+                    }`}
+                    title={preset.name}
+                  >
+                    <span>{preset.emoji}</span>
+                    <span>{preset.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Chat Message Stream */}
@@ -1362,7 +1587,13 @@ export function GuideBot() {
               <input
                 type="text"
                 value={inputQuery}
-                onChange={(e) => setInputQuery(e.target.value)}
+                onChange={(e) => {
+                  setInputQuery(e.target.value);
+                  if (e.target.value.length > 0 && (currentAnimation === 'idle' || currentAnimation === 'happy')) {
+                    setCurrentAnimation('listening');
+                    avatarRef.current?.play('listening');
+                  }
+                }}
                 placeholder={
                   attachedFile
                     ? "Add details (e.g. '₹2L prize, Bangalore') or tap Auto-Host..."

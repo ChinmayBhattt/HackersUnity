@@ -210,6 +210,11 @@ export const CHAT_SUGGESTIONS: ChatSuggestion[] = [
     label: '👥 How to find teammates?',
     query: 'How do I find teammates to build hackathon projects?',
   },
+  {
+    id: 'expressions',
+    label: '✨ HUe\'s 30+ Expressions',
+    query: 'Show me your expressions and moods',
+  },
 ];
 
 // Fallback Smart Query Resolver for Hacker's Unity
@@ -220,6 +225,89 @@ export function resolveBotQuery(query: string): {
   cta?: { label: string; href?: string; isTourTrigger?: boolean };
 } {
   const q = query.toLowerCase().trim();
+
+  // Specific emotion / expression triggers
+  if (q.includes('wink')) {
+    return {
+      text: "Always got your back! 😉 Keep innovating and building products that matter! ✨",
+      animation: 'wink',
+    };
+  }
+  if (q.includes('love') || q.includes('pyaar') || q.includes('dil')) {
+    return {
+      text: "Sending all my love to you and the incredible Hacker's Unity developer community! 💖🚀",
+      animation: 'love',
+    };
+  }
+  if (q.includes('cool') || q.includes('swagger') || q.includes('shades')) {
+    return {
+      text: "Smooth, confident, and ready to ship production code. Let's do this! 😎⚡",
+      animation: 'cool',
+    };
+  }
+  if (q.includes('starstruck') || q.includes('awe') || q.includes('wow') || q.includes('wonder')) {
+    return {
+      text: "Whoa! Over $350K+ in prize pools and 50,000+ top builders across India?! Truly mind-blowing! 🤩🏆",
+      animation: 'starstruck',
+    };
+  }
+  if (q.includes('determined') || q.includes('focus') || q.includes('locked in') || q.includes('code')) {
+    return {
+      text: "Locked in! Focused builder mode engaged. Time to turn ideas into high-impact startups! 💻⚡",
+      animation: 'determined',
+    };
+  }
+  if (q.includes('dance') || q.includes('party') || q.includes('nach')) {
+    return {
+      text: "Hackathon submission accepted! Let's celebrate with a victory dance! 🕺🎉",
+      animation: 'dance',
+    };
+  }
+  if (q.includes('giggle') || q.includes('laugh') || q.includes('tickle') || q.includes('joke')) {
+    return {
+      text: "Hehehe that tickles! 🤭 Why do programmers prefer dark mode? Because light attracts bugs! 🐛😂",
+      animation: 'giggle',
+    };
+  }
+  if (q.includes('dizzy') || q.includes('spin') || q.includes('chakkar')) {
+    return {
+      text: "Whoa... too many recursive function calls without a base case! Head is spinning! 😵‍💫💫",
+      animation: 'dizzy',
+    };
+  }
+  if (
+    q.includes('expression') ||
+    q.includes('mood') ||
+    q.includes('feeling') ||
+    q.includes('kya kar sakte')
+  ) {
+    return {
+      text: "I have over 30+ interactive animated moods and 40+ procedural 3D expressions! ✨ From charming winks 😉, starry-eyed wonder 🤩, loving glances 💖, to builder focus ⚡ and celebration dances 🕺!\n\nPick a mood below or use the quick Moods bar above to see me in action:",
+      animation: 'dance',
+      options: [
+        {
+          id: 'opt-e1',
+          label: 'Option 1: 😉 Show a cheeky wink',
+          value: 'Show me your charming wink expression',
+        },
+        {
+          id: 'opt-e2',
+          label: 'Option 2: 💖 Show some love to Hacker\'s Unity',
+          value: 'Show me your love and appreciation expression',
+        },
+        {
+          id: 'opt-e3',
+          label: 'Option 3: 🤩 Starstruck by hackathons',
+          value: 'Show me your starstruck wonder expression',
+        },
+        {
+          id: 'opt-e4',
+          label: 'Option 4: ⚡ Ultra-focused builder mode',
+          value: 'Show me your locked in determined builder expression',
+        },
+      ],
+    };
+  }
 
   // Tour trigger
   if (

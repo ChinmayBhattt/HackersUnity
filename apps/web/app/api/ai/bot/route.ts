@@ -35,7 +35,7 @@ CRITICAL INTERACTION RULES:
 4. Return strictly valid JSON conforming to this schema:
 {
   "reply": "Your friendly conversational response in English or Hinglish...",
-  "animation": "happy" | "thinking" | "excited" | "proud" | "working",
+  "animation": "happy" | "thinking" | "excited" | "proud" | "working" | "wink" | "love" | "cool" | "starstruck" | "determined" | "giggle" | "dizzy" | "dance" | "celebrate" | "playful" | "curious" | "sad" | "angry",
   "options": [
     {
       "id": "opt-1",
