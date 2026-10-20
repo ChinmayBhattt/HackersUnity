@@ -29,6 +29,7 @@ import { PodcastSection } from '@/components/podcast-section';
 import { TestimonialsSection } from '@/components/testimonials-section';
 import { JoinTeamSection } from '@/components/join-team-section';
 import { CampusAmbassadorSection } from '@/components/campus-ambassador-section';
+import { ClubsSection } from '@/components/clubs-section';
 import { MetallicGlassCard } from '@/components/ui/metallic-glass-card';
 import { GuideBot } from '@/components/guide-bot';
 
@@ -902,6 +903,9 @@ export default function HomePage() {
       <div id="campus-ambassador">
         <CampusAmbassadorSection />
       </div>
+
+      {/* ─── Campus Clubs & Chapters (PCU Chapter & Expansion) ────── */}
+      <ClubsSection />
 
       {/* ─── Industry Leader Testimonials (H2S Style) ─────────────── */}
       <TestimonialsSection />

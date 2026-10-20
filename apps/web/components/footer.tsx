@@ -220,6 +220,14 @@ export function Footer() {
             </h4>
             <ul className="space-y-2.5 text-xs">
               <li>
+                <Link href="/clubs" className="text-slate-400 hover:text-white transition-colors flex items-center gap-1.5">
+                  <span>Campus Chapters &amp; Clubs</span>
+                  <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold bg-[#0099e6]/15 text-[#0099e6] border border-[#0099e6]/30">
+                    CLUB
+                  </span>
+                </Link>
+              </li>
+              <li>
                 <a
                   href="https://tally.so/r/q4o22k"
                   target="_blank"
