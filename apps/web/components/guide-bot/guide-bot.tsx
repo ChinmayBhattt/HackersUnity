@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence, useAnimationControls, type PanInfo } from 'framer-motion';
 import {
   Sparkles,
@@ -12,6 +13,14 @@ import {
   Pause,
   Play,
   Compass,
+  Paperclip,
+  Wand2,
+  Trophy,
+  MapPin,
+  Calendar,
+  FileText,
+  Loader2,
+  ArrowRight,
 } from 'lucide-react';
 import Unknown, { type AnimationName, type AvatarHandle } from '@/components/avatar';
 import {
@@ -20,14 +29,43 @@ import {
   resolveBotQuery,
   type TourStep,
   type BotChatMessage,
+  type BotChatOption,
+  type AttachedFileMeta,
 } from './guide-tour-data';
+import { createDraftEventFromAi, commitDraftAndLaunch } from '@/lib/ai-event-builder';
+import type { ExtendedEvent } from '@/lib/mock-data';
 
 interface Point {
   x: number;
   y: number;
 }
 
+function parseOptionsFromText(text: string): BotChatOption[] {
+  const lines = text.split('\n');
+  const extracted: BotChatOption[] = [];
+  const optRegex = /^(?:Option\s*(\d+)[:.-]|(\d+)[.)])\s*(.*)/i;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const match = trimmed.match(optRegex);
+    if (match) {
+      const num = match[1] || match[2];
+      const rest = (match[3] || '').trim();
+      if (rest.length > 2) {
+        extracted.push({
+          id: `parsed-opt-${num}-${Date.now()}`,
+          label: `Option ${num}: ${rest.replace(/^\*\*|\*\*$/g, '')}`,
+          value: rest.replace(/^\*\*|\*\*$/g, ''),
+        });
+      }
+    }
+  }
+
+  return extracted.length >= 2 ? extracted.slice(0, 5) : [];
+}
+
 export function GuideBot() {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isTourActive, setIsTourActive] = useState(false);
@@ -41,12 +79,36 @@ export function GuideBot() {
   // Chat conversation state
   const [inputQuery, setInputQuery] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [buildStepMessage, setBuildStepMessage] = useState<string>('');
+  const [attachedFile, setAttachedFile] = useState<AttachedFileMeta | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [messages, setMessages] = useState<BotChatMessage[]>([
     {
       id: 'welcome-msg',
       sender: 'bot',
-      text: "Hey there! I'm HUe 👋 Powered by Hacker's Unity. Ask me anything about Hacker's Unity, hackathons, or tap below to start a tour!",
+      text: "Hey there! I'm HUe 👋 Powered by Hacker's Unity.\nAsk me anything, describe your hackathon to auto-host it with AI, or pick an option below to get started!",
       timestamp: 'Just now',
+      options: [
+        {
+          id: 'opt-w1',
+          label: 'Option 1: ⚡ Auto-Host a Hackathon with AI',
+          value: 'I want to auto-create and host a hackathon with AI',
+          description: 'Auto-generate tracks, prizes, and timeline from your brief or poster.',
+        },
+        {
+          id: 'opt-w2',
+          label: 'Option 2: 🏆 Browse Live Hackathons & Prizes',
+          value: 'What upcoming hackathons and prize pools are available?',
+          description: 'Compete in $350K+ prize arenas across AI, Web3 & DeepTech.',
+        },
+        {
+          id: 'opt-w3',
+          label: 'Option 3: 🚀 Tour Hacker\'s Unity Platform',
+          value: 'Take me on a tour of Hacker\'s Unity',
+          description: 'Interactive guided flight across the community homepage.',
+        },
+      ],
       cta: {
         label: '🚀 Tour Hacker\'s Unity platform',
         isTourTrigger: true,
@@ -466,30 +528,142 @@ export function GuideBot() {
     avatarRef.current?.play('idle');
   }, [mounted]);
 
-  // Send a chat message using GROQ AI API with local fallback
+  // File Upload handler for Build/Auto-host in HUe chat
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const sizeKb = (file.size / 1024).toFixed(1) + ' KB';
+
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = (event.target?.result as string) || '';
+        setAttachedFile({
+          name: file.name,
+          size: sizeKb,
+          content: `[Attached Hackathon Poster / Banner: ${file.name}]`,
+          isImage: true,
+          dataUrl,
+        });
+      };
+      reader.readAsDataURL(file);
+    } else if (
+      file.type.includes('text') ||
+      file.name.endsWith('.txt') ||
+      file.name.endsWith('.md') ||
+      file.name.endsWith('.json') ||
+      file.name.endsWith('.csv')
+    ) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = (event.target?.result as string) || '';
+        setAttachedFile({
+          name: file.name,
+          size: sizeKb,
+          content: text.slice(0, 15000),
+          isImage: false,
+        });
+      };
+      reader.readAsText(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const raw = (event.target?.result as string) || '';
+        const printableText = raw.replace(/[^\x20-\x7E\t\n\r]/g, ' ').slice(0, 10000);
+        setAttachedFile({
+          name: file.name,
+          size: sizeKb,
+          content: printableText.trim()
+            ? `[Document: ${file.name} (${sizeKb})]\n\n${printableText}`
+            : `[Attached Event Brochure: ${file.name}, File Size: ${sizeKb}]`,
+          isImage: false,
+        });
+      };
+      reader.readAsBinaryString(file);
+    }
+  };
+
+  const removeAttachedFile = () => {
+    setAttachedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Launch the draft hackathon directly into Step 8 review wizard
+  const handleReviewAndHost = (event: ExtendedEvent) => {
+    commitDraftAndLaunch(event, router);
+    setIsChatOpen(false);
+  };
+
+  // Option selection handler
+  const handleOptionClick = (option: BotChatOption) => {
+    handleSendMessage(option.value);
+  };
+
+  // Send a chat message using GROQ AI API with file attachment & auto-build capabilities
   const handleSendMessage = async (textToSend?: string) => {
     const query = (textToSend || inputQuery).trim();
-    if (!query) return;
+    const currentFile = attachedFile;
+    if (!query && !currentFile) return;
 
     const userMsg: BotChatMessage = {
       id: `user-${Date.now()}`,
       sender: 'user',
-      text: query,
+      text: query || (currentFile ? `Uploaded ${currentFile.name} for hackathon analysis` : ''),
       timestamp: 'Just now',
+      attachedFile: currentFile
+        ? {
+            name: currentFile.name,
+            size: currentFile.size,
+            isImage: currentFile.isImage,
+            dataUrl: currentFile.dataUrl,
+          }
+        : undefined,
     };
 
     setMessages((prev) => [...prev, userMsg]);
     setInputQuery('');
+    setAttachedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
     setIsTyping(true);
 
+    const isExplicitBuild =
+      Boolean(currentFile) ||
+      query.toLowerCase().includes('host') ||
+      query.toLowerCase().includes('auto-host') ||
+      query.toLowerCase().includes('create event') ||
+      query.toLowerCase().includes('create hackathon') ||
+      query.toLowerCase().includes('sprint');
+
+    if (isExplicitBuild) {
+      setBuildStepMessage(
+        currentFile?.isImage ? 'Scanning poster with AI OCR...' : 'Architecting hackathon with AI...'
+      );
+    } else {
+      setBuildStepMessage('');
+    }
+
     try {
-      // Call Groq API
+      // Call Groq Bot API with message and attached file
       const res = await fetch('/api/ai/bot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: query,
           history: messages.slice(-5),
+          attachedFile: currentFile
+            ? {
+                name: currentFile.name,
+                size: currentFile.size,
+                content: currentFile.content,
+                isImage: currentFile.isImage,
+                dataUrl: currentFile.dataUrl,
+              }
+            : undefined,
         }),
       });
 
@@ -497,35 +671,45 @@ export function GuideBot() {
       const data = await res.json();
 
       setIsTyping(false);
+      setBuildStepMessage('');
 
-      if (data.success && data.reply) {
+      if (data.success && (data.reply || data.event)) {
         const anim = (data.animation as AnimationName) || 'happy';
         setCurrentAnimation(anim);
         avatarRef.current?.play(anim);
 
+        let eventDraft: ExtendedEvent | undefined = undefined;
+        if (data.event) {
+          eventDraft = createDraftEventFromAi(
+            data.event,
+            currentFile?.isImage ? currentFile.dataUrl : undefined
+          );
+        }
+
         const botMsg: BotChatMessage = {
           id: `bot-${Date.now()}`,
           sender: 'bot',
-          text: data.reply,
+          text: data.reply || "Here's what I prepared for you:",
           timestamp: 'Just now',
+          options: data.options,
+          eventDraft,
           cta: data.cta,
         };
 
         setMessages((prev) => [...prev, botMsg]);
 
-        // Only auto-start tour if the user explicitly asked for a tour
+        // Auto-start tour if explicitly requested
         if (data.autoStartTour) {
           setTimeout(() => {
             startTour();
           }, 900);
         }
       } else {
-        // Fallback response
         throw new Error('Fallback needed');
       }
     } catch {
-      // Local fallback resolver
       setIsTyping(false);
+      setBuildStepMessage('');
       const fallback = resolveBotQuery(query);
       setCurrentAnimation(fallback.animation);
       avatarRef.current?.play(fallback.animation);
@@ -535,6 +719,7 @@ export function GuideBot() {
         sender: 'bot',
         text: fallback.text,
         timestamp: 'Just now',
+        options: fallback.options,
         cta: fallback.cta,
       };
 
@@ -832,12 +1017,12 @@ export function GuideBot() {
               [isBottomSide ? 'bottom' : 'top']: '96px',
               zIndex: 50,
             }}
-            className="w-[calc(100vw-32px)] sm:w-[380px] md:w-[410px] h-[520px] max-h-[80vh] rounded-3xl backdrop-blur-2xl bg-white/95 dark:bg-[#0c1017]/95 border border-slate-200/90 dark:border-white/[0.12] shadow-2xl shadow-cyan-950/25 dark:shadow-black/80 flex flex-col overflow-hidden text-slate-900 dark:text-white"
+            className="w-[calc(100vw-32px)] sm:w-[410px] md:w-[450px] h-[570px] max-h-[85vh] rounded-3xl backdrop-blur-2xl bg-white/95 dark:bg-[#0c1017]/95 border border-slate-200/90 dark:border-white/[0.12] shadow-2xl shadow-cyan-950/25 dark:shadow-black/80 flex flex-col overflow-hidden text-slate-900 dark:text-white"
           >
             {/* Header with Cute HUe Avatar Logo */}
             <div className="p-4 border-b border-slate-100 dark:border-white/[0.08] flex items-center justify-between bg-slate-50/60 dark:bg-white/[0.02]">
               <div className="flex items-center gap-2.5">
-                {/* Real HUe Mascot Logo (Cute animated avatar, completely replaces any robot icon!) */}
+                {/* Real HUe Mascot Logo (Cute animated avatar) */}
                 <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-500/20 via-sky-500/10 to-orange-500/20 border border-cyan-400/50 p-1 shadow-md shadow-cyan-500/10 flex items-center justify-center shrink-0 overflow-hidden">
                   <Unknown
                     size={34}
@@ -890,7 +1075,9 @@ export function GuideBot() {
                   className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer border ${
                     item.isTourTrigger
                       ? 'bg-gradient-to-r from-cyan-500/15 to-orange-500/15 border-cyan-500/40 text-cyan-600 dark:text-cyan-300 hover:scale-105 active:scale-95'
-                      : 'bg-white dark:bg-white/[0.05] border-slate-200 dark:border-white/[0.1] text-slate-600 dark:text-slate-300 hover:border-cyan-400 hover:text-cyan-600 dark:hover:text-cyan-300'
+                      : item.id === 'build'
+                        ? 'bg-gradient-to-r from-orange-500/15 to-amber-500/15 border-orange-500/40 text-orange-600 dark:text-orange-300 hover:scale-105 active:scale-95'
+                        : 'bg-white dark:bg-white/[0.05] border-slate-200 dark:border-white/[0.1] text-slate-600 dark:text-slate-300 hover:border-cyan-400 hover:text-cyan-600 dark:hover:text-cyan-300'
                   }`}
                 >
                   {item.label}
@@ -899,13 +1086,13 @@ export function GuideBot() {
             </div>
 
             {/* Chat Message Stream */}
-            <div className="flex-1 p-4 overflow-y-auto space-y-3 text-xs">
+            <div className="flex-1 p-4 overflow-y-auto space-y-3.5 text-xs">
               {messages.map((msg) => (
                 <div
                   key={msg.id}
                   className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
                 >
-                  <div className={`flex items-end gap-2 max-w-[88%] ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`flex items-end gap-2 max-w-[92%] sm:max-w-[88%] ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {msg.sender === 'bot' && (
                       <div className="w-6 h-6 rounded-full bg-cyan-500/15 border border-cyan-400/40 shrink-0 mb-1 overflow-hidden p-0.5 flex items-center justify-center">
                         <svg viewBox="-150 -150 300 300" className="w-full h-full block">
@@ -917,53 +1104,241 @@ export function GuideBot() {
                       </div>
                     )}
                     <div
-                      className={`rounded-2xl px-3.5 py-2.5 leading-relaxed font-normal ${
+                      className={`rounded-2xl px-3.5 py-2.5 leading-relaxed font-normal shadow-xs ${
                         msg.sender === 'user'
                           ? 'bg-gradient-to-r from-cyan-600 to-sky-600 text-white rounded-br-xs shadow-md'
                           : 'bg-slate-100 dark:bg-white/[0.06] text-slate-800 dark:text-slate-200 border border-slate-200/60 dark:border-white/[0.08] rounded-bl-xs'
                       }`}
                     >
-                      <p className="whitespace-pre-line">{msg.text}</p>
+                      {/* User Attached File Pill */}
+                      {msg.attachedFile && (
+                        <div className="flex items-center gap-1.5 mb-2 px-2 py-1 rounded-lg bg-black/15 dark:bg-black/30 border border-white/20 text-[11px] font-semibold text-white">
+                          {msg.attachedFile.isImage && msg.attachedFile.dataUrl ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={msg.attachedFile.dataUrl}
+                              alt="Attachment"
+                              className="w-4 h-4 rounded object-cover shadow-2xs shrink-0"
+                            />
+                          ) : (
+                            <FileText className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+                          )}
+                          <span className="truncate max-w-[140px]">{msg.attachedFile.name}</span>
+                          <span className="opacity-70 text-[9px] shrink-0">({msg.attachedFile.size})</span>
+                        </div>
+                      )}
 
-                    {msg.cta && (
-                      <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-white/[0.1]">
-                        {msg.cta.isTourTrigger ? (
-                          <button
-                            type="button"
-                            onClick={startTour}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-orange-500 text-white font-extrabold text-[11px] shadow-sm hover:brightness-110 active:scale-95 transition-all cursor-pointer"
-                          >
-                            <Sparkles className="w-3.5 h-3.5" />
-                            <span>{msg.cta.label}</span>
-                          </button>
-                        ) : (
-                          <Link
-                            href={msg.cta.href || '#'}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-500/20 font-bold text-[11px] hover:underline"
-                          >
-                            <span>{msg.cta.label}</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </Link>
-                        )}
-                      </div>
-                    )}
+                      <p className="whitespace-pre-line leading-relaxed">{msg.text}</p>
+
+                      {/* AI Architected Hackathon Draft Card */}
+                      {msg.eventDraft && (
+                        <div className="mt-3 p-3.5 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white border border-cyan-500/30 shadow-lg shadow-cyan-950/40 space-y-2.5">
+                          {/* Top Header Badge */}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-cyan-400" />
+                              AI Event Architect
+                            </span>
+                            <span className="text-[11px] font-black text-amber-400 flex items-center gap-1">
+                              <Trophy className="w-3 h-3" />
+                              {msg.eventDraft.prize || '₹1,00,000'}
+                            </span>
+                          </div>
+
+                          {/* Title & Tagline */}
+                          <div>
+                            <h4 className="font-black text-xs sm:text-sm text-white tracking-tight leading-snug">
+                              {msg.eventDraft.title}
+                            </h4>
+                            {msg.eventDraft.tagline && (
+                              <p className="text-[10px] text-slate-300 mt-0.5 line-clamp-2">
+                                {msg.eventDraft.tagline}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Metadata Grid */}
+                          <div className="grid grid-cols-2 gap-1.5 text-[10px] text-slate-200">
+                            <div className="flex items-center gap-1.5 bg-white/[0.07] px-2 py-1 rounded-lg">
+                              <MapPin className="w-3 h-3 text-cyan-400 shrink-0" />
+                              <span className="truncate">{msg.eventDraft.location || msg.eventDraft.mode || 'Online'}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 bg-white/[0.07] px-2 py-1 rounded-lg">
+                              <Calendar className="w-3 h-3 text-orange-400 shrink-0" />
+                              <span className="truncate">
+                                {msg.eventDraft.startDate ? msg.eventDraft.startDate.split('T')[0] : 'Upcoming'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Tracks Preview */}
+                          {Array.isArray(msg.eventDraft.tracks) && msg.eventDraft.tracks.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              {msg.eventDraft.tracks.slice(0, 3).map((tr: any, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="px-2 py-0.5 rounded-md bg-white/[0.08] text-[9px] font-medium text-slate-200 border border-white/[0.06]"
+                                >
+                                  🎯 {tr.title}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Primary Action Button: Review & Host Now */}
+                          <div className="pt-2 border-t border-white/[0.1]">
+                            <button
+                              type="button"
+                              onClick={() => handleReviewAndHost(msg.eventDraft)}
+                              className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 hover:brightness-110 active:scale-95 text-white font-black text-xs shadow-md shadow-orange-500/30 flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                            >
+                              <Wand2 className="w-3.5 h-3.5" />
+                              <span>Review & Host Now →</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Interactive Options Choice List */}
+                      {(() => {
+                        const optionsToRender =
+                          msg.options && msg.options.length > 0
+                            ? msg.options
+                            : msg.sender === 'bot'
+                              ? parseOptionsFromText(msg.text)
+                              : [];
+
+                        if (!optionsToRender || optionsToRender.length === 0) return null;
+
+                        return (
+                          <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-white/[0.08] space-y-1.5">
+                            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1 uppercase tracking-wider">
+                              <Sparkles className="w-3 h-3 text-cyan-500" />
+                              <span>Select an option:</span>
+                            </p>
+                            <div className="grid grid-cols-1 gap-1.5">
+                              {optionsToRender.map((opt, idx) => (
+                                <button
+                                  key={opt.id || idx}
+                                  type="button"
+                                  onClick={() => handleOptionClick(opt)}
+                                  className="w-full text-left p-2 rounded-xl bg-white dark:bg-white/[0.05] hover:bg-cyan-500/10 dark:hover:bg-cyan-500/15 border border-slate-200/80 dark:border-white/[0.1] hover:border-cyan-400 dark:hover:border-cyan-400 text-slate-800 dark:text-slate-200 hover:text-cyan-600 dark:hover:text-cyan-300 transition-all flex items-start gap-2 group cursor-pointer shadow-2xs"
+                                >
+                                  <span className="w-5 h-5 rounded-lg bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 font-bold text-[10px] flex items-center justify-center shrink-0 group-hover:bg-cyan-500 group-hover:text-white transition-colors">
+                                    {idx + 1}
+                                  </span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-bold text-[11px] leading-tight text-slate-800 dark:text-slate-100 group-hover:text-cyan-600 dark:group-hover:text-cyan-300">
+                                      {opt.label}
+                                    </div>
+                                    {opt.description && (
+                                      <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">
+                                        {opt.description}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <ArrowRight className="w-3 h-3 text-slate-400 group-hover:text-cyan-500 group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" />
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* CTA Trigger (Tour or Link) */}
+                      {msg.cta && (
+                        <div className="mt-2.5 pt-2 border-t border-slate-200/60 dark:border-white/[0.1]">
+                          {msg.cta.isTourTrigger ? (
+                            <button
+                              type="button"
+                              onClick={startTour}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-orange-500 text-white font-extrabold text-[11px] shadow-sm hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>{msg.cta.label}</span>
+                            </button>
+                          ) : (
+                            <Link
+                              href={msg.cta.href || '#'}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-500/20 font-bold text-[11px] hover:underline"
+                            >
+                              <span>{msg.cta.label}</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </Link>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
                   <span className="text-[9px] text-slate-400 mt-1 px-1">{msg.timestamp}</span>
                 </div>
               ))}
 
               {isTyping && (
-                <div className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-slate-100 dark:bg-white/[0.06] w-16 text-slate-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce [animation-delay:0.2s]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-bounce [animation-delay:0.4s]" />
+                <div className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-slate-100 dark:bg-white/[0.06] text-slate-500 dark:text-slate-300 max-w-fit">
+                  <div className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce [animation-delay:0.2s]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-bounce [animation-delay:0.4s]" />
+                  </div>
+                  {buildStepMessage && (
+                    <span className="text-[11px] font-bold text-orange-600 dark:text-orange-400 animate-pulse">
+                      {buildStepMessage}
+                    </span>
+                  )}
                 </div>
               )}
               <div ref={chatBottomRef} />
             </div>
 
-            {/* Input Bar */}
+            {/* Floating Attached File Preview (if present) */}
+            {attachedFile && (
+              <div className="px-3 pt-2 pb-1 bg-slate-50/70 dark:bg-white/[0.03] border-t border-slate-100 dark:border-white/[0.06] flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-50 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800/40 text-[11px] text-[#ea580c] font-bold min-w-0">
+                  {attachedFile.isImage && attachedFile.dataUrl ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={attachedFile.dataUrl}
+                      alt="Poster"
+                      className="w-4 h-4 rounded object-cover shadow-2xs shrink-0"
+                    />
+                  ) : (
+                    <FileText className="w-3.5 h-3.5 shrink-0" />
+                  )}
+                  <span className="truncate max-w-[140px] sm:max-w-[180px]">{attachedFile.name}</span>
+                  <span className="text-[10px] opacity-75 shrink-0">({attachedFile.size})</span>
+                  <button
+                    type="button"
+                    onClick={removeAttachedFile}
+                    className="p-0.5 hover:bg-orange-100 dark:hover:bg-orange-900/50 rounded text-orange-600 dark:text-orange-400 cursor-pointer ml-1"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleSendMessage('Please scan this flyer/brochure and auto-create the hackathon draft with prizes, tracks, and timeline.')
+                  }
+                  className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#ea580c] to-[#f97316] text-white font-extrabold text-[10px] flex items-center gap-1 shadow-xs hover:brightness-110 cursor-pointer shrink-0"
+                >
+                  <Wand2 className="w-3 h-3" />
+                  <span>Auto-Host</span>
+                </button>
+              </div>
+            )}
+
+            {/* Hidden File Input for Paperclip Upload */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.txt,.md,.json,.png,.jpg,.jpeg"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+
+            {/* Input Bar Form */}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -971,19 +1346,50 @@ export function GuideBot() {
               }}
               className="p-3 border-t border-slate-100 dark:border-white/[0.08] bg-slate-50/50 dark:bg-white/[0.02] flex items-center gap-2"
             >
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                title="Upload event poster, brochure or docs"
+                className={`p-2 rounded-xl border transition-all cursor-pointer shrink-0 ${
+                  attachedFile
+                    ? 'bg-orange-50 dark:bg-orange-950/40 border-orange-300 dark:border-orange-700 text-[#ea580c]'
+                    : 'bg-white dark:bg-white/[0.06] border-slate-200 dark:border-white/[0.1] text-slate-500 dark:text-slate-400 hover:text-[#ea580c] hover:border-orange-300'
+                }`}
+              >
+                <Paperclip className="w-4 h-4" />
+              </button>
+
               <input
                 type="text"
                 value={inputQuery}
                 onChange={(e) => setInputQuery(e.target.value)}
-                placeholder="Ask HUe anything about Hacker's Unity..."
+                placeholder={
+                  attachedFile
+                    ? "Add details (e.g. '₹2L prize, Bangalore') or tap Auto-Host..."
+                    : "Ask HUe, or describe event to auto-host..."
+                }
                 className="flex-1 bg-white dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.1] rounded-2xl px-3.5 py-2 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-cyan-500"
               />
+
               <button
                 type="submit"
-                disabled={!inputQuery.trim() || isTyping}
-                className="w-8 h-8 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-600 hover:from-cyan-400 hover:to-sky-500 disabled:opacity-40 disabled:pointer-events-none text-white flex items-center justify-center transition-all cursor-pointer shadow-md shadow-cyan-500/20 active:scale-95"
+                disabled={(!inputQuery.trim() && !attachedFile) || isTyping}
+                className={`h-9 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95 disabled:opacity-40 disabled:pointer-events-none text-white shrink-0 ${
+                  attachedFile || inputQuery.toLowerCase().includes('host')
+                    ? 'bg-gradient-to-r from-[#ea580c] to-[#f97316] shadow-orange-500/20'
+                    : 'bg-gradient-to-r from-cyan-500 to-sky-600 shadow-cyan-500/20'
+                }`}
               >
-                <Send className="w-3.5 h-3.5" />
+                {isTyping ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : attachedFile || inputQuery.toLowerCase().includes('host') ? (
+                  <>
+                    <Wand2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Auto-Host</span>
+                  </>
+                ) : (
+                  <Send className="w-3.5 h-3.5" />
+                )}
               </button>
             </form>
           </motion.div>

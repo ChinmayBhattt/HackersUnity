@@ -22,15 +22,40 @@ export interface ChatSuggestion {
   isTourTrigger?: boolean;
 }
 
+export interface BotChatOption {
+  id: string;
+  label: string;
+  value: string;
+  description?: string;
+  isBuildTrigger?: boolean;
+}
+
+export interface AttachedFileMeta {
+  name: string;
+  size: string;
+  content: string;
+  isImage?: boolean;
+  dataUrl?: string;
+}
+
 export interface BotChatMessage {
   id: string;
   sender: 'bot' | 'user';
   text: string;
   timestamp: string;
+  options?: BotChatOption[];
+  eventDraft?: any; // ExtendedEvent
+  attachedFile?: {
+    name: string;
+    size: string;
+    isImage?: boolean;
+    dataUrl?: string;
+  };
   cta?: {
     label: string;
     href?: string;
     isTourTrigger?: boolean;
+    action?: string;
   };
 }
 
@@ -155,6 +180,11 @@ export const TOUR_STEPS: TourStep[] = [
 
 export const CHAT_SUGGESTIONS: ChatSuggestion[] = [
   {
+    id: 'build',
+    label: '⚡ Auto-Host / Create Hackathon',
+    query: 'I want to auto-create and host a hackathon with AI',
+  },
+  {
     id: 'tour',
     label: '🚀 Tour Hacker\'s Unity platform',
     query: 'Take me on a tour of Hacker\'s Unity',
@@ -186,6 +216,7 @@ export const CHAT_SUGGESTIONS: ChatSuggestion[] = [
 export function resolveBotQuery(query: string): {
   text: string;
   animation: AnimationName;
+  options?: BotChatOption[];
   cta?: { label: string; href?: string; isTourTrigger?: boolean };
 } {
   const q = query.toLowerCase().trim();
@@ -208,19 +239,51 @@ export function resolveBotQuery(query: string): {
     };
   }
 
-  // Host Hackathon
+  // Host / Auto-Build Hackathon
   if (
     q.includes('host') ||
     q.includes('organize') ||
     q.includes('organizer') ||
     q.includes('conduct hackathon') ||
-    q.includes('create event')
+    q.includes('create event') ||
+    q.includes('build') ||
+    q.includes('auto-host') ||
+    q.includes('auto host')
   ) {
     return {
-      text: 'You can host your hackathon on Hacker\'s Unity in under 5 minutes! 🌟 You get access to our 50,000+ developer community, automated submission reviews, verified judge scorecards, and live participant analytics.',
+      text: 'I can auto-architect and host your entire hackathon in seconds! ⚡ You get automated submission review sandboxes, verified judge rubrics, and reach across 50,000+ developers.\n\nChoose an option below or describe your event (or attach a poster/brochure with 📎):',
       animation: 'proud',
+      options: [
+        {
+          id: 'opt-1',
+          label: 'Option 1: 💻 36h Online AI Sprint (₹1,00,000 Prizes)',
+          value: 'Host a 36-hour Online AI Sprint with ₹1,00,000 cash prizes, tracks in Agentic AI and LLM apps.',
+          description: 'Virtual hackathon open globally for all student builders.',
+          isBuildTrigger: true,
+        },
+        {
+          id: 'opt-2',
+          label: 'Option 2: 🏫 Inter-College Offline Hackathon (₹50,000 Prizes)',
+          value: 'Host a 24-hour Inter-College offline hackathon at campus in Delhi NCR with ₹50,000 prize pool.',
+          description: 'On-ground campus hackathon with mentor workshops & swag.',
+          isBuildTrigger: true,
+        },
+        {
+          id: 'opt-3',
+          label: 'Option 3: 🌐 Global Web3 & DeFi Sprint ($15,000 Prizes)',
+          value: 'Host "ZeroKnowledge Sprint", a 48h global Web3 hackathon with $15,000 prize pool on DeFi & ZK-Proofs.',
+          description: 'High-stakes developer sprint with crypto & venture grants.',
+          isBuildTrigger: true,
+        },
+        {
+          id: 'opt-4',
+          label: 'Option 4: 📎 Attach Event Poster / Brochure to Auto-Fill',
+          value: 'I want to upload my event poster/brochure and have HUe auto-create the hackathon.',
+          description: 'Use the 📎 paperclip button to scan flyer text & dates with AI.',
+        },
+      ],
       cta: {
-        label: 'Host Hackathon Free ➔',
+        label: 'Open Host Portal ➔',
         href: '/host',
       },
     };
@@ -236,8 +299,30 @@ export function resolveBotQuery(query: string): {
     q.includes('cash')
   ) {
     return {
-      text: 'We feature 15+ live & upcoming hackathons across AI Agents, Web3 & DeepTech with over $350,000+ in total prize pools! 🏆 Participating is free and open to student developers worldwide.',
+      text: 'We feature 15+ live & upcoming hackathons across AI Agents, Web3 & DeepTech with over $350,000+ in verified cash payouts! 🏆\n\nWhich category would you like to explore?',
       animation: 'excited',
+      options: [
+        {
+          id: 'opt-h1',
+          label: 'Option 1: 🤖 AI & LLM Hackathons ($100K+ Prizes)',
+          value: 'Show me AI and LLM hackathons with highest prize money',
+        },
+        {
+          id: 'opt-h2',
+          label: 'Option 2: 🌐 Web3 & Blockchain Bounties ($150K+ Prizes)',
+          value: 'Show me Web3 and DeFi hackathons with cash prizes',
+        },
+        {
+          id: 'opt-h3',
+          label: 'Option 3: 🎓 Beginner Friendly & Student Hackathons',
+          value: 'What are the best beginner-friendly student hackathons?',
+        },
+        {
+          id: 'opt-h4',
+          label: 'Option 4: ⚡ Auto-Host My Own Hackathon with AI',
+          value: 'I want to auto-create and host a hackathon with AI',
+        },
+      ],
       cta: {
         label: 'Explore All Hackathons ➔',
         href: '/hackathons',
@@ -254,8 +339,25 @@ export function resolveBotQuery(query: string): {
     q.includes('representative')
   ) {
     return {
-      text: 'The Hacker\'s Unity Campus Ambassador Program empowers students to lead developer initiatives at their universities. 🎓 You receive direct mentorship from founders, official leadership credentials, free event passes, and exclusive HU swag!',
+      text: 'The Hacker\'s Unity Campus Ambassador Program (CSAP) empowers student leaders across 85+ partner universities! 🎓 You receive 1-on-1 mentorship from founders Suraj & Chinmay, official leadership certificates, free VIP event passes, and exclusive HU merchandise.\n\nWhat would you like to do next?',
       animation: 'happy',
+      options: [
+        {
+          id: 'opt-a1',
+          label: 'Option 1: 📝 Apply for Campus Ambassador Role',
+          value: 'How do I apply for the Campus Ambassador Program?',
+        },
+        {
+          id: 'opt-a2',
+          label: 'Option 2: 🎁 View Ambassador Perks & Swag Kits',
+          value: 'What specific perks, swag, and stipends do Ambassadors receive?',
+        },
+        {
+          id: 'opt-a3',
+          label: 'Option 3: 🚀 Tour Hacker\'s Unity Platform',
+          value: 'Take me on a tour of Hacker\'s Unity',
+        },
+      ],
       cta: {
         label: 'Apply for Ambassador Program ➔',
         href: '/mentor',
@@ -272,8 +374,25 @@ export function resolveBotQuery(query: string): {
     q.includes('solo')
   ) {
     return {
-      text: 'Need a team? Use our AI Command Center right on the homepage to find teammates by tech stack (Frontend, Backend, AI/ML, Smart Contracts), or join our Discord & Telegram builder network to pair up! 👥',
+      text: 'Need an unstoppable hackathon squad? 👥 You can find verified builders through our AI Command Center by role and tech stack!\n\nWhich role are you looking for?',
       animation: 'thinking',
+      options: [
+        {
+          id: 'opt-t1',
+          label: 'Option 1: 🤖 AI / ML & PyTorch Engineer',
+          value: 'Find AI and Machine Learning teammates for hackathons',
+        },
+        {
+          id: 'opt-t2',
+          label: 'Option 2: 💻 Next.js & Fullstack Frontend Builder',
+          value: 'Find Next.js and Fullstack developer teammates',
+        },
+        {
+          id: 'opt-t3',
+          label: 'Option 3: 🌐 Web3 & Smart Contract Developer',
+          value: 'Find Web3 and Solidity/Rust developers for hackathons',
+        },
+      ],
       cta: {
         label: 'Try AI Teammate Finder ➔',
         href: '#ai-command',
@@ -290,7 +409,7 @@ export function resolveBotQuery(query: string): {
     q.includes('leaders')
   ) {
     return {
-      text: 'Tune into our exclusive podcast episodes with engineering directors & founders from Amazon, Microsoft, Macy\'s, and IEEE discussing AI architectures, career growth, and startup execution! 🎙️',
+      text: 'Tune into our exclusive masterclass podcasts with engineering directors & founders from Amazon, Microsoft, Macy\'s, and IEEE discussing AI architectures, career growth, and startup execution! 🎙️',
       animation: 'listening',
       cta: {
         label: 'Watch Podcast Episodes ➔',
@@ -327,8 +446,25 @@ export function resolveBotQuery(query: string): {
     q.includes('chinmay')
   ) {
     return {
-      text: 'Hacker\'s Unity is India\'s fastest-growing hackathon community and developer platform, founded by Jha Suraj Kumar and co-founded by Chinmay Bhatt. We are uniting 50,000+ builders to create real-world impact! 🚀',
+      text: 'Hacker\'s Unity is India\'s fastest-growing hackathon community and developer platform, founded by Jha Suraj Kumar and co-founded by Chinmay Bhatt. We are uniting 50,000+ builders to turn weekend prototypes into real venture-backed startups! 🚀',
       animation: 'celebrate',
+      options: [
+        {
+          id: 'opt-f1',
+          label: 'Option 1: ⚡ Auto-Host a Hackathon with AI',
+          value: 'I want to auto-create and host a hackathon with AI',
+        },
+        {
+          id: 'opt-f2',
+          label: 'Option 2: 🏆 Browse Live Hackathons',
+          value: 'What upcoming hackathons and prize pools are available?',
+        },
+        {
+          id: 'opt-f3',
+          label: 'Option 3: 🚀 Tour Hacker\'s Unity Platform',
+          value: 'Take me on a tour of Hacker\'s Unity',
+        },
+      ],
       cta: {
         label: 'About Hacker\'s Unity ➔',
         href: '/about',
@@ -337,8 +473,30 @@ export function resolveBotQuery(query: string): {
   }
 
   return {
-    text: 'Hacker\'s Unity is India\'s premier builder platform for 50,000+ developers! You can discover hackathons, host your own event, match with teammates, or learn from tech founders. Would you like a 1-minute guided card tour?',
+    text: 'Hacker\'s Unity is India\'s premier builder platform for 50,000+ developers! You can discover hackathons, auto-host your own event, match with teammates, or learn from tech founders. What would you like to explore?',
     animation: 'playful',
+    options: [
+      {
+        id: 'opt-d1',
+        label: 'Option 1: ⚡ Auto-Host a Hackathon with AI',
+        value: 'I want to auto-create and host a hackathon with AI',
+      },
+      {
+        id: 'opt-d2',
+        label: 'Option 2: 🏆 Browse Live Hackathons & Prizes',
+        value: 'What upcoming hackathons and prize pools are available?',
+      },
+      {
+        id: 'opt-d3',
+        label: 'Option 3: 🚀 Tour Hacker\'s Unity Platform',
+        value: 'Take me on a tour of Hacker\'s Unity',
+      },
+      {
+        id: 'opt-d4',
+        label: 'Option 4: 👥 Find Teammates for Hackathons',
+        value: 'How do I find teammates to build hackathon projects?',
+      },
+    ],
     cta: {
       label: '🚀 Start Platform Tour',
       isTourTrigger: true,
