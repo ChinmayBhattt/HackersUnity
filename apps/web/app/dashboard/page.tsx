@@ -94,6 +94,7 @@ import { AuthModal } from '@/components/auth-modal';
 import { EditEventModal } from '@/components/edit-event-modal';
 import { PublicProfileModal } from '@/components/public-profile-modal';
 import { ProjectSubmissionModal } from '@/components/project-submission-modal';
+import { ManageTeamModal } from '@/components/manage-team-modal';
 import { PaymentReminderSidebar } from '@/components/payment-reminder-sidebar';
 
 import { UserRole } from '@hackers-unity/shared-types';
@@ -103,6 +104,7 @@ export default function DashboardPage() {
   const adminEmail = (process.env.NEXT_PUBLIC_ADMIN_EMAIL || '').trim().toLowerCase();
   const [authOpen, setAuthOpen] = useState(false);
   const [submissionModalEvent, setSubmissionModalEvent] = useState<ExtendedEvent | null>(null);
+  const [selectedTeamReg, setSelectedTeamReg] = useState<UserRegistrationItem | null>(null);
 
   // Active Tab in the Left Sidebar
   const [activeTab, setActiveTab] = useState<
@@ -1657,15 +1659,36 @@ export default function DashboardPage() {
                             )}
                           </div>
 
-                          {/* Squad / Team Details */}
-                          <div className="p-3 rounded-2xl bg-sky-50/60 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-800/30 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Users className="w-4 h-4 text-[#0099e6]" />
-                              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                {reg.teamName ? `Team: ${reg.teamName}` : 'Solo Builder'}
-                              </span>
+                          {/* Squad / Team Details & Manage Action */}
+                          <div className="p-3 rounded-2xl bg-sky-50/60 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-800/30 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-8 h-8 rounded-xl bg-[#0099e6]/10 text-[#0099e6] flex items-center justify-center shrink-0">
+                                <Users className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate">
+                                  {reg.teamName ? `Team: ${reg.teamName}` : 'Solo Builder'}
+                                </span>
+                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold block truncate">
+                                  {reg.role}
+                                </span>
+                              </div>
                             </div>
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">{reg.role}</span>
+
+                            {reg.teamName ? (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedTeamReg(reg)}
+                                className="px-3 py-1.5 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white text-[11px] font-extrabold flex items-center gap-1.5 shadow-2xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer shrink-0"
+                              >
+                                <Users className="w-3.5 h-3.5" />
+                                <span>Manage Team</span>
+                              </button>
+                            ) : (
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold shrink-0">
+                                Solo Builder
+                              </span>
+                            )}
                           </div>
 
                           {/* Project Deliverable Status */}
@@ -3076,6 +3099,24 @@ export default function DashboardPage() {
             setSelectedReminderPayment(null);
           }}
           onSuccess={() => {
+            loadDashboardData();
+          }}
+        />
+      )}
+
+      {/* Manage Squad & Team Participants Modal */}
+      {selectedTeamReg && (
+        <ManageTeamModal
+          isOpen={Boolean(selectedTeamReg)}
+          onClose={() => setSelectedTeamReg(null)}
+          eventId={selectedTeamReg.eventId}
+          eventName={selectedTeamReg.eventName}
+          eventSlug={selectedTeamReg.slug}
+          teamId={selectedTeamReg.teamId}
+          teamName={selectedTeamReg.teamName}
+          currentUserId={supabaseUser?.id || user?.id || ''}
+          currentUserRole={selectedTeamReg.role}
+          onTeamUpdated={() => {
             loadDashboardData();
           }}
         />
