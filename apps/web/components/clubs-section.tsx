@@ -13,23 +13,31 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
-export interface ClubChapter {
+export interface CollegeLogoPartner {
   id: string;
   name: string;
-  collegeName: string;
-  category: string;
-  clubLogo: string;
-  collegeLogo: string;
+  logo: string;
+  alt: string;
+  width: number;
+  height: number;
 }
 
-const CLUBS: ClubChapter[] = [
+const PARTNER_COLLEGES: CollegeLogoPartner[] = [
   {
-    id: 'hu-pcu',
-    name: "Hacker's Unity @ PCU",
-    collegeName: 'Pimpri Chinchwad University',
-    category: 'STUDENT CHAPTER',
-    clubLogo: '/clubs/hu-pcu.png',
-    collegeLogo: '/clubs/pcet-college.webp',
+    id: 'pcu',
+    name: 'Pimpri Chinchwad University (PCU)',
+    logo: '/clubs/pcet-college.webp',
+    alt: 'Pimpri Chinchwad University Logo',
+    width: 200,
+    height: 80,
+  },
+  {
+    id: 'subodh',
+    name: 'S.S. Jain Subodh P.G. College',
+    logo: '/clubs/subodh-college.jpg',
+    alt: 'S.S. Jain Subodh P.G. College Logo',
+    width: 100,
+    height: 80,
   },
 ];
 
@@ -63,78 +71,30 @@ export function ClubsSection() {
           </p>
         </div>
 
-        {/* ─── Clubs Showcase (Exact Clean Match to Screenshot) ─── */}
-        <div className="w-full max-w-3xl mx-auto mb-10 sm:mb-12 space-y-4">
-          {CLUBS.map((club) => (
-            <div
-              key={club.id}
-              className="relative rounded-3xl p-5 sm:p-7 bg-white dark:bg-[#0c1017] border border-slate-200/90 dark:border-white/[0.1] shadow-lg shadow-slate-100/80 dark:shadow-black/50 hover:shadow-xl hover:border-[#0099e6]/40 transition-all duration-300 group overflow-hidden"
-            >
-              {/* Brand top accent line */}
-              <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-[#0099e6] via-[#0284c7] to-[#ff7800] opacity-80" />
-
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-5 sm:gap-6">
-                {/* Left: Club Logo & Name */}
-                <div className="flex items-center gap-4 shrink-0 w-full sm:w-auto">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white p-2 shadow-sm border border-slate-200/80 dark:border-white/20 shrink-0 flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform">
-                    <Image
-                      src={club.clubLogo}
-                      alt={`${club.name} Logo`}
-                      width={80}
-                      height={80}
-                      className="w-full h-full object-contain"
-                      priority
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-[#0099e6] dark:text-sky-400">
-                      {club.category}
-                    </div>
-                    <h3 className="text-base sm:text-lg lg:text-xl font-black text-slate-900 dark:text-white leading-tight">
-                      {club.name}
-                    </h3>
-                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
-                      {club.collegeName}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Center Divider: Vertical Line + CHAPTER AT pill (Desktop) */}
-                <div className="hidden sm:flex flex-col items-center justify-center px-3 shrink-0">
-                  <div className="h-6 w-px bg-slate-200 dark:bg-white/10" />
-                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-[#0c1017] px-3 py-1 rounded-full border border-slate-200 dark:border-white/10 shadow-2xs my-1 whitespace-nowrap">
-                    CHAPTER AT
-                  </span>
-                  <div className="h-6 w-px bg-slate-200 dark:bg-white/10" />
-                </div>
-
-                {/* Mobile Divider */}
-                <div className="flex sm:hidden items-center justify-center w-full gap-2 py-1">
-                  <div className="flex-1 h-px bg-slate-200 dark:bg-white/10" />
-                  <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-white/5 px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-white/10 whitespace-nowrap">
-                    CHAPTER AT
-                  </span>
-                  <div className="flex-1 h-px bg-slate-200 dark:bg-white/10" />
-                </div>
-
-                {/* Right: University Logo */}
-                <div className="flex items-center justify-center shrink-0">
-                  <div className="h-16 sm:h-20 px-4 py-2 rounded-2xl bg-white shadow-sm border border-slate-200/80 dark:border-white/20 shrink-0 flex items-center justify-center group-hover:scale-105 transition-transform">
-                    <Image
-                      src={club.collegeLogo}
-                      alt={`${club.collegeName} Logo`}
-                      width={150}
-                      height={75}
-                      className="h-full w-auto object-contain"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+        {/* ─── College Logos Showcase (Centered side-by-side) ─── */}
+        <div className="w-full max-w-3xl mx-auto mb-10 sm:mb-12">
+          <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 mb-8">
+            {PARTNER_COLLEGES.map((college) => (
+              <Link
+                key={college.id}
+                href="/clubs"
+                className="group relative flex items-center justify-center h-20 sm:h-24 px-6 sm:px-8 rounded-2xl bg-white border border-slate-200/90 dark:border-white/20 shadow-md shadow-slate-100/80 dark:shadow-black/40 hover:shadow-xl hover:border-[#0099e6]/50 hover:-translate-y-0.5 transition-all duration-300"
+                title={college.name}
+              >
+                <Image
+                  src={college.logo}
+                  alt={college.alt}
+                  width={college.width}
+                  height={college.height}
+                  className="h-12 sm:h-16 w-auto object-contain group-hover:scale-105 transition-transform duration-300"
+                  priority
+                />
+              </Link>
+            ))}
+          </div>
 
           {/* Explore all clubs directory link */}
-          <div className="flex items-center justify-center pt-2">
+          <div className="flex items-center justify-center pt-1">
             <Link
               href="/clubs"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-xs font-bold text-slate-800 dark:text-white transition-all border border-slate-200/80 dark:border-white/[0.08] shadow-2xs hover:scale-[1.02] active:scale-[0.98]"

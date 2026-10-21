@@ -49,6 +49,20 @@ const ALL_CLUBS: ClubItem[] = [
     eventsCount: '12+',
     established: '2024',
   },
+  {
+    id: 'hu-subodh',
+    name: "Hacker's Unity @ Subodh",
+    collegeName: 'S.S. Jain Subodh P.G. College',
+    category: 'STUDENT CHAPTER',
+    clubLogo: '/clubs/hu-subodh.png',
+    collegeLogo: '/clubs/subodh-college.jpg',
+    city: 'Jaipur',
+    state: 'Rajasthan',
+    status: 'ACTIVE',
+    members: '350+',
+    eventsCount: '8+',
+    established: '2024',
+  },
 ];
 
 export default function ClubsPage() {
