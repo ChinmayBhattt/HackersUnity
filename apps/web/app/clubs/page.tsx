@@ -17,7 +17,9 @@ import {
   Send,
   Loader2,
   AlertCircle,
+  ExternalLink,
 } from 'lucide-react';
+import { FaInstagram } from 'react-icons/fa6';
 
 interface ClubItem {
   id: string;
@@ -32,6 +34,8 @@ interface ClubItem {
   members: string;
   eventsCount: string;
   established: string;
+  instagram?: string;
+  instagramHandle?: string;
 }
 
 const ALL_CLUBS: ClubItem[] = [
@@ -48,6 +52,8 @@ const ALL_CLUBS: ClubItem[] = [
     members: '500+',
     eventsCount: '12+',
     established: '2024',
+    instagram: 'https://www.instagram.com/hackerunity.pcu/',
+    instagramHandle: 'hackerunity.pcu',
   },
   {
     id: 'hu-subodh',
@@ -62,6 +68,8 @@ const ALL_CLUBS: ClubItem[] = [
     members: '350+',
     eventsCount: '8+',
     established: '2024',
+    instagram: 'https://www.instagram.com/hackerunity.subodhcollege/',
+    instagramHandle: 'hackerunity.subodhcollege',
   },
 ];
 
@@ -282,6 +290,23 @@ export default function ClubsPage() {
                           {club.collegeName} • {club.city}, {club.state}
                         </span>
                       </div>
+
+                      {/* Instagram Link Badge */}
+                      {club.instagram && (
+                        <div className="mt-2.5 flex items-center">
+                          <a
+                            href={club.instagram}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-amber-500/10 hover:from-pink-500/20 hover:via-purple-500/20 hover:to-amber-500/20 border border-pink-500/25 dark:border-pink-500/30 text-pink-600 dark:text-pink-400 text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] shadow-2xs group/insta"
+                            title={`Follow ${club.name} on Instagram`}
+                          >
+                            <FaInstagram className="w-3.5 h-3.5 text-[#e1306c] dark:text-pink-400 group-hover/insta:scale-110 transition-transform" />
+                            <span>@{club.instagramHandle}</span>
+                            <ExternalLink className="w-3 h-3 opacity-60 group-hover/insta:opacity-100 transition-opacity" />
+                          </a>
+                        </div>
+                      )}
                     </div>
                   </div>
 
