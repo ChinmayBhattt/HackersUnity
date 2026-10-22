@@ -344,6 +344,13 @@ export default function HackathonsDirectoryPage() {
                       >
                         Completed
                       </Link>
+                    ) : effectiveStatus === EventStatus.REGISTRATION_CLOSED ? (
+                      <Link
+                        href={`/hackathons/${event.slug}`}
+                        className="px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-bold text-xs transition-all text-center inline-block"
+                      >
+                        Registration Closed
+                      </Link>
                     ) : (
                       <button
                         onClick={(e) => {

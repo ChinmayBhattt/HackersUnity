@@ -67,6 +67,8 @@ import {
   getEffectiveEventStatus,
   filterDisplayTags,
   getSubmissionPortalStatus,
+  isEventRegistrationClosed,
+  isEventEnded,
 } from '@/lib/utils';
 import { RegistrationModal } from '@/components/registration-modal';
 import { TeamRegistrationModal } from '@/components/team-registration-modal';
@@ -536,6 +538,7 @@ function HackathonDetailContent({ params }: PageProps) {
   }
 
   const effectiveStatus = getEffectiveEventStatus(event);
+  const isRegistrationClosed = isEventRegistrationClosed(event.registrationDeadline, event.endDate);
   const statusInfo = getStatusBadge(effectiveStatus, event.registrationDeadline, event.endDate);
   const categoryInfo = getCategoryBadge(event.category);
   const eventTypeInfo = getEventTypeBadge(event.eventType);
@@ -1456,7 +1459,7 @@ function HackathonDetailContent({ params }: PageProps) {
                     <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-sky-500/10 to-amber-500/10 border-2 border-amber-300/80 dark:border-amber-600/40 text-slate-900 dark:text-slate-100 space-y-1">
                       <div className="flex items-center gap-2 font-black text-xs text-amber-800 dark:text-amber-400">
                         <Award className="w-4 h-4 text-amber-500" />
-                        <span>👑 Hackathon Organizer Controls Active</span>
+                        <span>Hackathon Organizer Controls Active</span>
                       </div>
                       <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
                         As the host of this hackathon, you can <strong>Pin projects to the top</strong> and assign official podium tags (<strong>Winner</strong>, <strong>1st Winner</strong>, <strong>Runner up</strong>, <strong>2nd Runner up</strong>). Regular participants cannot see these controls.
@@ -2063,6 +2066,16 @@ function HackathonDetailContent({ params }: PageProps) {
                     <span>Hackathon Completed</span>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    This hackathon has concluded. Explore the submissions, winners, and highlights above.
+                  </p>
+                </div>
+              ) : effectiveStatus === EventStatus.REGISTRATION_CLOSED || isRegistrationClosed ? (
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/[0.08] text-center space-y-2">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    <span>Registration Closed</span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                     Registrations for this hackathon have closed. Explore the event timeline, tracks, and details above.
                   </p>
                 </div>
@@ -2315,8 +2328,13 @@ function HackathonDetailContent({ params }: PageProps) {
             <div className="text-right leading-tight shrink-0">
               {effectiveStatus === EventStatus.COMPLETED ? (
                 <div>
+                  <span className="text-xs font-bold text-slate-400 dark:text-slate-500">Hackathon</span>
+                  <span className="text-[11px] text-slate-400 block font-semibold">Completed</span>
+                </div>
+              ) : effectiveStatus === EventStatus.REGISTRATION_CLOSED || isRegistrationClosed ? (
+                <div>
                   <span className="text-xs font-bold text-slate-400 dark:text-slate-500">Registration</span>
-                  <span className="text-[11px] text-slate-400 block font-semibold">Closed</span>
+                  <span className="text-[11px] text-amber-600 dark:text-amber-400 block font-semibold">Closed</span>
                 </div>
               ) : isRegistered ? (
                 <div>
@@ -2415,7 +2433,11 @@ function HackathonDetailContent({ params }: PageProps) {
               </span>
             ) : effectiveStatus === EventStatus.COMPLETED ? (
               <span className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-white/[0.06] text-slate-400 dark:text-slate-500 font-bold text-xs cursor-not-allowed shrink-0">
-                Closed
+                Hackathon Completed
+              </span>
+            ) : effectiveStatus === EventStatus.REGISTRATION_CLOSED || isRegistrationClosed ? (
+              <span className="px-4 py-2.5 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-bold text-xs cursor-not-allowed shrink-0">
+                Registration Closed
               </span>
             ) : externalRedirectUrl ? (
               <a

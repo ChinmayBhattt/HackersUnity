@@ -162,7 +162,11 @@ export function HackathonCard({ event, isBookmarked, onBookmarkChange }: Hackath
                 }`}
               >
                 <Clock className="w-3.5 h-3.5 shrink-0" />
-                <span>{deadlineInfo.text}</span>
+                <span>
+                  {effectiveStatus === EventStatus.COMPLETED
+                    ? 'Ended'
+                    : deadlineInfo.text}
+                </span>
               </div>
             </div>
 
@@ -266,6 +270,13 @@ export function HackathonCard({ event, isBookmarked, onBookmarkChange }: Hackath
                 className="py-2 px-3.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-white/[0.08] font-bold text-xs transition-all text-center inline-block"
               >
                 Completed
+              </Link>
+            ) : effectiveStatus === EventStatus.REGISTRATION_CLOSED ? (
+              <Link
+                href={`/hackathons/${event.slug}`}
+                className="py-2 px-3.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/20 font-bold text-xs transition-all text-center inline-block"
+              >
+                Registration Closed
               </Link>
             ) : isRedirectAllowed && normalizedExternalLink ? (
               <a

@@ -62,7 +62,7 @@ import {
   cancelTeamJoinRequestSupabase,
   fetchUserPendingTeamRequest,
 } from '@/lib/supabase-service';
-import { formatCurrency, formatDate, formatDateTime, getDaysLeft, downloadReceiptPdf, isEventRegistrationClosed } from '@/lib/utils';
+import { formatCurrency, formatDate, formatDateTime, getDaysLeft, downloadReceiptPdf, isEventRegistrationClosed, isEventEnded } from '@/lib/utils';
 import { EventStatus } from '@hackers-unity/shared-types';
 import { removeRegistrationForEvent } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
@@ -827,8 +827,9 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
     );
   }
  
+  const isCompleted = event.status === EventStatus.COMPLETED || isEventEnded(event.endDate);
   const isRegistrationEnded =
-    event.status === EventStatus.COMPLETED ||
+    isCompleted ||
     event.status === EventStatus.REGISTRATION_CLOSED ||
     isEventRegistrationClosed(event.registrationDeadline, event.endDate);
 
@@ -838,9 +839,11 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
         <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.1] flex items-center justify-center mx-auto mb-4 text-slate-500">
           <Clock className="w-8 h-8" />
         </div>
-        <h2 className="text-2xl font-black text-slate-900 dark:text-white">Registration Closed</h2>
+        <h2 className="text-2xl font-black text-slate-900 dark:text-white">
+          {isCompleted ? 'Hackathon Concluded' : 'Registration Closed'}
+        </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 max-w-md mx-auto">
-          {event.status === EventStatus.COMPLETED || isEventRegistrationClosed(event.registrationDeadline, event.endDate)
+          {isCompleted
             ? 'This hackathon has concluded and registrations are no longer being accepted.'
             : 'Registrations for this hackathon have closed.'}
         </p>

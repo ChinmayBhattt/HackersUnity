@@ -225,30 +225,61 @@ export function isEventRegistrationClosed(registrationDeadline?: string | null, 
   }
 }
 
+export function isEventEnded(endDate?: string | null): boolean {
+  if (!endDate) return false;
+  try {
+    const trimmed = String(endDate).trim();
+    if (!trimmed) return false;
+    const dateToParse = /^\d{4}-\d{2}-\d{2}$/.test(trimmed)
+      ? `${trimmed}T23:59:59.999`
+      : trimmed;
+    const target = new Date(dateToParse).getTime();
+    if (isNaN(target)) return false;
+    return target < Date.now();
+  } catch {
+    return false;
+  }
+}
+
 export function getEffectiveEventStatus(event?: {
   status?: EventStatus | string | null;
   registrationDeadline?: string | null;
+  startDate?: string | null;
   endDate?: string | null;
 } | null): EventStatus {
   if (!event) return EventStatus.PUBLISHED;
   const currentStatus = (event.status as EventStatus) || EventStatus.PUBLISHED;
 
-  // Never alter draft or pending approval states
+  // Never alter draft, pending approval, or rejected states
   if (
     currentStatus === EventStatus.DRAFT ||
-    currentStatus === EventStatus.PENDING_APPROVAL
+    currentStatus === EventStatus.PENDING_APPROVAL ||
+    (currentStatus as string) === 'REJECTED'
   ) {
     return currentStatus;
   }
 
-  // If explicitly completed
-  if (currentStatus === EventStatus.COMPLETED) {
+  // 1. If explicitly set to COMPLETED or the event's overall end date has passed
+  if (currentStatus === EventStatus.COMPLETED || isEventEnded(event.endDate)) {
     return EventStatus.COMPLETED;
   }
 
-  // If registration deadline has passed, status dynamically becomes COMPLETED
-  if (isEventRegistrationClosed(event.registrationDeadline, event.endDate)) {
-    return EventStatus.COMPLETED;
+  // 2. If event has started and not ended yet, it is ONGOING
+  if (event.startDate && !isEventEnded(event.endDate)) {
+    try {
+      const startTarget = new Date(event.startDate).getTime();
+      if (!isNaN(startTarget) && startTarget <= Date.now()) {
+        return EventStatus.ONGOING;
+      }
+    } catch {}
+  }
+
+  // 3. If registration deadline has passed (but event has NOT ended yet), status is REGISTRATION_CLOSED
+  if (
+    currentStatus === EventStatus.REGISTRATION_CLOSED ||
+    isEventRegistrationClosed(event.registrationDeadline, event.endDate)
+  ) {
+    return EventStatus.REGISTRATION_CLOSED;
   }
 
   return currentStatus;
@@ -434,7 +465,7 @@ export function getDaysLeft(dateString?: string | null): { text: string; urgent:
     const now = Date.now();
 
     if (target < now) {
-      return { text: 'Ended', urgent: false, past: true };
+      return { text: 'Closed', urgent: false, past: true };
     }
 
     const diffDays = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
@@ -483,9 +514,16 @@ export function getStatusBadge(
   if (
     status !== EventStatus.DRAFT &&
     status !== EventStatus.PENDING_APPROVAL &&
-    isEventRegistrationClosed(registrationDeadline, endDate)
+    (status as string) !== 'REJECTED'
   ) {
-    resolvedStatus = EventStatus.COMPLETED;
+    if (status === EventStatus.COMPLETED || isEventEnded(endDate)) {
+      resolvedStatus = EventStatus.COMPLETED;
+    } else if (
+      status === EventStatus.REGISTRATION_CLOSED ||
+      isEventRegistrationClosed(registrationDeadline, endDate)
+    ) {
+      resolvedStatus = EventStatus.REGISTRATION_CLOSED;
+    }
   }
 
   switch (resolvedStatus) {

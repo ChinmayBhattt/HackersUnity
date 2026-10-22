@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { ExtendedEvent, MOCK_EVENTS } from './mock-data';
-import { getEventPreviewToken, isEventRegistrationClosed, filterDisplayTags } from './utils';
+import { getEventPreviewToken, isEventRegistrationClosed, isEventEnded, filterDisplayTags } from './utils';
 import {
   UserPublic,
   EventStatus,
@@ -93,12 +93,17 @@ export function mapDbEventToExtended(item: any): ExtendedEvent {
       const rawStatus = (item.status as EventStatus) || EventStatus.PUBLISHED;
       const statusUpper = String(rawStatus || '').toUpperCase();
       if (
-        statusUpper !== 'DRAFT' &&
-        statusUpper !== 'PENDING_APPROVAL' &&
-        statusUpper !== 'REJECTED' &&
-        isEventRegistrationClosed(item.registration_deadline, item.end_date)
+        statusUpper === 'DRAFT' ||
+        statusUpper === 'PENDING_APPROVAL' ||
+        statusUpper === 'REJECTED'
       ) {
+        return rawStatus;
+      }
+      if (statusUpper === 'COMPLETED' || isEventEnded(item.end_date)) {
         return EventStatus.COMPLETED;
+      }
+      if (isEventRegistrationClosed(item.registration_deadline, item.end_date)) {
+        return EventStatus.REGISTRATION_CLOSED;
       }
       return rawStatus;
     })(),
