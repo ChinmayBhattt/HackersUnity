@@ -51,6 +51,7 @@ interface ProjectSubmissionModalProps {
   submissionDeadline?: string | null;
   timezone?: string | null;
   tags?: string[];
+  userSquad?: any;
   onSuccess?: () => void;
   onDelete?: () => void;
 }
@@ -68,6 +69,7 @@ export function ProjectSubmissionModal({
   submissionDeadline,
   timezone,
   tags,
+  userSquad,
   onSuccess,
   onDelete,
 }: ProjectSubmissionModalProps) {
@@ -337,6 +339,18 @@ export function ProjectSubmissionModal({
         additionalResources: additionalResources.trim() || undefined,
         status: submissionData?.status || 'SUBMITTED',
         score: submissionData?.score || 0,
+        teamId: userSquad?.id || submissionData?.teamId,
+        teamName: userSquad?.name || submissionData?.teamName,
+        teamMembers: userSquad?.team_members?.map((m: any) => ({
+          id: m.id,
+          userId: m.user_id,
+          name: m.profiles?.name || m.user_name || m.name || 'Builder',
+          email: m.profiles?.email || m.email,
+          role: m.role || 'Member',
+          avatarUrl: m.profiles?.avatar_url || null,
+        })) || submissionData?.teamMembers,
+        isPinned: submissionData?.isPinned,
+        awardTag: submissionData?.awardTag,
       };
 
       const res = await saveSubmissionSupabase(newSubmission);

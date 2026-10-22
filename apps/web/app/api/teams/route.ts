@@ -329,7 +329,7 @@ export async function POST(req: Request) {
       if (!isEventUuid) {
         const { data: eventData } = await serverSupabase
           .from('events')
-          .select('id')
+          .select('id, max_team_size')
           .eq('slug', eventId)
           .maybeSingle();
         if (eventData?.id) {
@@ -339,6 +339,31 @@ export async function POST(req: Request) {
         }
       }
 
+      // Fetch event's max_team_size to strictly enforce event limit
+      const { data: eventRow } = await serverSupabase
+        .from('events')
+        .select('id, max_team_size')
+        .eq('id', targetEventId)
+        .maybeSingle();
+
+      const eventMaxTeam = Number(eventRow?.max_team_size) || 4;
+      const effectiveMaxMembers = Math.min(Number(maxMembers) || eventMaxTeam, eventMaxTeam);
+
+      // Check if squad with the same name already exists in this event
+      const { data: existingTeamWithName } = await serverSupabase
+        .from('teams')
+        .select('id')
+        .eq('event_id', targetEventId)
+        .ilike('name', teamName.trim())
+        .maybeSingle();
+
+      if (existingTeamWithName) {
+        return NextResponse.json(
+          { error: `A squad with the name "${teamName.trim()}" already exists in this hackathon. Please choose a unique squad name.` },
+          { status: 400 }
+        );
+      }
+
       // 2. Create team
       const { data: team, error: teamError } = await serverSupabase
         .from('teams')
@@ -346,7 +371,7 @@ export async function POST(req: Request) {
           name: teamName.trim(),
           event_id: targetEventId,
           leader_id: validUserId,
-          max_members: Number(maxMembers) || 4,
+          max_members: effectiveMaxMembers,
           description: description?.trim() || '',
         })
         .select('*, profiles:leader_id(name, email, avatar_url)')
@@ -427,7 +452,7 @@ export async function POST(req: Request) {
       // Check team capacity and existing membership
       const { data: team, error: teamFetchErr } = await serverSupabase
         .from('teams')
-        .select('id, name, event_id, leader_id, max_members, team_members(id, user_id)')
+        .select('id, name, event_id, leader_id, max_members, events(id, max_team_size), team_members(id, user_id)')
         .eq('id', targetTeamId)
         .maybeSingle();
 
@@ -452,7 +477,9 @@ export async function POST(req: Request) {
       });
 
       const currentCount = uniqueMemberIds.size > 0 ? uniqueMemberIds.size : members.length;
-      const limit = team.max_members || Number(maxMembers) || 4;
+      const eventLimit = Number((team as any).events?.max_team_size) || 4;
+      const teamLimit = Number(team.max_members) || eventLimit;
+      const limit = Math.min(teamLimit, eventLimit);
       if (currentCount >= limit) {
         return NextResponse.json(
           { error: `This squad has already reached its maximum capacity of ${limit} members.` },
@@ -486,6 +513,7 @@ export async function POST(req: Request) {
               user_name: userName,
               is_team: true,
               team_name: team.name,
+              team_id: team.id,
               role: 'Squad Member',
               status: 'CONFIRMED',
               registered_at: new Date().toISOString(),
@@ -782,7 +810,7 @@ export async function POST(req: Request) {
       // 1. Verify leader
       const { data: team, error: teamErr } = await serverSupabase
         .from('teams')
-        .select('id, name, event_id, leader_id, max_members, team_members(id, user_id), events(id, title, slug)')
+        .select('id, name, event_id, leader_id, max_members, team_members(id, user_id), events(id, title, slug, max_team_size)')
         .eq('id', teamId)
         .maybeSingle();
 
@@ -802,7 +830,9 @@ export async function POST(req: Request) {
       });
 
       const currentCount = uniqueMemberIds.size > 0 ? uniqueMemberIds.size : members.length;
-      const limit = team.max_members || 4;
+      const eventLimit = Number((team as any).events?.max_team_size) || 4;
+      const teamLimit = Number(team.max_members) || eventLimit;
+      const limit = Math.min(teamLimit, eventLimit);
       if (currentCount >= limit) {
         return NextResponse.json({ error: `Squad has reached its capacity limit of ${limit} members.` }, { status: 400 });
       }
@@ -832,6 +862,7 @@ export async function POST(req: Request) {
             user_email: requesterEmail || '',
             is_team: true,
             team_name: team.name,
+            team_id: team.id,
             role: 'Squad Member',
             status: 'CONFIRMED',
             registered_at: new Date().toISOString(),

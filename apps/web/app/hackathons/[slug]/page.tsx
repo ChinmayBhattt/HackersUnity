@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, use, Suspense, useEffect, useMemo } from 'react';
+import { useState, use, Suspense, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
@@ -31,6 +31,13 @@ import {
   Check,
   PenTool,
   CreditCard,
+  Pin,
+  ExternalLink,
+  ArrowRight,
+  Search,
+  X,
+  Medal,
+  Filter,
 } from 'lucide-react';
 import { useEvent } from '@/lib/hooks/use-events';
 import { useEventRegistration } from '@/lib/hooks/use-registration';
@@ -38,7 +45,11 @@ import {
   toggleBookmarkEvent,
   getBookmarkedEventIds,
   getProjectSubmission,
+  getAllProjectSubmissions,
   ProjectSubmission,
+  AwardTagType,
+  getEventProjectsMeta,
+  saveProjectEventMeta,
 } from '@/lib/storage';
 import {
   formatCurrency,
@@ -61,9 +72,27 @@ import { RegistrationModal } from '@/components/registration-modal';
 import { TeamRegistrationModal } from '@/components/team-registration-modal';
 import { ProjectSubmissionModal } from '@/components/project-submission-modal';
 import { RichDescription } from '@/components/rich-description';
-import { fetchUserTeamForEvent, fetchLiveRegistrationCount, checkPaymentStatusSupabase } from '@/lib/supabase-service';
+import {
+  fetchUserTeamForEvent,
+  fetchLiveRegistrationCount,
+  checkPaymentStatusSupabase,
+  fetchEventSubmissions,
+  fetchEventTeams,
+} from '@/lib/supabase-service';
 import { EventStatus } from '@hackers-unity/shared-types';
 import { useAuth } from '@/lib/auth-context';
+
+function cleanPlainText(rawText?: string): string {
+  if (!rawText) return '';
+  return rawText
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/^#+\s+/gm, '')
+    .replace(/[*_~`]/g, '')
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -198,7 +227,7 @@ function HackathonDetailContent({ params }: PageProps) {
   }, [event]);
 
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'timeline' | 'submission' | 'prizes' | 'rules' | 'sponsors' | 'faqs'
+    'overview' | 'timeline' | 'submission' | 'projects' | 'prizes' | 'rules' | 'sponsors' | 'faqs'
   >('overview');
   const [showRegModal, setShowRegModal] = useState(false);
   const [showTeamModal, setShowTeamModal] = useState(false);
@@ -206,6 +235,121 @@ function HackathonDetailContent({ params }: PageProps) {
   const [userSubmission, setUserSubmission] = useState<ProjectSubmission | null>(null);
   const [expandedFaq, setExpandedFaq] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  // ─── Projects Section State ──────────────────────────────────────────
+  const [eventProjects, setEventProjects] = useState<ProjectSubmission[]>([]);
+  const [eventTeams, setEventTeams] = useState<any[]>([]);
+  const [selectedProject, setSelectedProject] = useState<ProjectSubmission | null>(null);
+  const [projectSearch, setProjectSearch] = useState('');
+  const [projectTrackFilter, setProjectTrackFilter] = useState('ALL');
+  const [projectsLoading, setProjectsLoading] = useState(false);
+
+  const loadProjects = useCallback(async () => {
+    if (!event) return;
+    setProjectsLoading(true);
+    try {
+      const [remoteSubs, teams] = await Promise.all([
+        fetchEventSubmissions(event.id),
+        fetchEventTeams(event.id),
+      ]);
+      setEventTeams(teams || []);
+
+      const metaPrimary = getEventProjectsMeta(event.id);
+      const metaSlug = event.slug ? getEventProjectsMeta(event.slug) : {};
+      const meta = { ...metaSlug, ...metaPrimary };
+
+      const localSubsPrimary = getAllProjectSubmissions(event.id);
+      const localSubsSlug = event.slug ? getAllProjectSubmissions(event.slug) : [];
+      const allLocal = [...localSubsPrimary];
+      localSubsSlug.forEach((ls) => {
+        if (!allLocal.some((x) => x.id === ls.id)) allLocal.push(ls);
+      });
+
+      const combined = [...remoteSubs];
+      allLocal.forEach((ls) => {
+        if (!combined.some((x) => x.id === ls.id)) combined.push(ls);
+      });
+
+      const enriched: ProjectSubmission[] = combined.map((sub) => {
+        const isPinned = meta[sub.id]?.isPinned ?? sub.isPinned ?? false;
+        const awardTag = (meta[sub.id]?.awardTag ?? sub.awardTag ?? null) as AwardTagType | null;
+
+        let teamName = sub.teamName;
+        let teamMembers = sub.teamMembers;
+
+        if (!teamMembers || teamMembers.length === 0) {
+          const foundTeam = (teams || []).find(
+            (t: any) =>
+              (sub.teamId && t.id === sub.teamId) ||
+              t.leader_id === sub.submittedBy ||
+              t.team_members?.some((m: any) => m.user_id === sub.submittedBy)
+          );
+
+          if (foundTeam) {
+            teamName = foundTeam.name || teamName || 'Squad';
+            const leaderMember = foundTeam.profiles ? {
+              id: foundTeam.leader_id,
+              userId: foundTeam.leader_id,
+              name: foundTeam.profiles.name || 'Leader',
+              email: foundTeam.profiles.email || '',
+              role: 'Squad Leader',
+              avatarUrl: foundTeam.profiles.avatar_url || null,
+            } : null;
+
+            const existingMembers = (foundTeam.team_members || []).map((m: any) => ({
+              id: m.id || m.user_id,
+              userId: m.user_id,
+              name: m.profiles?.name || m.user_name || m.name || 'Builder',
+              email: m.profiles?.email || m.email || '',
+              role: m.role || 'Member',
+              avatarUrl: m.profiles?.avatar_url || null,
+            }));
+
+            if (leaderMember && !existingMembers.some((m: any) => m.userId === leaderMember.userId)) {
+              teamMembers = [leaderMember, ...existingMembers];
+            } else {
+              teamMembers = existingMembers;
+            }
+          } else {
+            teamName = teamName || (sub.submittedByName ? `${sub.submittedByName}'s Squad` : 'Solo Squad');
+            teamMembers = [
+              {
+                id: sub.submittedBy,
+                userId: sub.submittedBy,
+                name: sub.submittedByName || 'Builder',
+                email: sub.submittedByEmail || '',
+                role: 'Lead Builder',
+                avatarUrl: null,
+              },
+            ];
+          }
+        }
+
+        return {
+          ...sub,
+          teamName,
+          teamMembers,
+          isPinned,
+          awardTag,
+        };
+      });
+
+      setEventProjects(enriched);
+    } catch (err) {
+      console.warn('Error loading projects:', err);
+    } finally {
+      setProjectsLoading(false);
+    }
+  }, [event?.id, event?.slug]);
+
+  useEffect(() => {
+    loadProjects();
+    const handleStorageChange = () => {
+      loadProjects();
+    };
+    window.addEventListener('hackers_unity_storage_change', handleStorageChange);
+    return () => window.removeEventListener('hackers_unity_storage_change', handleStorageChange);
+  }, [loadProjects]);
 
   const submissionStatus = useMemo(() => getSubmissionPortalStatus(event), [event]);
 
@@ -223,6 +367,36 @@ function HackathonDetailContent({ params }: PageProps) {
     window.addEventListener('hackers_unity_storage_change', checkSubmission);
     return () => window.removeEventListener('hackers_unity_storage_change', checkSubmission);
   }, [event?.id, user?.id, supabaseUser?.id]);
+
+  const sortedProjects = useMemo(() => {
+    let list = [...eventProjects];
+    if (projectTrackFilter !== 'ALL') {
+      list = list.filter((p) => (p.track || '').toLowerCase() === projectTrackFilter.toLowerCase());
+    }
+    if (projectSearch.trim()) {
+      const q = projectSearch.toLowerCase();
+      list = list.filter(
+        (p) =>
+          p.projectTitle.toLowerCase().includes(q) ||
+          (p.tagline || '').toLowerCase().includes(q) ||
+          (p.teamName || '').toLowerCase().includes(q) ||
+          (p.track || '').toLowerCase().includes(q) ||
+          (p.submittedByName || '').toLowerCase().includes(q)
+      );
+    }
+
+    return list.sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+
+      const hasTagA = Boolean(a.awardTag);
+      const hasTagB = Boolean(b.awardTag);
+      if (hasTagA && !hasTagB) return -1;
+      if (!hasTagA && hasTagB) return 1;
+
+      return new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime();
+    });
+  }, [eventProjects, projectTrackFilter, projectSearch]);
 
   if (loading) {
     return (
@@ -384,10 +558,34 @@ function HackathonDetailContent({ params }: PageProps) {
     }
   };
 
+  const handleTogglePin = (projectId: string, currentPinned: boolean) => {
+    if (!isOrganizerOrAdmin || !event) return;
+    const newPinned = !currentPinned;
+    saveProjectEventMeta(event.id, projectId, { isPinned: newPinned }, event.slug);
+    setEventProjects((prev) =>
+      prev.map((p) => (p.id === projectId ? { ...p, isPinned: newPinned } : p))
+    );
+    if (selectedProject && selectedProject.id === projectId) {
+      setSelectedProject((prev) => (prev ? { ...prev, isPinned: newPinned } : null));
+    }
+  };
+
+  const handleSetAwardTag = (projectId: string, tag: AwardTagType | null) => {
+    if (!isOrganizerOrAdmin || !event) return;
+    saveProjectEventMeta(event.id, projectId, { awardTag: tag }, event.slug);
+    setEventProjects((prev) =>
+      prev.map((p) => (p.id === projectId ? { ...p, awardTag: tag } : p))
+    );
+    if (selectedProject && selectedProject.id === projectId) {
+      setSelectedProject((prev) => (prev ? { ...prev, awardTag: tag } : null));
+    }
+  };
+
   const tabs = [
     { id: 'overview', label: 'Overview & Tracks' },
     { id: 'timeline', label: 'Stages & Timeline' },
     { id: 'submission', label: 'Submission' },
+    { id: 'projects', label: 'Projects' },
     { id: 'prizes', label: 'Prizes & Perks' },
     { id: 'rules', label: 'Rules & Criteria' },
     { id: 'sponsors', label: 'Sponsors & Judges' },
@@ -726,31 +924,152 @@ function HackathonDetailContent({ params }: PageProps) {
                   </div>
                 )}
 
-                {/* Squad Callout for Team Events */}
-                {event.isTeamEvent && (
-                  <div className="p-6 rounded-2xl bg-gradient-to-r from-sky-50 via-white to-orange-50 dark:from-sky-950/20 dark:via-[#0c1017] dark:to-orange-950/20 border border-sky-200 dark:border-sky-800/40 flex items-center justify-between gap-4 shadow-sm">
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">Form or Join a Squad</h4>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                        This event allows squads of {event.minTeamSize}-{event.maxTeamSize} builders.
-                      </p>
+                {/* ─── Submitted Projects Preview (In Lines) ─── */}
+                <div className="bg-white dark:bg-[#0c1017] p-6 rounded-2xl border border-slate-200 dark:border-white/[0.08] shadow-sm space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-3 border-b border-slate-100 dark:border-white/[0.08] pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#0099e6]/10 to-sky-500/20 text-[#0099e6] dark:text-[#38bdf8] border border-sky-200 dark:border-sky-800/40 flex items-center justify-center font-black shadow-xs">
+                        <Rocket className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-base font-black text-slate-900 dark:text-white">Submitted Projects</h4>
+                          <span className="px-2.5 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950/60 text-[#0099e6] dark:text-[#38bdf8] text-xs font-black">
+                            {eventProjects.length} {eventProjects.length === 1 ? 'Project' : 'Projects'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                          Prototypes & solutions submitted by participating builder squads
+                        </p>
+                      </div>
                     </div>
-                    {effectiveStatus !== EventStatus.COMPLETED ? (
-                      <a
-                        href={externalRedirectUrl || `/hackathons/${event.slug}/register`}
-                        target={externalRedirectUrl ? '_blank' : undefined}
-                        rel={externalRedirectUrl ? 'noopener noreferrer' : undefined}
-                        className="px-4 py-2 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white text-xs font-bold transition-all shadow-xs whitespace-nowrap"
-                      >
-                        {externalRedirectUrl ? 'External Registration Portal ↗' : 'Squad Registration Portal'}
-                      </a>
-                    ) : (
-                      <span className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-white/[0.06] text-slate-500 dark:text-slate-400 text-xs font-bold">
-                        Registration Closed
-                      </span>
-                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('projects');
+                        if (typeof window !== 'undefined') {
+                          window.scrollTo({ top: 380, behavior: 'smooth' });
+                        }
+                      }}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white text-xs font-bold transition-all shadow-sm shadow-sky-500/20 cursor-pointer"
+                    >
+                      <span>Show all projects</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                )}
+
+                  {eventProjects.length > 0 ? (
+                    <div className="space-y-2.5">
+                      {eventProjects.slice(0, 5).map((proj) => {
+                        const memberCount = proj.teamMembers?.length || 1;
+                        return (
+                          <div
+                            key={proj.id}
+                            onClick={() => setSelectedProject(proj)}
+                            className="p-3.5 sm:p-4 rounded-xl bg-slate-50 dark:bg-white/[0.03] hover:bg-sky-50/70 dark:hover:bg-sky-950/30 border border-slate-200/80 dark:border-white/[0.08] hover:border-sky-300 dark:hover:border-sky-700/60 transition-all cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group shadow-2xs"
+                          >
+                            <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                              <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-white/[0.1] text-[#0099e6] dark:text-[#38bdf8] flex items-center justify-center font-black text-sm shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                                {proj.awardTag ? '🏆' : proj.isPinned ? '📌' : '⚡'}
+                              </div>
+
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h5 className="text-sm font-black text-slate-900 dark:text-white group-hover:text-[#0099e6] dark:group-hover:text-[#38bdf8] transition-colors truncate">
+                                    {proj.projectTitle}
+                                  </h5>
+
+                                  {proj.isPinned && (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-100 dark:bg-sky-950 text-[#0099e6] dark:text-[#38bdf8] text-[10px] font-black border border-sky-300 dark:border-sky-800">
+                                      <Pin className="w-2.5 h-2.5 fill-current" /> Pinned
+                                    </span>
+                                  )}
+
+                                  {proj.awardTag && (
+                                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black border ${
+                                      proj.awardTag === 'Winner'
+                                        ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+                                        : proj.awardTag === '1st Winner'
+                                        ? 'bg-yellow-100 dark:bg-yellow-950/60 text-yellow-900 dark:text-yellow-300 border-yellow-400 dark:border-yellow-700'
+                                        : proj.awardTag === 'Runner up'
+                                        ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700'
+                                        : 'bg-orange-100 dark:bg-orange-950/60 text-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700'
+                                    }`}>
+                                      <Award className="w-3 h-3 text-current" />
+                                      {proj.awardTag}
+                                    </span>
+                                  )}
+
+                                  {proj.track && (
+                                    <span className="px-2 py-0.5 rounded-md bg-white dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                                      {proj.track}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
+                                  {cleanPlainText(proj.tagline || proj.projectDescription)}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60 dark:border-white/[0.06]">
+                              <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 font-semibold bg-white dark:bg-[#121824] px-2.5 py-1 rounded-lg border border-slate-200 dark:border-white/[0.08]">
+                                <Users className="w-3.5 h-3.5 text-[#0099e6] dark:text-[#38bdf8]" />
+                                <span className="font-bold text-slate-800 dark:text-slate-200">{proj.teamName || 'Squad'}</span>
+                                <span className="text-[10px] text-slate-400 font-normal">({memberCount} {memberCount === 1 ? 'builder' : 'builders'})</span>
+                              </div>
+
+                              <span className="text-xs font-bold text-[#0099e6] dark:text-[#38bdf8] group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                                <span>View</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {eventProjects.length > 5 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveTab('projects');
+                            if (typeof window !== 'undefined') {
+                              window.scrollTo({ top: 380, behavior: 'smooth' });
+                            }
+                          }}
+                          className="w-full py-2.5 rounded-xl border border-dashed border-sky-300 dark:border-sky-800/60 hover:bg-sky-50/50 dark:hover:bg-sky-950/20 text-xs font-bold text-[#0099e6] dark:text-[#38bdf8] transition-all text-center cursor-pointer"
+                        >
+                          Show all {eventProjects.length} projects →
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-8 rounded-xl bg-slate-50 dark:bg-white/[0.02] border border-dashed border-slate-200 dark:border-white/[0.08] text-center space-y-3">
+                      <Rocket className="w-8 h-8 text-slate-400 mx-auto opacity-70" />
+                      <div className="space-y-1">
+                        <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200">No projects submitted yet</h5>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                          When builder squads submit their hackathon prototypes, they will appear here in lines.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('projects');
+                          if (typeof window !== 'undefined') {
+                            window.scrollTo({ top: 380, behavior: 'smooth' });
+                          }
+                        }}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 text-[#0099e6] dark:text-[#38bdf8] text-xs font-bold border border-sky-200 dark:border-sky-800/50 transition-all cursor-pointer"
+                      >
+                        <span>Show all projects</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -900,7 +1219,7 @@ function HackathonDetailContent({ params }: PageProps) {
                       <div>
                         <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Project Title</div>
                         <div className="text-base font-black text-slate-900 dark:text-white">{userSubmission.projectTitle}</div>
-                        {userSubmission.tagline && (
+                        {userSubmission.tagline && userSubmission.tagline.length <= 120 && (
                           <div className="text-xs text-[#0099e6] dark:text-[#38bdf8] font-semibold">{userSubmission.tagline}</div>
                         )}
                       </div>
@@ -913,7 +1232,7 @@ function HackathonDetailContent({ params }: PageProps) {
                       )}
 
                       <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-3">
-                        {userSubmission.projectDescription}
+                        {cleanPlainText(userSubmission.tagline && userSubmission.tagline.length > 120 ? userSubmission.tagline : userSubmission.projectDescription)}
                       </p>
 
                       <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-slate-100 dark:border-white/[0.08] text-xs">
@@ -1096,6 +1415,372 @@ function HackathonDetailContent({ params }: PageProps) {
                       : 'Submissions Closed'}
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* TAB CONTENT: Projects */}
+            {activeTab === 'projects' && (
+              <div className="space-y-6 animate-in fade-in">
+                {/* ─── Top Bar: Search, Filters & Stats ─── */}
+                <div className="bg-white dark:bg-[#0c1017] p-6 rounded-2xl border border-slate-200 dark:border-white/[0.08] shadow-sm space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-white/[0.08] pb-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Rocket className="w-5 h-5 text-[#0099e6] dark:text-[#38bdf8]" />
+                        <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                          Projects &amp; Prototypes
+                        </h3>
+                        <span className="px-2.5 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950/60 text-[#0099e6] dark:text-[#38bdf8] text-xs font-black">
+                          {eventProjects.length} {eventProjects.length === 1 ? 'Project' : 'Projects'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        Explore all submitted prototypes, code repositories, demo videos, and builder squads.
+                      </p>
+                    </div>
+
+                    {submissionStatus.isOpen && (
+                      <button
+                        type="button"
+                        onClick={() => setShowSubmissionModal(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white text-xs font-bold shadow-md shadow-sky-500/20 transition-all self-start sm:self-auto cursor-pointer"
+                      >
+                        <Rocket className="w-3.5 h-3.5" />
+                        <span>{userSubmission ? 'Manage Your Submission' : 'Submit Project'}</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Organizer Exclusive Banner */}
+                  {isOrganizerOrAdmin && (
+                    <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/10 via-sky-500/10 to-amber-500/10 border-2 border-amber-300/80 dark:border-amber-600/40 text-slate-900 dark:text-slate-100 space-y-1">
+                      <div className="flex items-center gap-2 font-black text-xs text-amber-800 dark:text-amber-400">
+                        <Award className="w-4 h-4 text-amber-500" />
+                        <span>👑 Hackathon Organizer Controls Active</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                        As the host of this hackathon, you can <strong>Pin projects to the top</strong> and assign official podium tags (<strong>Winner</strong>, <strong>1st Winner</strong>, <strong>Runner up</strong>, <strong>2nd Runner up</strong>). Regular participants cannot see these controls.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Search & Track Filters */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <div className="relative flex-1">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={projectSearch}
+                        onChange={(e) => setProjectSearch(e.target.value)}
+                        placeholder="Search by project title, squad name, track, or builder..."
+                        className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/[0.08] text-xs font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#0099e6] focus:ring-1 focus:ring-[#0099e6] transition-all"
+                      />
+                      {projectSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setProjectSearch('')}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {event.tracks && event.tracks.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0 hidden sm:block" />
+                        <select
+                          value={projectTrackFilter}
+                          onChange={(e) => setProjectTrackFilter(e.target.value)}
+                          className="px-3 py-2 rounded-xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200 dark:border-white/[0.08] text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:border-[#0099e6] cursor-pointer"
+                        >
+                          <option value="ALL">All Tracks ({eventProjects.length})</option>
+                          {event.tracks.map((t: any) => {
+                            const trackTitle = t.title || t.name || t;
+                            return (
+                              <option key={trackTitle} value={trackTitle}>
+                                {trackTitle}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* ─── Projects List ─── */}
+                {projectsLoading ? (
+                  <div className="bg-white dark:bg-[#0c1017] p-12 rounded-2xl border border-slate-200 dark:border-white/[0.08] text-center space-y-3">
+                    <div className="w-8 h-8 rounded-full border-2 border-[#0099e6] border-t-transparent animate-spin mx-auto" />
+                    <p className="text-xs text-slate-500 font-medium">Loading submitted projects &amp; squads...</p>
+                  </div>
+                ) : sortedProjects.length === 0 ? (
+                  <div className="bg-white dark:bg-[#0c1017] p-12 rounded-2xl border border-dashed border-slate-200 dark:border-white/[0.08] text-center space-y-4">
+                    <div className="w-16 h-16 rounded-3xl bg-sky-50 dark:bg-sky-950/40 text-[#0099e6] dark:text-[#38bdf8] flex items-center justify-center mx-auto text-2xl font-black">
+                      <Rocket className="w-8 h-8" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-base font-bold text-slate-900 dark:text-white">
+                        {projectSearch || projectTrackFilter !== 'ALL'
+                          ? 'No matching projects found'
+                          : 'No projects submitted yet'}
+                      </h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+                        {projectSearch || projectTrackFilter !== 'ALL'
+                          ? 'Try adjusting your search keywords or clearing filters to view all submissions.'
+                          : 'Submissions will appear here once participating builder squads submit their completed projects and deliverables.'}
+                      </p>
+                    </div>
+
+                    {(projectSearch || projectTrackFilter !== 'ALL') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProjectSearch('');
+                          setProjectTrackFilter('ALL');
+                        }}
+                        className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-200 transition-colors cursor-pointer"
+                      >
+                        Reset Search Filters
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-5">
+                    {sortedProjects.map((proj) => {
+                      const memberCount = proj.teamMembers?.length || 1;
+                      const cleanDesc = cleanPlainText(proj.projectDescription);
+                      const cleanTag = cleanPlainText(proj.tagline);
+                      const isShortTagline = cleanTag && cleanTag.length <= 110 && !cleanTag.toLowerCase().includes(cleanDesc.slice(0, 40).toLowerCase());
+                      const summaryText = isShortTagline ? cleanDesc : (cleanTag || cleanDesc);
+
+                      return (
+                        <div
+                          key={proj.id}
+                          className={`bg-white dark:bg-[#0c1017] p-5 sm:p-6 rounded-2xl border transition-all space-y-4 shadow-sm hover:shadow-md ${
+                            proj.awardTag === 'Winner' || proj.awardTag === '1st Winner'
+                              ? 'border-amber-300 dark:border-amber-600/50 bg-gradient-to-br from-amber-500/[0.03] via-white to-transparent dark:from-amber-500/[0.03] dark:via-[#0c1017]'
+                              : proj.isPinned
+                              ? 'border-sky-300 dark:border-sky-700/60 bg-gradient-to-br from-sky-500/[0.03] via-white to-transparent dark:from-sky-500/[0.03] dark:via-[#0c1017]'
+                              : 'border-slate-200 dark:border-white/[0.08] hover:border-sky-300 dark:hover:border-sky-700/50'
+                          }`}
+                        >
+                          {/* Top Badges & Host Actions Row */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-white/[0.06] pb-3.5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {proj.track && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/40 text-[#0099e6] dark:text-[#38bdf8] text-xs font-bold border border-sky-100 dark:border-sky-900/40">
+                                  <Layers className="w-3 h-3" />
+                                  <span>{proj.track}</span>
+                                </span>
+                              )}
+
+                              {proj.isPinned && (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-sky-100 dark:bg-sky-950 text-[#0099e6] dark:text-[#38bdf8] border border-sky-300 dark:border-sky-800 shadow-2xs">
+                                  <Pin className="w-3 h-3 fill-current" />
+                                  <span>Pinned to Top</span>
+                                </span>
+                              )}
+
+                              {proj.awardTag && (
+                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border shadow-2xs ${
+                                  proj.awardTag === 'Winner'
+                                    ? 'bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-950/80 dark:to-yellow-950/80 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700'
+                                    : proj.awardTag === '1st Winner'
+                                    ? 'bg-gradient-to-r from-yellow-100 to-amber-200 dark:from-yellow-950/80 dark:to-amber-950/80 text-yellow-950 dark:text-yellow-200 border-yellow-400 dark:border-yellow-700'
+                                    : proj.awardTag === 'Runner up'
+                                    ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700'
+                                    : 'bg-orange-100 dark:bg-orange-950/80 text-orange-900 dark:text-orange-200 border-orange-300 dark:border-orange-700'
+                                }`}>
+                                  <Award className="w-3.5 h-3.5 text-current" />
+                                  <span>{proj.awardTag}</span>
+                                </span>
+                              )}
+
+                              {proj.score !== undefined && proj.score > 0 && (
+                                <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-400 text-[10px] font-black uppercase">
+                                  Score: {proj.score}/100
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Host Moderation Controls (ONLY VISIBLE TO ORGANIZER) */}
+                            {isOrganizerOrAdmin && (
+                              <div className="flex items-center gap-1.5 flex-wrap self-start sm:self-auto pt-1 sm:pt-0">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                                  Host:
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleTogglePin(proj.id, Boolean(proj.isPinned))}
+                                  className={`px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border shadow-2xs ${
+                                    proj.isPinned
+                                      ? 'bg-sky-600 hover:bg-sky-700 text-white border-sky-700'
+                                      : 'bg-white dark:bg-[#121824] hover:bg-sky-50 dark:hover:bg-sky-950 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/[0.1]'
+                                  }`}
+                                  title={proj.isPinned ? 'Unpin this project' : 'Pin this project to top'}
+                                >
+                                  <Pin className="w-3 h-3 fill-current" />
+                                  <span>{proj.isPinned ? 'Pinned' : 'Pin to Top'}</span>
+                                </button>
+
+                                <div className="inline-flex items-center gap-1 bg-slate-50 dark:bg-white/[0.04] p-1 rounded-xl border border-slate-200 dark:border-white/[0.08]">
+                                  {(['Winner', '1st Winner', 'Runner up', '2nd Runner up'] as AwardTagType[]).map((tag) => (
+                                    <button
+                                      key={tag}
+                                      type="button"
+                                      onClick={() => handleSetAwardTag(proj.id, proj.awardTag === tag ? null : tag)}
+                                      className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                                        proj.awardTag === tag
+                                          ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
+                                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-white/[0.08]'
+                                      }`}
+                                      title={`Assign "${tag}" tag`}
+                                    >
+                                      {tag}
+                                    </button>
+                                  ))}
+                                  {proj.awardTag && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSetAwardTag(proj.id, null)}
+                                      className="px-1.5 py-1 rounded-lg text-[10px] font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                                      title="Remove tag"
+                                    >
+                                      ✕
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Project Title & Clean Summary */}
+                          <div className="space-y-1.5">
+                            <h4
+                              onClick={() => setSelectedProject(proj)}
+                              className="text-lg sm:text-xl font-black text-slate-900 dark:text-white hover:text-[#0099e6] dark:hover:text-[#38bdf8] transition-colors cursor-pointer tracking-tight"
+                            >
+                              {proj.projectTitle}
+                            </h4>
+                            {isShortTagline && (
+                              <p className="text-xs font-semibold text-[#0099e6] dark:text-[#38bdf8]">
+                                {cleanTag}
+                              </p>
+                            )}
+                            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-2 sm:line-clamp-3">
+                              {summaryText}
+                            </p>
+                          </div>
+
+                          {/* Team & Squad Members Details */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-3.5 rounded-xl bg-slate-50/80 dark:bg-white/[0.03] border border-slate-200/70 dark:border-white/[0.06]">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-7 h-7 rounded-lg bg-sky-100 dark:bg-sky-950 text-[#0099e6] dark:text-[#38bdf8] flex items-center justify-center shrink-0">
+                                <Users className="w-3.5 h-3.5" />
+                              </div>
+                              <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                  Squad: <strong className="text-[#0099e6] dark:text-[#38bdf8] font-bold">{proj.teamName || 'Builder Squad'}</strong>
+                                </span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200/70 dark:bg-white/[0.08] text-slate-600 dark:text-slate-400 font-bold shrink-0">
+                                  {memberCount} {memberCount === 1 ? 'Builder' : 'Builders'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Members Badges */}
+                            {proj.teamMembers && proj.teamMembers.length > 0 && (
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {proj.teamMembers.map((m: any, idx: number) => {
+                                  const isLeader = m.role?.toLowerCase().includes('lead');
+                                  return (
+                                    <div
+                                      key={m.id || m.userId || idx}
+                                      title={`${m.name || 'Builder'} • ${m.role || 'Member'}`}
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-[#121824] border border-slate-200/80 dark:border-white/[0.08] text-xs font-medium text-slate-700 dark:text-slate-300 shadow-2xs"
+                                    >
+                                      <div className="w-4 h-4 rounded-full bg-gradient-to-br from-sky-400 to-[#0099e6] text-white flex items-center justify-center text-[9px] font-bold overflow-hidden shrink-0">
+                                        {m.avatarUrl ? (
+                                          <img src={m.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                        ) : (
+                                          (m.name || '?').charAt(0).toUpperCase()
+                                        )}
+                                      </div>
+                                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 max-w-[120px] truncate">
+                                        {m.name || 'Builder'}
+                                      </span>
+                                      {isLeader && (
+                                        <span className="text-[9px] font-black uppercase text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-1 rounded">
+                                          Lead
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Deliverables & Actions Bottom Bar */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-white/[0.06]">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {proj.projectLink && (
+                                <a
+                                  href={proj.projectLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 text-xs font-bold transition-colors"
+                                >
+                                  <Github className="w-3.5 h-3.5 text-slate-800 dark:text-white" />
+                                  <span>Repository</span>
+                                  <ExternalLink className="w-3 h-3 opacity-60" />
+                                </a>
+                              )}
+                              {proj.demoVideoUrl && (
+                                <a
+                                  href={proj.demoVideoUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 dark:bg-orange-950/30 dark:hover:bg-orange-900/40 text-orange-700 dark:text-orange-300 border border-orange-200/60 dark:border-orange-800/40 text-xs font-bold transition-colors"
+                                >
+                                  <Video className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                                  <span>Demo Video</span>
+                                  <ExternalLink className="w-3 h-3 opacity-60" />
+                                </a>
+                              )}
+                              {proj.presentationUrl && (
+                                <a
+                                  href={proj.presentationUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 text-xs font-bold transition-colors"
+                                >
+                                  <Presentation className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                  <span>Pitch Deck</span>
+                                  <ExternalLink className="w-3 h-3 opacity-60" />
+                                </a>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => setSelectedProject(proj)}
+                              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white text-xs font-bold transition-all shadow-sm shadow-sky-500/20 cursor-pointer self-start sm:self-auto hover:gap-2.5"
+                            >
+                              <span>View Project Details</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1788,16 +2473,357 @@ function HackathonDetailContent({ params }: PageProps) {
         submissionDeadline={event.submissionDeadline}
         timezone={event.timezone}
         tags={event.tags}
+        userSquad={userSquad}
         onSuccess={() => {
           const userId = supabaseUser?.id || user?.id;
           setUserSubmission(getProjectSubmission(event.id, userId));
+          loadProjects();
           refresh();
         }}
         onDelete={() => {
           setUserSubmission(null);
+          loadProjects();
           refresh();
         }}
       />
+
+      {/* ─── Selected Project Details Modal ─── */}
+      {selectedProject && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
+          <div className="relative w-full max-w-3xl bg-white dark:bg-[#0c1017] rounded-3xl border border-slate-200 dark:border-white/[0.1] shadow-2xl overflow-hidden my-8 animate-in zoom-in-95">
+            {/* Modal Header Bar */}
+            <div className="p-6 sm:p-7 border-b border-slate-100 dark:border-white/[0.08] relative space-y-3">
+              <button
+                type="button"
+                onClick={() => setSelectedProject(null)}
+                className="absolute right-5 top-5 w-8 h-8 rounded-full bg-slate-100 dark:bg-white/[0.08] hover:bg-slate-200 dark:hover:bg-white/[0.15] text-slate-500 hover:text-slate-800 dark:text-slate-300 flex items-center justify-center transition-colors cursor-pointer"
+                title="Close Modal"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              {/* Badges */}
+              <div className="flex items-center gap-2 flex-wrap pr-10">
+                {selectedProject.isPinned && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-sky-100 dark:bg-sky-950 text-[#0099e6] dark:text-[#38bdf8] border border-sky-300 dark:border-sky-800 shadow-2xs">
+                    <Pin className="w-3 h-3 fill-current" />
+                    <span>Pinned to Top</span>
+                  </span>
+                )}
+
+                {selectedProject.awardTag && (
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border shadow-2xs ${
+                    selectedProject.awardTag === 'Winner'
+                      ? 'bg-gradient-to-r from-amber-100 to-yellow-100 dark:from-amber-950/80 dark:to-yellow-950/80 text-amber-900 dark:text-amber-200 border-amber-300 dark:border-amber-700'
+                      : selectedProject.awardTag === '1st Winner'
+                      ? 'bg-gradient-to-r from-yellow-100 to-amber-200 dark:from-yellow-950/80 dark:to-amber-950/80 text-yellow-950 dark:text-yellow-200 border-yellow-400 dark:border-yellow-700'
+                      : selectedProject.awardTag === 'Runner up'
+                      ? 'bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700'
+                      : 'bg-orange-100 dark:bg-orange-950/80 text-orange-900 dark:text-orange-200 border-orange-300 dark:border-orange-700'
+                  }`}>
+                    <Award className="w-3.5 h-3.5 text-current" />
+                    <span>{selectedProject.awardTag}</span>
+                  </span>
+                )}
+
+                {selectedProject.track && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/40 text-[#0099e6] dark:text-[#38bdf8] text-xs font-bold border border-sky-100 dark:border-sky-900/40">
+                    <Layers className="w-3 h-3" />
+                    <span>{selectedProject.track}</span>
+                  </span>
+                )}
+
+                <span className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 text-xs font-bold">
+                  Status: {selectedProject.status || 'SUBMITTED'}
+                </span>
+              </div>
+
+              {/* Title & Tagline */}
+              <div>
+                <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                  {selectedProject.projectTitle}
+                </h3>
+                {selectedProject.tagline && selectedProject.tagline.length <= 130 ? (
+                  <p className="text-sm font-semibold text-[#0099e6] dark:text-[#38bdf8] mt-1">
+                    {selectedProject.tagline}
+                  </p>
+                ) : selectedProject.tagline ? (
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                    {cleanPlainText(selectedProject.tagline)}
+                  </p>
+                ) : null}
+                <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-2">
+                  <span>Submitted by <strong>{selectedProject.submittedByName}</strong></span>
+                  <span>•</span>
+                  <span>{new Date(selectedProject.submittedAt).toLocaleDateString('en-IN', { dateStyle: 'medium' })}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 sm:p-7 space-y-6 max-h-[70vh] overflow-y-auto">
+              {/* Squad & Team Members Card */}
+              <div className="p-5 rounded-2xl bg-gradient-to-br from-sky-50/70 via-white to-orange-50/40 dark:from-sky-950/20 dark:via-[#121824] dark:to-orange-950/10 border-2 border-sky-100 dark:border-sky-900/40 shadow-xs space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2 border-b border-sky-100 dark:border-white/[0.06] pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#0099e6] to-sky-600 text-white flex items-center justify-center font-black text-sm shadow-xs">
+                      👥
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                        Squad: {selectedProject.teamName || 'Builder Squad'}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Total {selectedProject.teamMembers?.length || 1} Builders in this Squad
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full bg-sky-100 dark:bg-sky-900/40 text-[#0099e6] dark:text-[#38bdf8] text-[11px] font-black uppercase">
+                    {selectedProject.teamMembers?.length || 1} Builders
+                  </span>
+                </div>
+
+                {/* Team Members List */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  {(selectedProject.teamMembers && selectedProject.teamMembers.length > 0
+                    ? selectedProject.teamMembers
+                    : [
+                        {
+                          name: selectedProject.submittedByName || 'Lead Builder',
+                          email: selectedProject.submittedByEmail || '',
+                          role: 'Lead Builder',
+                        },
+                      ]
+                  ).map((m: any, idx: number) => (
+                    <div
+                      key={m.id || m.userId || idx}
+                      className="p-3 rounded-xl bg-white dark:bg-[#121824] border border-slate-200/80 dark:border-white/[0.08] shadow-2xs flex items-center gap-3"
+                    >
+                      <div className="w-9 h-9 rounded-xl bg-sky-100 dark:bg-sky-950 text-[#0099e6] dark:text-[#38bdf8] flex items-center justify-center font-black text-xs shrink-0 overflow-hidden shadow-2xs">
+                        {m.avatarUrl ? (
+                          <img src={m.avatarUrl} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          (m.name || '?').charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                          {m.name || 'Builder'}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                          <span className="font-medium text-[#0099e6] dark:text-[#38bdf8]">{m.role || 'Member'}</span>
+                          {m.email && (
+                            <>
+                              <span>•</span>
+                              <span className="truncate">{m.email}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Project Description &amp; Solution Overview
+                </h4>
+                <div className="p-5 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/[0.08]">
+                  <RichDescription content={selectedProject.projectDescription} />
+                </div>
+              </div>
+
+              {/* Deliverables & Submission Details */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Submission Deliverables &amp; Resources
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Repo Link */}
+                  {selectedProject.projectLink && (
+                    <a
+                      href={selectedProject.projectLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-3.5 rounded-xl bg-white dark:bg-[#121824] hover:bg-sky-50 dark:hover:bg-sky-950/40 border border-slate-200 dark:border-white/[0.08] hover:border-sky-300 dark:hover:border-sky-700/50 flex items-center justify-between group transition-all"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Github className="w-4 h-4 text-slate-900 dark:text-white" />
+                        <div>
+                          <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-[#0099e6] transition-colors">
+                            Source Code Repository
+                          </div>
+                          <div className="text-[10px] text-slate-400 truncate max-w-[200px]">
+                            {selectedProject.projectLink}
+                          </div>
+                        </div>
+                      </div>
+                      <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0099e6] transition-colors" />
+                    </a>
+                  )}
+
+                  {/* Demo Video */}
+                  {selectedProject.demoVideoUrl && (
+                    <a
+                      href={selectedProject.demoVideoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-3.5 rounded-xl bg-white dark:bg-[#121824] hover:bg-orange-50 dark:hover:bg-orange-950/40 border border-slate-200 dark:border-white/[0.08] hover:border-orange-300 dark:hover:border-orange-700/50 flex items-center justify-between group transition-all"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Video className="w-4 h-4 text-[#ea580c]" />
+                        <div>
+                          <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-[#ea580c] transition-colors">
+                            Demo Video Walkthrough
+                          </div>
+                          <div className="text-[10px] text-slate-400 truncate max-w-[200px]">
+                            {selectedProject.demoVideoUrl}
+                          </div>
+                        </div>
+                      </div>
+                      <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#ea580c] transition-colors" />
+                    </a>
+                  )}
+
+                  {/* Presentation Slides */}
+                  {selectedProject.presentationUrl && (
+                    <a
+                      href={selectedProject.presentationUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-3.5 rounded-xl bg-white dark:bg-[#121824] hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-slate-200 dark:border-white/[0.08] hover:border-emerald-300 dark:hover:border-emerald-700/50 flex items-center justify-between group transition-all"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Presentation className="w-4 h-4 text-emerald-600" />
+                        <div>
+                          <div className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-emerald-600 transition-colors">
+                            Pitch Deck &amp; Slides
+                          </div>
+                          <div className="text-[10px] text-slate-400 truncate max-w-[200px]">
+                            {selectedProject.presentationUrl}
+                          </div>
+                        </div>
+                      </div>
+                      <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition-colors" />
+                    </a>
+                  )}
+
+                  {/* ZIP File Upload info */}
+                  {selectedProject.zipFileName && (
+                    <div className="p-3.5 rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] flex items-center gap-2.5">
+                      <Archive className="w-4 h-4 text-indigo-500" />
+                      <div>
+                        <div className="text-xs font-bold text-slate-900 dark:text-white">
+                          Offline Build Archive ({selectedProject.zipFileName})
+                        </div>
+                        {selectedProject.zipFileSize && (
+                          <div className="text-[10px] text-slate-400">{selectedProject.zipFileSize}</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Additional resources */}
+                  {selectedProject.additionalResources && (
+                    <div className="p-3.5 rounded-xl bg-white dark:bg-[#121824] border border-slate-200 dark:border-white/[0.08] sm:col-span-2 space-y-1">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <Link2 className="w-3.5 h-3.5 text-purple-600" />
+                        <span>Additional Resources &amp; Notes</span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed break-words">
+                        {selectedProject.additionalResources}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ─── Organizer Moderation Panel (ONLY SHOWN TO ORGANIZER) ─── */}
+              {isOrganizerOrAdmin && (
+                <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-sky-500/10 to-amber-500/10 border-2 border-amber-300 dark:border-amber-700/60 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-2 border-b border-amber-200/80 dark:border-amber-800/40 pb-3">
+                    <div className="flex items-center gap-2 font-black text-xs text-amber-900 dark:text-amber-300">
+                      <Award className="w-4 h-4 text-amber-500" />
+                      <span>👑 Organizer Actions (Host Only)</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-amber-800 dark:text-amber-400">
+                      Changes update immediately across the platform
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    {/* Pin button */}
+                    <div>
+                      <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                        Pin to Featured Header
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePin(selectedProject.id, Boolean(selectedProject.isPinned))}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 border shadow-xs ${
+                          selectedProject.isPinned
+                            ? 'bg-sky-600 hover:bg-sky-700 text-white border-sky-700'
+                            : 'bg-white dark:bg-[#121824] hover:bg-sky-50 dark:hover:bg-sky-950 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-white/[0.1]'
+                        }`}
+                      >
+                        <Pin className="w-3.5 h-3.5 fill-current" />
+                        <span>{selectedProject.isPinned ? '📌 Pinned (Click to Unpin)' : '📌 Pin Project to Top'}</span>
+                      </button>
+                    </div>
+
+                    {/* Tag assignment */}
+                    <div className="flex-1 sm:max-w-md">
+                      <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                        Award Tag Badge
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(['Winner', '1st Winner', 'Runner up', '2nd Runner up'] as AwardTagType[]).map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => handleSetAwardTag(selectedProject.id, selectedProject.awardTag === tag ? null : tag)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                              selectedProject.awardTag === tag
+                                ? 'bg-amber-500 border-amber-600 text-slate-950 font-black shadow-xs scale-105'
+                                : 'bg-white dark:bg-[#121824] text-slate-700 dark:text-slate-300 border-slate-200 dark:border-white/[0.1] hover:border-amber-400'
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                        {selectedProject.awardTag && (
+                          <button
+                            type="button"
+                            onClick={() => handleSetAwardTag(selectedProject.id, null)}
+                            className="px-2.5 py-1.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 cursor-pointer"
+                            title="Clear award tag"
+                          >
+                            ✕ Clear
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 sm:p-5 bg-slate-50 dark:bg-white/[0.02] border-t border-slate-100 dark:border-white/[0.08] flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedProject(null)}
+                className="px-5 py-2.5 rounded-xl bg-slate-200 dark:bg-white/[0.08] hover:bg-slate-300 text-slate-800 dark:text-slate-200 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Close View
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -4016,6 +4016,15 @@ export async function fetchEventSubmissions(
         track: row.track || local?.track || 'General',
         score: effectiveScore,
         status: effectiveStatus,
+        teamId: row.team_id || local?.teamId,
+        teamName: local?.teamName,
+        teamMembers: local?.teamMembers,
+        presentationUrl: row.presentation_url || local?.presentationUrl,
+        additionalResources: row.additional_resources || local?.additionalResources,
+        zipFileName: local?.zipFileName,
+        zipFileSize: local?.zipFileSize,
+        isPinned: local?.isPinned,
+        awardTag: local?.awardTag,
       };
     });
 

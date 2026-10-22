@@ -793,6 +793,8 @@ export interface ProductEvaluationReport {
   evaluatedAt: string;
 }
 
+export type AwardTagType = 'Winner' | '1st Winner' | 'Runner up' | '2nd Runner up';
+
 export interface ProjectSubmission {
   id: string;
   eventId: string;
@@ -818,6 +820,67 @@ export interface ProjectSubmission {
   reviewNotes?: string;
   status?: 'SUBMITTED' | 'UNDER_REVIEW' | 'ACCEPTED' | 'WINNER' | 'REJECTED';
   aiEvaluation?: ProductEvaluationReport;
+  teamId?: string;
+  teamName?: string;
+  teamMembers?: Array<{
+    id?: string;
+    userId?: string;
+    name?: string;
+    email?: string;
+    role?: string;
+    avatarUrl?: string | null;
+  }>;
+  isPinned?: boolean;
+  awardTag?: AwardTagType | string | null;
+}
+
+export interface ProjectEventMeta {
+  isPinned?: boolean;
+  awardTag?: AwardTagType | string | null;
+}
+
+export function getEventProjectsMeta(eventId: string): Record<string, ProjectEventMeta> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(`hackers_unity_project_meta_${eventId}`);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveProjectEventMeta(
+  eventId: string,
+  submissionId: string,
+  meta: Partial<ProjectEventMeta>,
+  altEventId?: string
+): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const updateStorage = (eid: string) => {
+      const current = getEventProjectsMeta(eid);
+      current[submissionId] = {
+        ...(current[submissionId] || {}),
+        ...meta,
+      };
+      localStorage.setItem(`hackers_unity_project_meta_${eid}`, JSON.stringify(current));
+    };
+    if (eventId) updateStorage(eventId);
+    if (altEventId && altEventId !== eventId) updateStorage(altEventId);
+
+    // Also update STORAGE_KEYS.SUBMISSIONS
+    const all = getAllProjectSubmissions();
+    const idx = all.findIndex((s) => s.id === submissionId);
+    if (idx >= 0) {
+      if (meta.isPinned !== undefined) all[idx].isPinned = meta.isPinned;
+      if (meta.awardTag !== undefined) all[idx].awardTag = meta.awardTag || undefined;
+      localStorage.setItem(STORAGE_KEYS.SUBMISSIONS, JSON.stringify(all));
+    }
+
+    window.dispatchEvent(new Event('hackers_unity_storage_change'));
+  } catch (e) {
+    console.error('Error saving project event meta:', e);
+  }
 }
 
 const AI_EVALUATION_PREFIX = 'hackers_unity_ai_eval_';
@@ -829,7 +892,14 @@ export function getAllProjectSubmissions(eventId?: string): ProjectSubmission[] 
     const raw = localStorage.getItem(STORAGE_KEYS.SUBMISSIONS);
     const list: ProjectSubmission[] = raw ? JSON.parse(raw) : [];
     if (eventId) {
-      return list.filter((s) => s.eventId === eventId);
+      const meta = getEventProjectsMeta(eventId);
+      return list
+        .filter((s) => s.eventId === eventId)
+        .map((s) => ({
+          ...s,
+          isPinned: meta[s.id]?.isPinned ?? s.isPinned ?? false,
+          awardTag: meta[s.id]?.awardTag ?? s.awardTag ?? undefined,
+        }));
     }
     return list;
   } catch {

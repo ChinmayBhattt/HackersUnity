@@ -598,13 +598,14 @@ export async function GET(req: Request) {
           map.set(key, regItem);
         }
 
-        // Group into teams
-        const groupTeamName = row.team_name?.trim() || 'Solo Builders';
-        const groupKey = groupTeamName.toLowerCase();
+        // Group into teams: prioritize team_id so squads with the same name never collide
+        const resolvedTeamId = row.team_id || matchedTeam?.id;
+        const groupTeamName = row.team_name?.trim() || matchedTeam?.name || 'Solo Builders';
+        const groupKey = resolvedTeamId ? `team_${resolvedTeamId}` : (groupTeamName.toLowerCase() === 'solo builders' ? 'solo_builders' : `name_${groupTeamName.toLowerCase()}`);
         if (!teamAggMap.has(groupKey)) {
           teamAggMap.set(groupKey, {
-            id: matchedTeam?.id || groupKey,
-            teamId: matchedTeam?.id || null,
+            id: resolvedTeamId || groupKey,
+            teamId: resolvedTeamId || null,
             teamName: groupTeamName,
             isPaid: isPaid,
             paymentStatus: isPaid ? 'PAID' : 'UNPAID',
@@ -625,7 +626,6 @@ export async function GET(req: Request) {
         }
 
         const teamEntry = teamAggMap.get(groupKey);
-        teamEntry.membersCount += 1;
         if (row.status === 'APPROVED' || row.status === 'CONFIRMED') {
           teamEntry.approvedCount += 1;
         }
@@ -644,15 +644,19 @@ export async function GET(req: Request) {
           teamEntry.leaderEmail = row.user_email;
           teamEntry.leaderPhone = row.phone || teamEntry.leaderPhone;
         }
-        teamEntry.members.push(regItem);
+        if (!teamEntry.members.some((m: any) => m.id === regItem.id || (m.userEmail && m.userEmail.toLowerCase() === regItem.userEmail.toLowerCase()))) {
+          teamEntry.members.push(regItem);
+        }
+        teamEntry.membersCount = teamEntry.members.length;
       });
 
       // Also ensure any teams from `teamRows` that had no registrations are included
       (teamRows || []).forEach((t: any) => {
-        const tKey = t.name?.toLowerCase().trim();
-        if (tKey && !teamAggMap.has(tKey)) {
-          const tPaid = t.payment_status === 'PAID' || payByTeamId.has(t.id) || payByTeamName.has(tKey);
-          const pay = (t.payment_id ? payById.get(t.payment_id) : null) || payByTeamId.get(t.id) || payByTeamName.get(tKey);
+        const tKey = `team_${t.id}`;
+        if (!teamAggMap.has(tKey)) {
+          const tCleanName = t.name?.toLowerCase().trim();
+          const tPaid = t.payment_status === 'PAID' || payByTeamId.has(t.id) || (tCleanName && payByTeamName.has(tCleanName));
+          const pay = (t.payment_id ? payById.get(t.payment_id) : null) || payByTeamId.get(t.id) || (tCleanName ? payByTeamName.get(tCleanName) : null);
           teamAggMap.set(tKey, {
             id: t.id,
             teamId: t.id,

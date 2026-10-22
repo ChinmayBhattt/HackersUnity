@@ -479,11 +479,12 @@ export default function EventRegistrationsPage({ params }: PageProps) {
 
     // 1. Seed from serverTeams if provided
     serverTeams.forEach((st: any) => {
-      const key = (st.teamName || st.name || '').toLowerCase().trim();
+      const teamId = st.teamId || st.id;
+      const key = teamId ? `team_${teamId}` : (st.teamName || st.name || '').toLowerCase().trim();
       if (key) {
         teamsMap.set(key, {
-          id: st.id || key,
-          teamId: st.teamId || st.id,
+          id: teamId || key,
+          teamId: teamId || null,
           teamName: st.teamName || st.name,
           isPaid: Boolean(st.isPaid || st.paymentStatus === 'PAID'),
           paymentStatus: st.isPaid || st.paymentStatus === 'PAID' ? 'PAID' : 'UNPAID',
@@ -502,15 +503,47 @@ export default function EventRegistrationsPage({ params }: PageProps) {
       }
     });
 
+    // Helper to find existing team in teamsMap for registration r
+    const findTeamKey = (r: any): string | null => {
+      const regTeamId = r.teamId || (r as any).team_id;
+      if (regTeamId && teamsMap.has(`team_${regTeamId}`)) {
+        return `team_${regTeamId}`;
+      }
+      // Check if any team already contains this member by email
+      const userEmail = (r.userEmail || (r as any).email || '').toLowerCase().trim();
+      if (userEmail) {
+        for (const [k, t] of teamsMap.entries()) {
+          if (Array.isArray(t.members) && t.members.some((m: any) => (m.userEmail || m.email || '').toLowerCase().trim() === userEmail)) {
+            return k;
+          }
+        }
+      }
+      if (regTeamId) {
+        return `team_${regTeamId}`;
+      }
+      const rawTeamName = r.teamName?.trim();
+      if (rawTeamName && rawTeamName.toLowerCase() !== 'solo builders') {
+        const nameKey = rawTeamName.toLowerCase();
+        if (teamsMap.has(nameKey)) return nameKey;
+        for (const [k, t] of teamsMap.entries()) {
+          if ((t.teamName || '').toLowerCase().trim() === nameKey) {
+            return k;
+          }
+        }
+        return nameKey;
+      }
+      return null;
+    };
+
     // 2. Aggregate all combined registrations
     registrations.forEach((r) => {
       const rawTeamName = r.teamName?.trim() || 'Solo Builders';
-      const key = rawTeamName.toLowerCase();
+      const key = findTeamKey(r) || (rawTeamName.toLowerCase() === 'solo builders' ? `solo_${r.id || r.userEmail}` : rawTeamName.toLowerCase());
 
       if (!teamsMap.has(key)) {
         teamsMap.set(key, {
-          id: r.teamId || key,
-          teamId: r.teamId,
+          id: r.teamId || (r as any).team_id || key,
+          teamId: r.teamId || (r as any).team_id || null,
           teamName: rawTeamName,
           isPaid: Boolean(r.paymentConfirmed || r.paymentStatus === 'PAID'),
           paymentStatus: r.paymentConfirmed || r.paymentStatus === 'PAID' ? 'PAID' : 'UNPAID',
@@ -543,13 +576,18 @@ export default function EventRegistrationsPage({ params }: PageProps) {
       }
 
       if (r.role?.toLowerCase().includes('lead') || !team.leaderEmail) {
-        team.leaderName = r.userName;
-        team.leaderEmail = r.userEmail;
+        team.leaderName = r.userName || team.leaderName;
+        team.leaderEmail = r.userEmail || team.leaderEmail;
         team.leaderPhone = r.phone || team.leaderPhone;
       }
 
-      // Add member to team if not present
-      if (!team.members.some((m: any) => (m.id && m.id === r.id) || (m.userEmail && m.userEmail.toLowerCase() === r.userEmail.toLowerCase()))) {
+      // Add member to team if not present (de-duplicate by email or id)
+      const rEmail = (r.userEmail || (r as any).email || '').toLowerCase().trim();
+      const alreadyIn = team.members.some((m: any) => 
+        (m.id && r.id && m.id === r.id) || 
+        (rEmail && (m.userEmail || m.email || '').toLowerCase().trim() === rEmail)
+      );
+      if (!alreadyIn) {
         team.members.push(r);
       }
     });
@@ -606,20 +644,20 @@ export default function EventRegistrationsPage({ params }: PageProps) {
     });
   }, [teamsList, searchQuery, teamPaymentFilter]);
 
-  const toggleTeamExpand = (teamName: string) => {
+  const toggleTeamExpand = (teamKey: string) => {
     setExpandedTeamNames((prev) => {
       const next = new Set(prev);
-      if (next.has(teamName)) {
-        next.delete(teamName);
+      if (next.has(teamKey)) {
+        next.delete(teamKey);
       } else {
-        next.add(teamName);
+        next.add(teamKey);
       }
       return next;
     });
   };
 
   const expandAllTeams = () => {
-    setExpandedTeamNames(new Set(filteredTeams.map((t) => t.teamName)));
+    setExpandedTeamNames(new Set(filteredTeams.map((t) => t.id || t.teamName)));
   };
 
   const collapseAllTeams = () => {
@@ -1500,15 +1538,16 @@ export default function EventRegistrationsPage({ params }: PageProps) {
           ) : (
             <div className="space-y-3">
               {filteredTeams.map((team) => {
-                const isExpanded = expandedTeamNames.has(team.teamName);
+                const teamKey = team.id || team.teamName;
+                const isExpanded = expandedTeamNames.has(teamKey);
                 return (
                   <div
-                    key={team.teamName}
+                    key={teamKey}
                     className="bg-white dark:bg-[#0c1017] rounded-3xl border border-slate-200 dark:border-white/[0.08] shadow-sm overflow-hidden transition-all duration-200 hover:border-slate-300 dark:hover:border-white/[0.16]"
                   >
                     {/* Header Row: Click to Expand */}
                     <div
-                      onClick={() => toggleTeamExpand(team.teamName)}
+                      onClick={() => toggleTeamExpand(teamKey)}
                       className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer select-none bg-slate-50/50 dark:bg-white/[0.01] hover:bg-slate-100/50 dark:hover:bg-white/[0.03] transition-colors"
                     >
                       <div className="flex items-center gap-3.5">
