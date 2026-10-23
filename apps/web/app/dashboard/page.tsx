@@ -113,6 +113,7 @@ export default function DashboardPage() {
 
   // Payments & Receipts States
   const [payments, setPayments] = useState<any[]>([]);
+  const [selectedPaymentEventId, setSelectedPaymentEventId] = useState<string>('ALL');
   const [paymentFilter, setPaymentFilter] = useState<'ALL' | 'PAID' | 'PENDING' | 'FAILED'>('ALL');
   const [paymentSearch, setPaymentSearch] = useState('');
   const [selectedReceiptPayment, setSelectedReceiptPayment] = useState<any | null>(null);
@@ -481,6 +482,26 @@ export default function DashboardPage() {
     myHostedEvents.length > 0
   );
 
+  // Event object dictionary for robust lookup
+  const eventLookupMap = useMemo(() => {
+    const map = new Map<string, ExtendedEvent>();
+    [...allEvents, ...myHostedEvents].forEach((evt) => {
+      if (!evt) return;
+      if (evt.id) {
+        map.set(evt.id, evt);
+        map.set(evt.id.toLowerCase(), evt);
+      }
+      if (evt.slug) {
+        map.set(evt.slug, evt);
+        map.set(evt.slug.toLowerCase(), evt);
+      }
+      if (evt.title) {
+        map.set(evt.title.toLowerCase().trim(), evt);
+      }
+    });
+    return map;
+  }, [allEvents, myHostedEvents]);
+
   // Filtered Payments & Transaction Ledger
   const allPaymentsList = (() => {
     const rawList: any[] = [...payments];
@@ -578,38 +599,33 @@ export default function DashboardPage() {
       return { isSuperseded: false, matchingPaidPayment: null };
     };
 
-    // Build slug lookup map from allEvents
-    const eventSlugMap = new Map<string, string>();
-    allEvents.forEach((evt) => {
-      if (evt.id && evt.slug && !evt.slug.startsWith('evt_')) {
-        eventSlugMap.set(evt.id, evt.slug);
-        eventSlugMap.set(evt.id.toLowerCase(), evt.slug);
-      }
-      if (evt.title && evt.slug && !evt.slug.startsWith('evt_')) {
-        eventSlugMap.set(evt.title.toLowerCase().trim(), evt.slug);
-      }
-      if (evt.slug && !evt.slug.startsWith('evt_')) {
-        eventSlugMap.set(evt.slug.toLowerCase().trim(), evt.slug);
-      }
-    });
-
-    // Decorate raw payments with superseded flag and matching receipt
+    // Decorate raw payments with matched event details and superseded flag
     const list: any[] = rawList.map((item) => {
       const { isSuperseded, matchingPaidPayment } = checkSuperseded(item);
       const rawEid = item.event_id || item.eventId || '';
-      const rawTitle = (item.event_name || item.eventName || item.events?.title || '').toLowerCase().trim();
-      const resolvedSlug =
-        (item.slug && !item.slug.startsWith('evt_') ? item.slug : null) ||
-        (item.events?.slug && !item.events.slug.startsWith('evt_') ? item.events.slug : null) ||
-        (rawEid ? eventSlugMap.get(rawEid) : null) ||
-        (rawEid ? eventSlugMap.get(rawEid.toLowerCase()) : null) ||
-        (rawTitle ? eventSlugMap.get(rawTitle) : null) ||
-        (rawTitle.includes('sphinx') ? 'sphinx-26' : null) ||
-        (rawEid && !rawEid.startsWith('evt_') ? rawEid : 'sphinx-26');
+      const rawSlug = item.slug || item.events?.slug || '';
+      const rawTitle = (item.event_name || item.eventName || item.events?.title || '').trim();
+
+      const matchedEvent =
+        (rawEid ? eventLookupMap.get(rawEid) || eventLookupMap.get(rawEid.toLowerCase()) : null) ||
+        (rawSlug ? eventLookupMap.get(rawSlug) || eventLookupMap.get(rawSlug.toLowerCase()) : null) ||
+        (rawTitle ? eventLookupMap.get(rawTitle.toLowerCase()) : null);
+
+      const resolvedEventId = matchedEvent?.id || rawEid || rawSlug;
+      const resolvedTitle = matchedEvent?.title || rawTitle || item.events?.title || 'Hackathon Arena';
+      const resolvedSlug = matchedEvent?.slug || rawSlug || (rawEid && !rawEid.startsWith('evt_') ? rawEid : 'sphinx-26');
 
       return {
         ...item,
+        event_id: resolvedEventId,
+        event_name: resolvedTitle,
         slug: resolvedSlug,
+        events: {
+          ...item.events,
+          title: resolvedTitle,
+          slug: resolvedSlug,
+          banner_url: matchedEvent?.bannerUrl || item.events?.banner_url,
+        },
         isSuperseded,
         matchingPaidPayment,
       };
@@ -628,19 +644,19 @@ export default function DashboardPage() {
       const isMember = Boolean(reg.isTeam && reg.role && !reg.role.toLowerCase().includes('lead'));
       if (!isAlreadyPaid && (reg.entryFee || 0) > 0) {
         const regEid = reg.eventId || '';
-        const regTitle = (reg.eventName || '').toLowerCase().trim();
-        const resolvedRegSlug =
-          (reg.slug && !reg.slug.startsWith('evt_') ? reg.slug : null) ||
-          (regEid ? eventSlugMap.get(regEid) : null) ||
-          (regEid ? eventSlugMap.get(regEid.toLowerCase()) : null) ||
-          (regTitle ? eventSlugMap.get(regTitle) : null) ||
-          (regTitle.includes('sphinx') ? 'sphinx-26' : null) ||
-          (regEid && !regEid.startsWith('evt_') ? regEid : 'sphinx-26');
+        const regTitle = (reg.eventName || '').trim();
+        const matchedRegEvent =
+          (regEid ? eventLookupMap.get(regEid) || eventLookupMap.get(regEid.toLowerCase()) : null) ||
+          (reg.slug ? eventLookupMap.get(reg.slug) || eventLookupMap.get(reg.slug.toLowerCase()) : null) ||
+          (regTitle ? eventLookupMap.get(regTitle.toLowerCase()) : null);
+
+        const resolvedRegTitle = matchedRegEvent?.title || reg.eventName || 'Hackathon Arena';
+        const resolvedRegSlug = matchedRegEvent?.slug || reg.slug || regEid || 'sphinx-26';
 
         list.push({
           id: `pending_${reg.eventId}_${reg.teamId || 'reg'}`,
           event_id: reg.eventId,
-          event_name: reg.eventName,
+          event_name: resolvedRegTitle,
           team_name: reg.teamName || 'Solo Builder',
           team_type: reg.isTeam ? 'Squad' : 'Solo',
           team_size: reg.isTeam ? 4 : 1,
@@ -668,23 +684,157 @@ export default function DashboardPage() {
     return list;
   })();
 
-  const pendingPaymentsCount = allPaymentsList.filter(
+  // Selectable Hackathon Events for Payments filtering
+  const selectablePaymentEvents = useMemo(() => {
+    const eventsMap = new Map<
+      string,
+      {
+        id: string;
+        title: string;
+        slug: string;
+        bannerUrl?: string | null;
+        entryFee?: number | null;
+        mode?: string;
+        isHosted?: boolean;
+        totalTxns: number;
+        paidTxns: number;
+        pendingTxns: number;
+        failedTxns: number;
+        totalAmount: number;
+      }
+    >();
+
+    const registerEvent = (
+      id: string,
+      title: string,
+      slug?: string,
+      bannerUrl?: string | null,
+      entryFee?: number | null,
+      mode?: string,
+      isHosted?: boolean
+    ) => {
+      const key = (id || slug || title || '').trim();
+      if (!key) return null;
+      if (!eventsMap.has(key)) {
+        eventsMap.set(key, {
+          id: key,
+          title: title || 'Hackathon Arena',
+          slug: slug || key,
+          bannerUrl: bannerUrl || undefined,
+          entryFee: entryFee != null ? entryFee : undefined,
+          mode,
+          isHosted: Boolean(isHosted),
+          totalTxns: 0,
+          paidTxns: 0,
+          pendingTxns: 0,
+          failedTxns: 0,
+          totalAmount: 0,
+        });
+      }
+      return eventsMap.get(key)!;
+    };
+
+    // 1. Add hosted events first
+    myHostedEvents.forEach((evt) => {
+      registerEvent(evt.id, evt.title, evt.slug, evt.bannerUrl, evt.entryFee, evt.mode, true);
+    });
+
+    // 2. Add published events
+    allEvents.forEach((evt) => {
+      registerEvent(evt.id, evt.title, evt.slug, evt.bannerUrl, evt.entryFee, evt.mode, false);
+    });
+
+    // 3. Track transactions from allPaymentsList
+    allPaymentsList.forEach((p) => {
+      const eid = (p.event_id || p.eventId || '').trim();
+      const slug = (p.slug || p.events?.slug || '').trim();
+      const title = (p.event_name || p.eventName || p.events?.title || '').trim();
+
+      let targetEntry = (eid ? eventsMap.get(eid) : null) || (slug ? eventsMap.get(slug) : null);
+      if (!targetEntry && title) {
+        for (const entry of eventsMap.values()) {
+          if (entry.title.toLowerCase().trim() === title.toLowerCase().trim()) {
+            targetEntry = entry;
+            break;
+          }
+        }
+      }
+
+      if (!targetEntry) {
+        targetEntry = registerEvent(eid || slug || title, title || 'Hackathon Arena', slug, p.events?.banner_url);
+      }
+
+      if (targetEntry) {
+        targetEntry.totalTxns += 1;
+        const isPaid = p.status === 'PAID' || p.isSuperseded;
+        const isPending = (p.status === 'PENDING' || p.status === 'CREATED') && !p.isSuperseded;
+        const isFailed = p.status === 'FAILED' && !p.isSuperseded;
+        if (isPaid) {
+          targetEntry.paidTxns += 1;
+          targetEntry.totalAmount += Number(p.amount) || 0;
+        } else if (isPending) {
+          targetEntry.pendingTxns += 1;
+        } else if (isFailed) {
+          targetEntry.failedTxns += 1;
+        }
+      }
+    });
+
+    return Array.from(eventsMap.values()).sort((a, b) => {
+      if (b.totalTxns !== a.totalTxns) return b.totalTxns - a.totalTxns;
+      if (a.isHosted !== b.isHosted) return a.isHosted ? -1 : 1;
+      return a.title.localeCompare(b.title);
+    });
+  }, [myHostedEvents, allEvents, allPaymentsList]);
+
+  // Selected event object
+  const selectedPaymentEvent = useMemo(() => {
+    if (selectedPaymentEventId === 'ALL') return null;
+    return selectablePaymentEvents.find((e) => e.id === selectedPaymentEventId) || null;
+  }, [selectedPaymentEventId, selectablePaymentEvents]);
+
+  // Payments filtered by selected event
+  const paymentsForSelectedEvent = useMemo(() => {
+    if (selectedPaymentEventId === 'ALL') {
+      return allPaymentsList;
+    }
+    const target = selectablePaymentEvents.find((e) => e.id === selectedPaymentEventId);
+    if (!target) return allPaymentsList;
+
+    return allPaymentsList.filter((p) => {
+      const eid = (p.event_id || p.eventId || '').trim();
+      const slug = (p.slug || p.events?.slug || '').trim();
+      const title = (p.event_name || p.eventName || p.events?.title || '').toLowerCase().trim();
+      const targetTitle = target.title.toLowerCase().trim();
+
+      return (
+        eid === target.id ||
+        eid === target.slug ||
+        slug === target.slug ||
+        slug === target.id ||
+        (title && title === targetTitle) ||
+        (title && targetTitle && (title.includes(targetTitle) || targetTitle.includes(title)))
+      );
+    });
+  }, [selectedPaymentEventId, allPaymentsList, selectablePaymentEvents]);
+
+  const pendingPaymentsCount = paymentsForSelectedEvent.filter(
     (p) => (p.status === 'PENDING' || p.status === 'CREATED') && !p.isSuperseded
   ).length;
 
   const allPendingPaymentsList = useMemo(() => {
-    return allPaymentsList.filter(
+    return paymentsForSelectedEvent.filter(
       (p) => (p.status === 'PENDING' || p.status === 'CREATED') && !p.isSuperseded
     );
-  }, [allPaymentsList]);
+  }, [paymentsForSelectedEvent]);
 
-  const paidPaymentsCount = allPaymentsList.filter((p) => p.status === 'PAID' || p.isSuperseded).length;
-  const failedPaymentsCount = allPaymentsList.filter((p) => p.status === 'FAILED' && !p.isSuperseded).length;
-  const totalAmountPaid = allPaymentsList
+  const paidPaymentsCount = paymentsForSelectedEvent.filter((p) => p.status === 'PAID' || p.isSuperseded).length;
+  const failedPaymentsCount = paymentsForSelectedEvent.filter((p) => p.status === 'FAILED' && !p.isSuperseded).length;
+  const totalAmountPaid = paymentsForSelectedEvent
     .filter((p) => p.status === 'PAID')
     .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
-  const filteredPayments = allPaymentsList.filter((p) => {
+  const filteredPayments = paymentsForSelectedEvent.filter((p) => {
     if (paymentFilter === 'PAID' && (p.status !== 'PAID' && !p.isSuperseded)) return false;
     if (paymentFilter === 'PENDING' && ((p.status !== 'PENDING' && p.status !== 'CREATED') || p.isSuperseded)) return false;
     if (paymentFilter === 'FAILED' && (p.status !== 'FAILED' || p.isSuperseded)) return false;
@@ -2194,6 +2344,28 @@ export default function DashboardPage() {
                               );
                             })()}
 
+                            {/* Event Payments Quick Link */}
+                            {(() => {
+                              const matchingEventData = selectablePaymentEvents.find(
+                                (e) => e.id === evt.id || e.slug === evt.slug
+                              );
+                              const txnCount = matchingEventData?.totalTxns || 0;
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedPaymentEventId(evt.id);
+                                    setActiveTab('payments');
+                                  }}
+                                  className="px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/40 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+                                  title={`View payments, dues and receipts for ${eventTitle}`}
+                                >
+                                  <CreditCard className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                                  <span>Payments ({txnCount})</span>
+                                </button>
+                              );
+                            })()}
+
                             {/* Submissions Button */}
                             <Link
                               href={`/dashboard/events/${evt.id || evt.slug}/submissions`}
@@ -2345,6 +2517,142 @@ export default function DashboardPage() {
                 </div>
               </div>
 
+              {/* ─────────────────────────────────────────────────────────────
+                  HACKATHON EVENT SELECTOR BAR
+                 ───────────────────────────────────────────────────────────── */}
+              <div className="p-4 rounded-2xl bg-slate-50/70 dark:bg-white/[0.02] border border-slate-200/80 dark:border-white/[0.06] space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-[#0099e6]" />
+                      <span>Select Hackathon Event:</span>
+                    </span>
+
+                    {selectedPaymentEvent ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#0099e6]/10 text-[#0099e6] border border-[#0099e6]/30 animate-in fade-in">
+                        <span>Active: {selectedPaymentEvent.title}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPaymentEventId('ALL')}
+                          className="hover:bg-[#0099e6]/20 rounded-full p-0.5 transition-colors cursor-pointer"
+                          title="Clear filter / Show all hackathons"
+                        >
+                          <XIcon className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-200/60 dark:bg-white/[0.06]">
+                        All Arenas Combined ({selectablePaymentEvents.length})
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Dropdown Selector for Quick Jumping */}
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="hackathon-payment-select" className="sr-only">
+                      Filter hackathon
+                    </label>
+                    <select
+                      id="hackathon-payment-select"
+                      value={selectedPaymentEventId}
+                      onChange={(e) => setSelectedPaymentEventId(e.target.value)}
+                      className="px-3 py-1.5 rounded-xl bg-white dark:bg-[#07090e] border border-slate-200 dark:border-white/[0.1] text-xs font-bold text-slate-800 dark:text-white shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer max-w-[260px] truncate"
+                    >
+                      <option value="ALL">🌐 All Hackathons ({allPaymentsList.length} txns)</option>
+                      {selectablePaymentEvents.map((evt) => (
+                        <option key={evt.id} value={evt.id}>
+                          {evt.title} ({evt.totalTxns} {evt.totalTxns === 1 ? 'txn' : 'txns'} • ₹{evt.totalAmount.toLocaleString('en-IN')})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Scrollable Event Chips / Cards */}
+                <div className="flex items-center gap-2.5 overflow-x-auto pb-1.5 scrollbar-thin pt-0.5">
+                  {/* All Hackathons Option */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPaymentEventId('ALL')}
+                    className={`group px-3.5 py-2 rounded-xl text-left shrink-0 transition-all flex items-center gap-2.5 cursor-pointer border ${
+                      selectedPaymentEventId === 'ALL'
+                        ? 'bg-sky-500/10 dark:bg-sky-500/15 border-[#0099e6] text-[#0099e6] shadow-sm ring-1 ring-[#0099e6]/40'
+                        : 'bg-white dark:bg-[#07090e] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/[0.16]'
+                    }`}
+                  >
+                    <div
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                        selectedPaymentEventId === 'ALL'
+                          ? 'bg-[#0099e6] text-white'
+                          : 'bg-slate-100 dark:bg-white/[0.06] text-slate-500 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white'
+                      }`}
+                    >
+                      <Globe className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-black tracking-tight whitespace-nowrap">
+                        All Hackathons
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">
+                        {allPaymentsList.length} total txns
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Individual Event Pills */}
+                  {selectablePaymentEvents.map((evt) => {
+                    const isSelected = selectedPaymentEventId === evt.id;
+                    return (
+                      <button
+                        key={evt.id}
+                        type="button"
+                        onClick={() => setSelectedPaymentEventId(evt.id)}
+                        className={`group px-3.5 py-2 rounded-xl text-left shrink-0 transition-all flex items-center gap-2.5 cursor-pointer border ${
+                          isSelected
+                            ? 'bg-sky-500/10 dark:bg-sky-500/15 border-[#0099e6] text-[#0099e6] shadow-sm ring-1 ring-[#0099e6]/40'
+                            : 'bg-white dark:bg-[#07090e] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/[0.16]'
+                        }`}
+                      >
+                        <div
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                            isSelected
+                              ? 'bg-[#0099e6] text-white'
+                              : evt.totalTxns > 0
+                                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400'
+                                : 'bg-slate-100 dark:bg-white/[0.06] text-slate-400'
+                          }`}
+                        >
+                          <Trophy className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0 max-w-[200px]">
+                          <div className="text-xs font-black tracking-tight truncate flex items-center gap-1">
+                            <span className="truncate">{evt.title}</span>
+                            {evt.isHosted && (
+                              <span className="px-1 py-0.2 rounded text-[9px] font-extrabold bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                                Host
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap flex items-center gap-1.5">
+                            <span>
+                              {evt.totalTxns} {evt.totalTxns === 1 ? 'txn' : 'txns'}
+                            </span>
+                            {evt.totalAmount > 0 && (
+                              <>
+                                <span>•</span>
+                                <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                                  ₹{evt.totalAmount.toLocaleString('en-IN')}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Financial KPI Summary Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-4 rounded-2xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/40 flex flex-col items-center justify-center text-center">
@@ -2376,7 +2684,7 @@ export default function DashboardPage() {
 
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/[0.08] flex flex-col items-center justify-center text-center">
                   <div className="text-2xl font-black font-mono text-slate-700 dark:text-slate-300">
-                    {allPaymentsList.length}
+                    {paymentsForSelectedEvent.length}
                   </div>
                   <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
                     Total Transactions
@@ -2397,7 +2705,7 @@ export default function DashboardPage() {
                           : 'bg-slate-100 dark:bg-white/[0.04] text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-white/[0.08]'
                       }`}
                     >
-                      {filter === 'ALL' && `All (${allPaymentsList.length})`}
+                      {filter === 'ALL' && `All (${paymentsForSelectedEvent.length})`}
                       {filter === 'PAID' && `Paid (${paidPaymentsCount})`}
                       {filter === 'PENDING' && `Pending (${pendingPaymentsCount})`}
                       {filter === 'FAILED' && `Failed (${failedPaymentsCount})`}
@@ -2462,18 +2770,46 @@ export default function DashboardPage() {
                   <div className="w-14 h-14 rounded-2xl bg-sky-50 dark:bg-sky-950/40 text-[#0099e6] border border-sky-200 dark:border-sky-800/40 flex items-center justify-center mx-auto">
                     <Receipt className="w-7 h-7" />
                   </div>
-                  <h4 className="text-base font-black text-slate-900 dark:text-white">No Payment Records Found</h4>
+                  <h4 className="text-base font-black text-slate-900 dark:text-white">
+                    {selectedPaymentEvent
+                      ? `No Payments for "${selectedPaymentEvent.title}"`
+                      : 'No Payment Records Found'}
+                  </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
                     {paymentSearch
                       ? `No payments matching "${paymentSearch}". Try another search keyword.`
-                      : 'You do not have any transaction records under this filter yet. When you register for paid hackathons, receipts and bank UTR references will appear here.'}
+                      : selectedPaymentEvent
+                        ? `No transactions or dues recorded for ${selectedPaymentEvent.title} under this filter yet. When participants register and submit entry payments, receipts and bank UTR references will appear here.`
+                        : 'You do not have any transaction records under this filter yet. When you register for paid hackathons, receipts and bank UTR references will appear here.'}
                   </p>
-                  <Link
-                    href="/hackathons"
-                    className="inline-flex px-5 py-2.5 rounded-2xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-extrabold text-xs shadow-md shadow-sky-500/20 transition-all"
-                  >
-                    Browse Live Hackathons
-                  </Link>
+                  <div className="flex items-center justify-center gap-2 pt-1 flex-wrap">
+                    {selectedPaymentEvent && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPaymentEventId('ALL')}
+                        className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-white/[0.08] hover:bg-slate-300 dark:hover:bg-white/[0.12] text-slate-800 dark:text-white font-bold text-xs transition-all cursor-pointer"
+                      >
+                        Show All Hackathons
+                      </button>
+                    )}
+                    {selectedPaymentEvent?.slug && (
+                      <Link
+                        href={`/hackathons/${selectedPaymentEvent.slug}`}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-extrabold text-xs shadow-md shadow-sky-500/20 transition-all"
+                      >
+                        <span>View Arena Page</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </Link>
+                    )}
+                    {!selectedPaymentEvent && (
+                      <Link
+                        href="/hackathons"
+                        className="inline-flex px-5 py-2.5 rounded-2xl bg-[#0099e6] hover:bg-[#0284c7] text-white font-extrabold text-xs shadow-md shadow-sky-500/20 transition-all"
+                      >
+                        Browse Live Hackathons
+                      </Link>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-3">
