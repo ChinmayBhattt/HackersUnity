@@ -456,15 +456,23 @@ export async function GET(req: Request) {
       }
 
       // Fetch teams and payments for these events to cross-reference payment status
-      const [{ data: teamRows }, { data: payRows }] = await Promise.all([
-        serverSupabase
-          .from('teams')
-          .select('id, name, event_id, leader_id, payment_status, payment_id')
-          .in('event_id', idsToQuery),
+      const { data: teamRows } = await serverSupabase
+        .from('teams')
+        .select('id, name, event_id, leader_id, payment_status, payment_id')
+        .in('event_id', idsToQuery);
+
+      const allTeamIds = (teamRows || []).map((t: any) => t.id).filter(Boolean);
+      const [{ data: payRows }, { data: memberRows }] = await Promise.all([
         serverSupabase
           .from('payments')
           .select('*')
           .in('event_id', idsToQuery),
+        allTeamIds.length > 0
+          ? serverSupabase
+              .from('team_members')
+              .select('team_id, user_id, role, status')
+              .in('team_id', allTeamIds)
+          : Promise.resolve({ data: [] }),
       ]);
 
       // Build indexing maps for quick lookup of payments
@@ -487,7 +495,21 @@ export async function GET(req: Request) {
       const teamById = new Map<string, any>();
       (teamRows || []).forEach((t: any) => {
         if (t.id) teamById.set(t.id, t);
-        if (t.name) teamByName.set(t.name.toLowerCase().trim(), t);
+        if (t.name) {
+          const tClean = t.name.toLowerCase().trim();
+          const existing = teamByName.get(tClean);
+          // If duplicate exists, prefer the one with PAID status or payment_id
+          if (!existing || (!existing.payment_status && t.payment_status === 'PAID') || (!existing.payment_id && t.payment_id)) {
+            teamByName.set(tClean, t);
+          }
+        }
+      });
+
+      const teamIdByUserId = new Map<string, string>();
+      (memberRows || []).forEach((m: any) => {
+        if (m.user_id && m.team_id) {
+          teamIdByUserId.set(m.user_id, m.team_id);
+        }
       });
 
       const map = new Map<string, any>();
@@ -498,7 +520,8 @@ export async function GET(req: Request) {
         const teamNameClean = (row.team_name || '').toLowerCase().trim();
         const userEmailClean = (row.user_email || '').toLowerCase().trim();
         const userId = row.user_id;
-        const teamId = row.team_id;
+        const memberTeamId = row.team_id || (userId ? teamIdByUserId.get(userId) : null);
+        const teamId = memberTeamId;
         const paymentId = row.payment_id;
 
         // Find matching payment record
@@ -579,7 +602,7 @@ export async function GET(req: Request) {
           customAnswers: row.custom_answers || {},
           isTeam: Boolean(row.is_team),
           teamName: row.team_name || '',
-          teamId: row.team_id || matchedTeam?.id || null,
+          teamId: row.team_id || memberTeamId || matchedTeam?.id || null,
           role: row.role || (row.is_team ? 'Team Leader' : 'Individual Hacker'),
           status: row.status || 'CONFIRMED',
           registeredAt: row.registered_at || new Date().toISOString(),
@@ -598,10 +621,13 @@ export async function GET(req: Request) {
           map.set(key, regItem);
         }
 
-        // Group into teams: prioritize team_id so squads with the same name never collide
-        const resolvedTeamId = row.team_id || matchedTeam?.id;
+        // Group into teams: group squads with the same name together so duplicates never fracture members
+        const resolvedTeamId = row.team_id || memberTeamId || matchedTeam?.id;
         const groupTeamName = row.team_name?.trim() || matchedTeam?.name || 'Solo Builders';
-        const groupKey = resolvedTeamId ? `team_${resolvedTeamId}` : (groupTeamName.toLowerCase() === 'solo builders' ? 'solo_builders' : `name_${groupTeamName.toLowerCase()}`);
+        const groupKey = groupTeamName.toLowerCase() === 'solo builders'
+          ? `solo_${row.id || row.user_email}`
+          : `name_${groupTeamName.toLowerCase()}`;
+
         if (!teamAggMap.has(groupKey)) {
           teamAggMap.set(groupKey, {
             id: resolvedTeamId || groupKey,
@@ -639,7 +665,10 @@ export async function GET(req: Request) {
           teamEntry.paymentAmount = teamEntry.paymentAmount || amountVal;
           teamEntry.paymentProofLink = teamEntry.paymentProofLink || proofLink;
         }
-        if (row.role?.toLowerCase().includes('lead') || !teamEntry.leaderEmail) {
+
+        const isTrueLeader = (matchedTeam?.leader_id && row.user_id === matchedTeam.leader_id) ||
+                             row.role?.toLowerCase().includes('lead');
+        if (isTrueLeader || !teamEntry.leaderEmail) {
           teamEntry.leaderName = row.user_name;
           teamEntry.leaderEmail = row.user_email;
           teamEntry.leaderPhone = row.phone || teamEntry.leaderPhone;
@@ -652,9 +681,9 @@ export async function GET(req: Request) {
 
       // Also ensure any teams from `teamRows` that had no registrations are included
       (teamRows || []).forEach((t: any) => {
-        const tKey = `team_${t.id}`;
+        const tCleanName = t.name?.toLowerCase().trim();
+        const tKey = tCleanName ? `name_${tCleanName}` : `team_${t.id}`;
         if (!teamAggMap.has(tKey)) {
-          const tCleanName = t.name?.toLowerCase().trim();
           const tPaid = t.payment_status === 'PAID' || payByTeamId.has(t.id) || (tCleanName && payByTeamName.has(tCleanName));
           const pay = (t.payment_id ? payById.get(t.payment_id) : null) || payByTeamId.get(t.id) || (tCleanName ? payByTeamName.get(tCleanName) : null);
           teamAggMap.set(tKey, {
@@ -677,14 +706,41 @@ export async function GET(req: Request) {
             approvedCount: 0,
             members: [],
           });
+        } else {
+          // If team already exists in teamAggMap, merge payment info from this team row
+          const existing = teamAggMap.get(tKey);
+          if (!existing.isPaid && (t.payment_status === 'PAID' || payByTeamId.has(t.id))) {
+            const pay = (t.payment_id ? payById.get(t.payment_id) : null) || payByTeamId.get(t.id);
+            existing.isPaid = true;
+            existing.paymentStatus = 'PAID';
+            existing.transactionConfirmed = 'Yes';
+            existing.utrNumber = pay?.utr_number || 'CONFIRMED';
+            existing.paymentId = pay?.razorpay_payment_id || t.payment_id || null;
+            existing.paymentAmount = pay?.amount ? `₹${pay.amount}` : '₹800';
+            existing.paymentProofLink = pay?.razorpay_payment_id ? `https://dashboard.razorpay.com/app/payments/${pay.razorpay_payment_id}` : null;
+          }
         }
       });
 
       const formattedRegistrations = Array.from(map.values());
-      const formattedTeams = Array.from(teamAggMap.values()).sort((a, b) => {
-        if (a.isPaid !== b.isPaid) return a.isPaid ? -1 : 1;
-        return b.membersCount - a.membersCount;
-      });
+      const formattedTeams = Array.from(teamAggMap.values())
+        .filter((team: any) => {
+          // Discard empty orphan duplicate if another team with this name has members
+          if (team.membersCount === 0) {
+            const norm = (team.teamName || '').toLowerCase().trim();
+            const hasPopulated = Array.from(teamAggMap.values()).some((other: any) =>
+              other !== team &&
+              (other.teamName || '').toLowerCase().trim() === norm &&
+              other.membersCount > 0
+            );
+            if (hasPopulated) return false;
+          }
+          return true;
+        })
+        .sort((a, b) => {
+          if (a.isPaid !== b.isPaid) return a.isPaid ? -1 : 1;
+          return b.membersCount - a.membersCount;
+        });
 
       return NextResponse.json({
         success: true,

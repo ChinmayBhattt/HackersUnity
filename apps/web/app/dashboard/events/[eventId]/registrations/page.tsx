@@ -479,9 +479,12 @@ export default function EventRegistrationsPage({ params }: PageProps) {
 
     // 1. Seed from serverTeams if provided
     serverTeams.forEach((st: any) => {
+      const cleanName = (st.teamName || st.name || '').toLowerCase().trim();
+      const isSolo = !cleanName || cleanName === 'solo builders';
       const teamId = st.teamId || st.id;
-      const key = teamId ? `team_${teamId}` : (st.teamName || st.name || '').toLowerCase().trim();
-      if (key) {
+      const key = !isSolo ? `name_${cleanName}` : (teamId ? `team_${teamId}` : `team_${Math.random()}`);
+
+      if (!teamsMap.has(key)) {
         teamsMap.set(key, {
           id: teamId || key,
           teamId: teamId || null,
@@ -500,11 +503,48 @@ export default function EventRegistrationsPage({ params }: PageProps) {
           leaderPhone: st.leaderPhone || '',
           members: Array.isArray(st.members) ? [...st.members] : [],
         });
+      } else {
+        // Merge with existing team card if duplicate sent from server
+        const existing = teamsMap.get(key);
+        if (st.isPaid || st.paymentStatus === 'PAID') {
+          existing.isPaid = true;
+          existing.paymentStatus = 'PAID';
+          existing.transactionConfirmed = 'Yes';
+          if (!existing.transactionDate) existing.transactionDate = st.transactionDate;
+          if (!existing.utrNumber) existing.utrNumber = st.utrNumber;
+          if (!existing.paymentId) existing.paymentId = st.paymentId;
+          if (!existing.paymentAmount) existing.paymentAmount = st.paymentAmount;
+          if (!existing.paymentProofLink) existing.paymentProofLink = st.paymentProofLink;
+          if (!existing.paymentMethod) existing.paymentMethod = st.paymentMethod;
+        }
+        if (st.leaderEmail && !existing.leaderEmail) {
+          existing.leaderName = st.leaderName;
+          existing.leaderEmail = st.leaderEmail;
+          existing.leaderPhone = st.leaderPhone;
+        }
+        if (Array.isArray(st.members)) {
+          st.members.forEach((m: any) => {
+            const mEmail = (m.userEmail || m.email || '').toLowerCase().trim();
+            if (!existing.members.some((em: any) => (em.id && m.id && em.id === m.id) || (mEmail && (em.userEmail || em.email || '').toLowerCase().trim() === mEmail))) {
+              existing.members.push(m);
+            }
+          });
+        }
       }
     });
 
     // Helper to find existing team in teamsMap for registration r
     const findTeamKey = (r: any): string | null => {
+      const rawTeamName = r.teamName?.trim();
+      if (rawTeamName && rawTeamName.toLowerCase() !== 'solo builders') {
+        const nameKey = `name_${rawTeamName.toLowerCase()}`;
+        if (teamsMap.has(nameKey)) return nameKey;
+        for (const [k, t] of teamsMap.entries()) {
+          if ((t.teamName || '').toLowerCase().trim() === rawTeamName.toLowerCase()) {
+            return k;
+          }
+        }
+      }
       const regTeamId = r.teamId || (r as any).team_id;
       if (regTeamId && teamsMap.has(`team_${regTeamId}`)) {
         return `team_${regTeamId}`;
@@ -521,24 +561,17 @@ export default function EventRegistrationsPage({ params }: PageProps) {
       if (regTeamId) {
         return `team_${regTeamId}`;
       }
-      const rawTeamName = r.teamName?.trim();
-      if (rawTeamName && rawTeamName.toLowerCase() !== 'solo builders') {
-        const nameKey = rawTeamName.toLowerCase();
-        if (teamsMap.has(nameKey)) return nameKey;
-        for (const [k, t] of teamsMap.entries()) {
-          if ((t.teamName || '').toLowerCase().trim() === nameKey) {
-            return k;
-          }
-        }
-        return nameKey;
-      }
       return null;
     };
 
     // 2. Aggregate all combined registrations
     registrations.forEach((r) => {
       const rawTeamName = r.teamName?.trim() || 'Solo Builders';
-      const key = findTeamKey(r) || (rawTeamName.toLowerCase() === 'solo builders' ? `solo_${r.id || r.userEmail}` : rawTeamName.toLowerCase());
+      const cleanName = rawTeamName.toLowerCase();
+      const isSolo = cleanName === 'solo builders';
+      const key = !isSolo 
+        ? (findTeamKey(r) || `name_${cleanName}`)
+        : (findTeamKey(r) || `solo_${r.id || r.userEmail}`);
 
       if (!teamsMap.has(key)) {
         teamsMap.set(key, {
@@ -608,10 +641,24 @@ export default function EventRegistrationsPage({ params }: PageProps) {
       }
     }
 
-    return Array.from(teamsMap.values()).sort((a, b) => {
-      if (a.isPaid !== b.isPaid) return a.isPaid ? -1 : 1;
-      return b.members.length - a.members.length;
-    });
+    return Array.from(teamsMap.values())
+      .filter((team: any) => {
+        // Discard empty orphan duplicate if another team with this name has members
+        if (team.members.length === 0) {
+          const norm = (team.teamName || '').toLowerCase().trim();
+          const hasPopulated = Array.from(teamsMap.values()).some((other: any) =>
+            other !== team &&
+            (other.teamName || '').toLowerCase().trim() === norm &&
+            other.members.length > 0
+          );
+          if (hasPopulated) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (a.isPaid !== b.isPaid) return a.isPaid ? -1 : 1;
+        return b.members.length - a.members.length;
+      });
   }, [serverTeams, registrations]);
 
   const paidTeamsCount = useMemo(() => teamsList.filter((t) => t.isPaid).length, [teamsList]);
