@@ -241,6 +241,29 @@ export function isEventEnded(endDate?: string | null): boolean {
   }
 }
 
+export function isEventRegistrationEnded(event?: {
+  status?: EventStatus | string | null;
+  registrationDeadline?: string | null;
+  registration_deadline?: string | null;
+  endDate?: string | null;
+  end_date?: string | null;
+} | null): boolean {
+  if (!event) return false;
+  const status = (event.status || '').toUpperCase();
+  if (status === 'COMPLETED' || status === 'REGISTRATION_CLOSED') {
+    return true;
+  }
+  const regDeadline = event.registrationDeadline || event.registration_deadline;
+  const endDate = event.endDate || event.end_date;
+  if (isEventEnded(endDate)) {
+    return true;
+  }
+  if (isEventRegistrationClosed(regDeadline, endDate)) {
+    return true;
+  }
+  return false;
+}
+
 export function getEffectiveEventStatus(event?: {
   status?: EventStatus | string | null;
   registrationDeadline?: string | null;

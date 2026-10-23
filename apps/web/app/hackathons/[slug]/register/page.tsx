@@ -62,7 +62,7 @@ import {
   cancelTeamJoinRequestSupabase,
   fetchUserPendingTeamRequest,
 } from '@/lib/supabase-service';
-import { formatCurrency, formatDate, formatDateTime, getDaysLeft, downloadReceiptPdf, isEventRegistrationClosed, isEventEnded } from '@/lib/utils';
+import { formatCurrency, formatDate, formatDateTime, getDaysLeft, downloadReceiptPdf, isEventRegistrationClosed, isEventEnded, isEventRegistrationEnded } from '@/lib/utils';
 import { EventStatus } from '@hackers-unity/shared-types';
 import { removeRegistrationForEvent } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
@@ -272,6 +272,10 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
     };
   }, [event?.id, isPaidEvent, createdTeamId, createdTeamData?.id, createdTeamData?.payment_status, selectedTeamId, supabaseUser?.id, user?.id, user?.email, supabaseUser?.email]);
 
+  // Event completion and registration status
+  const isCompleted = event ? (event.status === EventStatus.COMPLETED || isEventEnded(event.endDate)) : false;
+  const isRegistrationEnded = event ? isEventRegistrationEnded(event) : false;
+
   // Squad role determination: Only squad leader (or solo registrant) can make payment
   const currentUserId = supabaseUser?.id || user?.id;
   const isSquad = Boolean(
@@ -300,6 +304,11 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
 
   const handlePayNow = async () => {
     if (!event || isProcessingPayment) return;
+
+    if (isRegistrationEnded) {
+      setPaymentError('Registration for this hackathon has closed. Payments can no longer be processed.');
+      return;
+    }
 
     if (isSquadMember) {
       setPaymentError(`Only the squad leader (${squadLeaderName}) is authorized to make payments for this squad.`);
@@ -826,13 +835,6 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
       </div>
     );
   }
- 
-  const isCompleted = event.status === EventStatus.COMPLETED || isEventEnded(event.endDate);
-  const isRegistrationEnded =
-    isCompleted ||
-    event.status === EventStatus.REGISTRATION_CLOSED ||
-    isEventRegistrationClosed(event.registrationDeadline, event.endDate);
-
   if (!isAlreadyRegistered && isRegistrationEnded) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center">
@@ -2725,10 +2727,12 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                       className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
                         paymentStatus === 'PAID'
                           ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                          : isRegistrationEnded
+                          ? 'bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400'
                           : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
                       }`}
                     >
-                      {paymentStatus === 'PAID' ? '✓ Paid & Confirmed' : 'Payment Pending'}
+                      {paymentStatus === 'PAID' ? '✓ Paid & Confirmed' : isRegistrationEnded ? 'Registration Closed' : 'Payment Pending'}
                     </span>
                   </div>
 
@@ -2766,6 +2770,26 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                         </p>
                       </div>
                     </div>
+                  ) : isRegistrationEnded ? (
+                    <div className="space-y-3">
+                      <div className="p-3.5 rounded-xl bg-slate-100 dark:bg-white/[0.04] border border-slate-200 dark:border-white/[0.08] text-xs space-y-1.5">
+                        <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200">
+                          <Lock className="w-4 h-4 text-slate-500" />
+                          <span>Registration Closed • Payment Locked</span>
+                        </div>
+                        <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                          Registration for this hackathon has officially closed. Squad entry fee payments can no longer be processed.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled
+                        className="w-full py-3 rounded-xl bg-slate-200 dark:bg-white/[0.08] text-slate-400 dark:text-slate-500 font-extrabold text-xs flex items-center justify-center gap-2 cursor-not-allowed border border-slate-300/50 dark:border-white/[0.05]"
+                      >
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>Payment Locked • Registration Closed</span>
+                      </button>
+                    </div>
                   ) : (
                     <div className="space-y-3">
                       <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
@@ -2787,7 +2811,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
 
               {/* Navigation CTAs */}
               <div className="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
-                {isPaidEvent && paymentStatus !== 'PAID' && canMakePayment ? (
+                {isPaidEvent && paymentStatus !== 'PAID' && canMakePayment && !isRegistrationEnded ? (
                   <button
                     type="button"
                     onClick={() => setCurrentStep(4)}
@@ -2834,17 +2858,21 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                   className={`inline-block px-3.5 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider ${
                     paymentStatus === 'PAID'
                       ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                      : isRegistrationEnded
+                      ? 'bg-slate-100 dark:bg-white/[0.06] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-white/[0.08]'
                       : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
                   }`}
                 >
-                  {paymentStatus === 'PAID' ? 'Payment Confirmed' : 'Step 4 • Squad Payment'}
+                  {paymentStatus === 'PAID' ? 'Payment Confirmed' : isRegistrationEnded ? 'Registration Closed' : 'Step 4 • Squad Payment'}
                 </span>
                 <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
-                  {paymentStatus === 'PAID' ? 'Your Payment is Confirmed!' : 'Complete Squad Entry Fee'}
+                  {paymentStatus === 'PAID' ? 'Your Payment is Confirmed!' : isRegistrationEnded ? 'Payment Window Closed' : 'Complete Squad Entry Fee'}
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-md mx-auto">
                   {paymentStatus === 'PAID'
                     ? `Registration fee for ${event.title} has been received and confirmed.`
+                    : isRegistrationEnded
+                    ? `Registration for ${event.title} has closed. No further payments are being accepted.`
                     : `Pay the one-time registration fee for your entire squad via Razorpay.`}
                 </p>
               </div>
@@ -2947,6 +2975,36 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                     >
                       ← Back to Squad Details
                     </button>
+                  </div>
+                ) : isRegistrationEnded ? (
+                  <div className="pt-2 space-y-4 border-t border-slate-100 dark:border-white/[0.08]">
+                    {/* Registration Closed Notice Banner */}
+                    <div className="p-4 rounded-2xl bg-slate-100 dark:bg-white/[0.04] border border-slate-200 dark:border-white/[0.08] space-y-2 text-center">
+                      <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto">
+                        <Lock className="w-5 h-5" />
+                      </div>
+                      <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                        Registration Closed
+                      </h5>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-sm mx-auto">
+                        Registration for this hackathon has officially closed. Payments can no longer be processed for pending registrations.
+                      </p>
+                    </div>
+
+                    {/* Locked Pay Now Button */}
+                    <button
+                      type="button"
+                      disabled
+                      className="w-full py-3.5 rounded-2xl bg-slate-200 dark:bg-white/[0.08] text-slate-400 dark:text-slate-500 font-extrabold text-sm flex items-center justify-center gap-2 cursor-not-allowed border border-slate-300/50 dark:border-white/[0.05]"
+                    >
+                      <Lock className="w-4 h-4" />
+                      <span>Payment Locked • Registration Closed</span>
+                    </button>
+
+                    <p className="text-[10px] text-slate-400 text-center flex items-center justify-center gap-1">
+                      <Lock className="w-3 h-3 text-slate-400" />
+                      <span>Payment gateway is locked because registration has ended</span>
+                    </p>
                   </div>
                 ) : (
                   <div className="pt-2 space-y-4 border-t border-slate-100 dark:border-white/[0.08]">

@@ -69,6 +69,7 @@ import {
   getSubmissionPortalStatus,
   isEventRegistrationClosed,
   isEventEnded,
+  isEventRegistrationEnded,
 } from '@/lib/utils';
 import { RegistrationModal } from '@/components/registration-modal';
 import { TeamRegistrationModal } from '@/components/team-registration-modal';
@@ -538,7 +539,7 @@ function HackathonDetailContent({ params }: PageProps) {
   }
 
   const effectiveStatus = getEffectiveEventStatus(event);
-  const isRegistrationClosed = isEventRegistrationClosed(event.registrationDeadline, event.endDate);
+  const isRegistrationClosed = isEventRegistrationEnded(event);
   const statusInfo = getStatusBadge(effectiveStatus, event.registrationDeadline, event.endDate);
   const categoryInfo = getCategoryBadge(event.category);
   const eventTypeInfo = getEventTypeBadge(event.eventType);
@@ -1996,13 +1997,20 @@ function HackathonDetailContent({ params }: PageProps) {
               ) : isRegistered ? (
                 <div className="space-y-2.5">
                   {isPendingPayment ? (
-                    <Link
-                      href={`/hackathons/${event.slug}/register`}
-                      className="w-full py-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 border border-amber-300 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 font-extrabold text-xs text-center flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
-                    >
-                      <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                      <span>Payment Pending • Complete Entry Fee (₹{feeAmount}) →</span>
-                    </Link>
+                    isRegistrationClosed ? (
+                      <div className="w-full py-3 rounded-2xl bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.08] text-slate-500 dark:text-slate-400 font-extrabold text-xs text-center flex items-center justify-center gap-2 cursor-not-allowed">
+                        <Lock className="w-4 h-4 text-slate-400" />
+                        <span>Payment Locked • Registration Closed</span>
+                      </div>
+                    ) : (
+                      <Link
+                        href={`/hackathons/${event.slug}/register`}
+                        className="w-full py-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-900/40 border border-amber-300 dark:border-amber-800/50 text-amber-800 dark:text-amber-300 font-extrabold text-xs text-center flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
+                      >
+                        <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                        <span>Payment Pending • Complete Entry Fee (₹{feeAmount}) →</span>
+                      </Link>
+                    )
                   ) : (
                     <Link
                       href={`/hackathons/${event.slug}/register`}
@@ -2382,13 +2390,24 @@ function HackathonDetailContent({ params }: PageProps) {
               </a>
             ) : isRegistered ? (
               isPendingPayment ? (
-                <Link
-                  href={`/hackathons/${event.slug}/register`}
-                  className="px-4 sm:px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs shadow-md shadow-amber-500/25 transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
-                >
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>Pay Fee (₹{feeAmount})</span>
-                </Link>
+                isRegistrationClosed ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="px-4 sm:px-5 py-2.5 rounded-xl bg-slate-200 dark:bg-white/[0.08] text-slate-400 dark:text-slate-500 font-extrabold text-xs shadow-none cursor-not-allowed flex items-center justify-center gap-1.5 shrink-0"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>Closed</span>
+                  </button>
+                ) : (
+                  <Link
+                    href={`/hackathons/${event.slug}/register`}
+                    className="px-4 sm:px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs shadow-md shadow-amber-500/25 transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Pay Fee (₹{feeAmount})</span>
+                  </Link>
+                )
               ) : (
                 <div className="flex items-center gap-1.5 shrink-0">
                   <Link

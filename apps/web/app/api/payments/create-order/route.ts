@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authenticateRequest, createAdminClient, unauthorizedResponse } from '@/lib/api-auth';
 import { getRazorpayClient, generateReceiptNumber } from '@/lib/razorpay';
+import { isEventRegistrationEnded } from '@/lib/utils';
 
 export async function POST(req: Request) {
   try {
@@ -26,14 +27,14 @@ export async function POST(req: Request) {
     if (isUuid) {
       const { data } = await serverSupabase
         .from('events')
-        .select('id, title, slug, entry_fee, currency, registration_type, is_team_event')
+        .select('id, title, slug, entry_fee, currency, registration_type, is_team_event, status, registration_deadline, end_date')
         .eq('id', eventId)
         .maybeSingle();
       eventData = data;
     } else {
       const { data } = await serverSupabase
         .from('events')
-        .select('id, title, slug, entry_fee, currency, registration_type, is_team_event')
+        .select('id, title, slug, entry_fee, currency, registration_type, is_team_event, status, registration_deadline, end_date')
         .eq('slug', eventId)
         .maybeSingle();
       eventData = data;
@@ -42,6 +43,14 @@ export async function POST(req: Request) {
 
     if (!eventData) {
       return NextResponse.json({ error: 'Event not found.' }, { status: 404 });
+    }
+
+    // 1.1 Strict Guard: If registration has closed, prevent payment order creation
+    if (isEventRegistrationEnded(eventData)) {
+      return NextResponse.json(
+        { error: 'Registration for this hackathon has closed. Payments can no longer be processed.' },
+        { status: 400 }
+      );
     }
 
     // 2. Validate fee
