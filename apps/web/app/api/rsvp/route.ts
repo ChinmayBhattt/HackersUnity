@@ -260,7 +260,7 @@ export async function POST(req: Request) {
     }
 
     const rsvpStatus = attending ? 'ATTENDING' : 'NOT_ATTENDING';
-    const finalStatus = attending ? 'CONFIRMED' : 'REJECTED';
+    const finalStatus = attending ? 'CONFIRMED' : 'CANCELLED';
     const nowIso = new Date().toISOString();
 
     // 2. Fetch existing registration to preserve previous fields
@@ -283,7 +283,9 @@ export async function POST(req: Request) {
       ...(existingReg?.custom_answers || {}),
       rsvpStatus,
       rsvpAt: nowIso,
-      attending,
+      attending: Boolean(attending),
+      status: attending ? 'APPROVED' : 'REJECTED',
+      approved: Boolean(attending),
       attendanceCount: String(attendanceCount),
       dietaryPreference,
       tshirtSize,
@@ -332,6 +334,108 @@ export async function POST(req: Request) {
             dbSuccess = true;
           } else {
             console.warn('[api/rsvp] Insert DB error:', insertErr.message);
+          }
+        }
+
+        // If this is a squad registration, also update status for all squad teammates
+        const squadTeamId = existingReg?.team_id;
+        const isTeamRegistration = Boolean(squadTeamId || (teamName && teamName.trim() && teamName.trim().toLowerCase() !== 'solo builder'));
+
+        if (isTeamRegistration) {
+          const teamUpdateData: any = {
+            status: finalStatus,
+            custom_answers: customAnswers,
+          };
+
+          if (squadTeamId) {
+            await serverSupabase
+              .from('registrations')
+              .update(teamUpdateData)
+              .eq('event_id', targetEventId)
+              .eq('team_id', squadTeamId);
+          } else if (teamName && teamName.trim()) {
+            await serverSupabase
+              .from('registrations')
+              .update(teamUpdateData)
+              .eq('event_id', targetEventId)
+              .ilike('team_name', teamName.trim());
+          }
+        }
+
+        // ─── Dispatch In-App Notifications to Target Users ───
+        const targetUserIds = new Set<string>();
+        if (existingReg?.user_id) targetUserIds.add(existingReg.user_id);
+
+        if (isTeamRegistration) {
+          let memberQuery = serverSupabase
+            .from('registrations')
+            .select('user_id, user_email')
+            .eq('event_id', targetEventId);
+
+          if (squadTeamId) {
+            memberQuery = memberQuery.eq('team_id', squadTeamId);
+          } else if (teamName && teamName.trim()) {
+            memberQuery = memberQuery.ilike('team_name', teamName.trim());
+          }
+
+          const { data: squadMembers } = await memberQuery;
+          (squadMembers || []).forEach((m: any) => {
+            if (m.user_id) targetUserIds.add(m.user_id);
+          });
+        }
+
+        // Fallback: look up user ID from profiles by email if not found yet
+        if (targetUserIds.size === 0) {
+          const { data: prof } = await serverSupabase
+            .from('profiles')
+            .select('id')
+            .eq('email', cleanEmail)
+            .maybeSingle();
+          if (prof?.id) targetUserIds.add(prof.id);
+        }
+
+        if (targetUserIds.size > 0) {
+          const notifTitle = attending
+            ? `🎉 Registration Approved!`
+            : `RSVP Decision: Spot Released`;
+          const notifMsg = attending
+            ? `Your attendance for "${eventTitle}" has been confirmed and approved via RSVP! We look forward to seeing your squad at the event.`
+            : `Your response that team "${teamName}" cannot attend "${eventTitle}" has been recorded. Your reserved slot has been released.`;
+
+          const { data: notifRecord } = await serverSupabase
+            .from('notifications')
+            .insert({
+              title: notifTitle,
+              message: notifMsg,
+              type: 'registration',
+              icon: attending ? 'check-circle' : 'x-circle',
+              event_id: targetEventId,
+              sender_id: null,
+              target_type: 'specific_user',
+              action_url: `/hackathons/${eventSlug}/register`,
+              metadata: {
+                eventId: targetEventId,
+                eventTitle,
+                eventSlug,
+                teamName,
+                status: finalStatus,
+                rsvpStatus,
+                attending: Boolean(attending),
+              },
+            })
+            .select('id')
+            .single();
+
+          if (notifRecord?.id) {
+            const userNotifRows = Array.from(targetUserIds).map((uId) => ({
+              user_id: uId,
+              notification_id: notifRecord.id,
+              is_read: false,
+            }));
+
+            await serverSupabase
+              .from('user_notifications')
+              .upsert(userNotifRows, { onConflict: 'user_id,notification_id' });
           }
         }
       } catch (dbErr: any) {

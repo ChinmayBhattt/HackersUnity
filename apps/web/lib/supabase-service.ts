@@ -1530,23 +1530,35 @@ export async function checkUserRegistration(
   email?: string
 ): Promise<{ isRegistered: boolean; registration?: any }> {
   try {
+    let targetEventId = eventId;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
+    if (!isUuid) {
+      const { data: ev } = await supabase.from('events').select('id').eq('slug', eventId).maybeSingle();
+      if (ev?.id) targetEventId = ev.id;
+    }
+
     if (userId) {
       const { data } = await supabase
         .from('registrations')
         .select('*')
-        .eq('event_id', eventId)
+        .eq('event_id', targetEventId)
         .eq('user_id', userId)
+        .order('registered_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (data) return { isRegistered: true, registration: data };
     }
 
     if (email) {
+      const cleanEmail = email.toLowerCase().trim();
       const { data } = await supabase
         .from('registrations')
         .select('*')
-        .eq('event_id', eventId)
-        .eq('user_email', email)
+        .eq('event_id', targetEventId)
+        .ilike('user_email', cleanEmail)
+        .order('registered_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (data) return { isRegistered: true, registration: data };

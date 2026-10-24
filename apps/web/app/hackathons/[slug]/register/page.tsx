@@ -42,6 +42,7 @@ import {
   Smartphone,
   Globe,
   X,
+  XCircle,
 } from 'lucide-react';
 import { useEvent } from '@/lib/hooks/use-events';
 import { useAuth } from '@/lib/auth-context';
@@ -64,7 +65,7 @@ import {
 } from '@/lib/supabase-service';
 import { formatCurrency, formatDate, formatDateTime, getDaysLeft, downloadReceiptPdf, isEventRegistrationClosed, isEventEnded, isEventRegistrationEnded } from '@/lib/utils';
 import { EventStatus } from '@hackers-unity/shared-types';
-import { removeRegistrationForEvent } from '@/lib/storage';
+import { removeRegistrationForEvent, getMyRegistrations } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
 
 function loadRazorpayScript(): Promise<boolean> {
@@ -181,6 +182,33 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
   const [registeredRole, setRegisteredRole] = useState('');
 
   const [isAlreadyRegistered, setIsAlreadyRegistered] = useState(false);
+  const [userRegistrationRecord, setUserRegistrationRecord] = useState<any | null>(null);
+
+  // Local storage registration fallback for instant UI updates
+  const localReg = typeof window !== 'undefined'
+    ? getMyRegistrations().find((r) => r.eventId === event?.id || r.eventId === event?.slug)
+    : null;
+
+  const regStatus = userRegistrationRecord?.status || localReg?.status;
+  const regCustom = userRegistrationRecord?.custom_answers || (localReg as any)?.customAnswers;
+  const rsvpStatus = regCustom?.rsvpStatus || userRegistrationRecord?.rsvp_status || localReg?.rsvpStatus;
+
+  // Registration is considered approved if RSVP is Attending or organizer approved or auto-approved
+  const isRsvpApproved =
+    regCustom?.status === 'APPROVED' ||
+    regCustom?.rsvpStatus === 'ATTENDING' ||
+    rsvpStatus === 'ATTENDING' ||
+    regStatus === 'APPROVED' ||
+    (regStatus === 'CONFIRMED' && event?.approvalMode !== 'MANUAL');
+
+  const isRsvpDeclined =
+    regCustom?.status === 'REJECTED' ||
+    regCustom?.rsvpStatus === 'NOT_ATTENDING' ||
+    rsvpStatus === 'NOT_ATTENDING' ||
+    regStatus === 'REJECTED' ||
+    regStatus === 'CANCELLED';
+
+  const isPendingApproval = !isRsvpApproved && !isRsvpDeclined;
 
   // Payment states (dynamically resolved from event)
   const rawFee = event?.entryFee !== undefined && event?.entryFee !== null
@@ -511,6 +539,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
 
     // Reset state for the current event first to prevent previous event state bleed
     setIsAlreadyRegistered(false);
+    setUserRegistrationRecord(null);
     setCreatedTeamId(null);
     setCreatedTeamData(null);
     setTeamName('');
@@ -539,6 +568,13 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
           );
           setMode(squad.leader_id === userId ? 'CREATE_TEAM' : 'JOIN_TEAM');
           setCurrentStep(wantsStep4 ? 4 : 3);
+
+          // Fetch the registration record for live RSVP / approval status
+          checkUserRegistration(currentEvent.id, userId, userEmail).then((rRes) => {
+            if (rRes.isRegistered && rRes.registration) {
+              setUserRegistrationRecord(rRes.registration);
+            }
+          });
 
           if (squad.payment_status === 'PAID') {
             setPaymentStatus('PAID');
@@ -575,6 +611,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
         // 3. Check registration record
         const reg = await checkUserRegistration(currentEvent.id, userId, userEmail);
         if (reg.isRegistered && reg.registration) {
+          setUserRegistrationRecord(reg.registration);
           // If pending approval squad member (MUST be a team registration, never solo!)
           if (
             reg.registration.is_team &&
@@ -2343,9 +2380,13 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                       <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase ${
                         isPaymentPending
                           ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
-                          : 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                          : isRsvpApproved
+                          ? 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300'
+                          : isRsvpDeclined
+                          ? 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300'
+                          : 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300'
                       }`}>
-                        {isPaymentPending ? 'Payment Pending' : 'Confirmed'}
+                        {isPaymentPending ? 'Payment Pending' : isRsvpApproved ? 'Approved' : isRsvpDeclined ? 'Spot Released' : 'Pending Approval'}
                       </span>
                     </div>
                   </div>
@@ -2617,13 +2658,68 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
                     <span className="px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300/60 dark:border-amber-800/60 font-bold text-[10px]">
                       Payment Pending
                     </span>
+                  ) : isRsvpApproved ? (
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold text-[10px] inline-flex items-center gap-1 border border-emerald-300/60 dark:border-emerald-800/60">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                      Approved
+                    </span>
+                  ) : isRsvpDeclined ? (
+                    <span className="px-2.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 font-bold text-[10px] inline-flex items-center gap-1 border border-rose-300/60 dark:border-rose-800/60">
+                      <XCircle className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+                      Spot Released
+                    </span>
                   ) : (
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 font-bold text-[10px]">
-                      {event.approvalMode === 'MANUAL' ? 'Pending Approval' : 'Confirmed Entry'}
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold text-[10px] inline-flex items-center gap-1 border border-amber-300/60 dark:border-amber-800/60">
+                      <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                      Pending Approval
                     </span>
                   )}
                 </div>
               </div>
+
+              {/* RSVP Attendance Callout */}
+              {isPendingApproval && !isPaymentPending && (
+                <div className="max-w-md mx-auto p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left space-y-2.5">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                        RSVP Attendance Confirmation Required
+                      </h4>
+                      <p className="text-[11px] text-amber-800/90 dark:text-amber-300/80 mt-0.5 leading-relaxed">
+                        To finalize your approval, please confirm whether your squad will attend the event in person. Once you confirm <strong className="text-amber-950 dark:text-amber-100">&quot;Yes, We Are Attending!&quot;</strong>, your registration status will instantly update to <strong className="text-emerald-700 dark:text-emerald-400">Approved</strong>.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="pt-1">
+                    <Link
+                      href={`/rsvp?eventId=${event.id}&slug=${event.slug}&team=${encodeURIComponent(createdTeamData?.name || teamName || '')}&email=${encodeURIComponent(supabaseUser?.email || user?.email || '')}&name=${encodeURIComponent(fullName || user?.name || '')}&phone=${encodeURIComponent(phone || '')}`}
+                      className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all"
+                    >
+                      <span>Confirm RSVP Attendance Now</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {isRsvpApproved && (
+                <div className="max-w-md mx-auto p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-left flex items-start gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                      RSVP Attendance Confirmed &amp; Approved!
+                    </h4>
+                    <p className="text-[11px] text-emerald-800/90 dark:text-emerald-300/80 mt-0.5 leading-relaxed">
+                      Your attendance is officially confirmed and approved. Mentor access, venue check-in slots, and swag kits are reserved for your squad.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* ─── Invite Teammates Section (Team Leaders Only) ─── */}
               {createdTeamId && (mode === 'CREATE_TEAM' || createdTeamData?.leader_id === (supabaseUser?.id || user?.id)) && (

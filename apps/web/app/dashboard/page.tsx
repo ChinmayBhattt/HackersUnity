@@ -252,6 +252,8 @@ export default function DashboardPage() {
         const userRegs: UserRegistrationItem[] = remoteRegs.map((r: any) => {
           const rawEntryFee = Number(r.events?.entry_fee ?? (r.events?.entryFee || 0));
           const mappedEntryFee = rawEntryFee;
+          const rsvpStatus = r.custom_answers?.rsvpStatus;
+          const approvalMode = r.events?.approval_mode || r.events?.approvalMode;
           return {
             eventId: r.event_id,
             eventName: r.events?.title || r.events?.name || 'Registered Hackathon',
@@ -266,6 +268,9 @@ export default function DashboardPage() {
             currency: r.events?.currency || 'INR',
             teamId: r.team_id,
             slug: r.events?.slug || r.event_id,
+            rsvpStatus,
+            approvalMode,
+            customAnswers: r.custom_answers,
           };
         });
         setRegistrations(userRegs);
@@ -1594,6 +1599,24 @@ export default function DashboardPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {filteredParticipations.map((reg) => {
                     const matchedEvent = allEvents.find((e) => e.id === reg.eventId || e.slug === reg.eventId);
+                    const isApproved =
+                      reg.customAnswers?.status === 'APPROVED' ||
+                      reg.customAnswers?.rsvpStatus === 'ATTENDING' ||
+                      reg.rsvpStatus === 'ATTENDING' ||
+                      reg.status === 'APPROVED' ||
+                      (reg.status === 'CONFIRMED' && reg.approvalMode !== 'MANUAL' && (matchedEvent as any)?.approvalMode !== 'MANUAL');
+                    const isDeclined =
+                      reg.customAnswers?.status === 'REJECTED' ||
+                      reg.customAnswers?.rsvpStatus === 'NOT_ATTENDING' ||
+                      reg.rsvpStatus === 'NOT_ATTENDING' ||
+                      reg.status === 'REJECTED' ||
+                      reg.status === 'CANCELLED';
+                    const isPendingApproval = !isApproved && !isDeclined && (
+                      reg.status === 'PENDING' ||
+                      reg.status === 'UNDER_REVIEW' ||
+                      reg.approvalMode === 'MANUAL' ||
+                      (matchedEvent as any)?.approvalMode === 'MANUAL'
+                    );
                     return (
                       <div
                         key={reg.eventId}
@@ -1602,9 +1625,34 @@ export default function DashboardPage() {
                         <div className="space-y-3">
                           <div className="flex items-center justify-between gap-2 flex-wrap">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
-                                ✓ {reg.status || 'CONFIRMED'}
-                              </span>
+                              {isApproved ? (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 flex items-center gap-1">
+                                  <CheckCircle className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" />
+                                  <span>Approved</span>
+                                </span>
+                              ) : isDeclined ? (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40 flex items-center gap-1">
+                                  <span>Spot Released / Declined</span>
+                                </span>
+                              ) : isPendingApproval ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40 flex items-center gap-1">
+                                    <Clock className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                                    <span>Pending Approval</span>
+                                  </span>
+                                  <Link
+                                    href={`/rsvp?eventId=${matchedEvent?.id || reg.eventId}&slug=${matchedEvent?.slug || reg.slug || reg.eventId}&team=${encodeURIComponent(reg.teamName || '')}`}
+                                    className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#0099e6]/10 text-[#0099e6] hover:bg-[#0099e6] hover:text-white border border-[#0099e6]/30 transition-all flex items-center gap-0.5"
+                                    title="Confirm attendance via RSVP to get approved"
+                                  >
+                                    Confirm RSVP →
+                                  </Link>
+                                </div>
+                              ) : (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
+                                  ✓ {reg.status || 'CONFIRMED'}
+                                </span>
+                              )}
 
                               {/* Payment status badge */}
                               {reg.paymentStatus === 'PAID' ? (

@@ -365,27 +365,31 @@ function RsvpContent() {
 
                 {/* Bottom Action Links */}
                 <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+                  <Link
+                    href={`/hackathons/${eventSlug || eventId}/register`}
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <span>View Approved Ticket / Pass</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                  <Link
+                    href="/dashboard"
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#0099e6] hover:bg-[#0088cc] text-xs font-bold text-white shadow-lg shadow-sky-500/20 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <span>Go to My Dashboard</span>
+                  </Link>
                   <button
                     type="button"
                     onClick={() => setSubmitted(false)}
-                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-bold text-slate-300 transition-colors"
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-bold text-slate-300 transition-colors"
                   >
                     Edit Response
                   </button>
-                  {eventSlug && (
-                    <Link
-                      href={`/hackathons/${eventSlug}`}
-                      className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#0099e6] hover:bg-[#0088cc] text-xs font-bold text-white shadow-lg shadow-sky-500/20 transition-all flex items-center justify-center gap-1.5"
-                    >
-                      <span>Return to Event Page</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
-                  )}
                   <Link
                     href="/"
-                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-white/[0.08] hover:bg-white/[0.04] text-xs font-bold text-slate-300 transition-colors"
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-white/[0.08] hover:bg-white/[0.04] text-xs font-bold text-slate-300 transition-colors"
                   >
-                    Hackers Unity Home
+                    Home
                   </Link>
                 </div>
               </div>
@@ -545,7 +549,7 @@ function RsvpContent() {
                   <div className="flex items-center gap-2 border-b border-white/[0.06] pb-3">
                     <Sparkles className="w-4 h-4 text-emerald-400" />
                     <h2 className="text-xs font-black uppercase tracking-wider text-white">
-                      2. Attendance Confirmation (Aap aa rahe ho ya nahi?)
+                      2. Attendance Confirmation?
                     </h2>
                   </div>
 

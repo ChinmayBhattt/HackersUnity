@@ -9,13 +9,16 @@ export interface UserRegistrationItem {
   teamName?: string;
   isTeam: boolean;
   role: string;
-  status: 'CONFIRMED' | 'SUBMITTED' | 'UNDER_REVIEW';
+  status: 'CONFIRMED' | 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'PENDING' | 'WAITLISTED' | 'CANCELLED';
   paymentStatus?: 'FREE' | 'UNPAID' | 'PAID' | 'FAILED' | 'REFUNDED';
   paymentId?: string;
   entryFee?: number;
   currency?: string;
   teamId?: string;
   slug?: string;
+  rsvpStatus?: 'ATTENDING' | 'NOT_ATTENDING' | 'PENDING';
+  approvalMode?: string;
+  customAnswers?: any;
 }
 
 const STORAGE_KEYS = {
@@ -627,6 +630,36 @@ export function updateRegistrationRsvp(
 
   try {
     localStorage.setItem(`${EVENT_REGS_PREFIX}${eventId}`, JSON.stringify(updated));
+
+    // Also sync user's personal registration in STORAGE_KEYS.REGISTRATIONS
+    try {
+      const myRegs = getMyRegistrations();
+      let myRegsChanged = false;
+      const updatedMyRegs = myRegs.map((mr) => {
+        if (mr.eventId === eventId || (mr.slug && mr.slug === eventId)) {
+          myRegsChanged = true;
+          return {
+            ...mr,
+            status: rsvpData.attending ? ('APPROVED' as const) : ('REJECTED' as const),
+            rsvpStatus: rsvpData.attending ? ('ATTENDING' as const) : ('NOT_ATTENDING' as const),
+            customAnswers: {
+              ...(mr.customAnswers || {}),
+              status: rsvpData.attending ? 'APPROVED' : 'REJECTED',
+              rsvpStatus: rsvpData.attending ? 'ATTENDING' : 'NOT_ATTENDING',
+              rsvpAt: new Date().toISOString(),
+              attending: rsvpData.attending,
+            },
+          };
+        }
+        return mr;
+      });
+      if (myRegsChanged) {
+        localStorage.setItem(STORAGE_KEYS.REGISTRATIONS, JSON.stringify(updatedMyRegs));
+      }
+    } catch (mrErr) {
+      console.warn('[Storage] updateRegistrationRsvp myRegs error:', mrErr);
+    }
+
     window.dispatchEvent(new Event('hackers_unity_storage_change'));
     return true;
   } catch (e) {
