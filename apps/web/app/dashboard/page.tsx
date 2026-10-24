@@ -2136,54 +2136,54 @@ export default function DashboardPage() {
                           )}
                         </div>
 
-                        {/* 3. BOTTOM ROW: Metadata Badges & Actions Toolbar */}
-                        <div className="pt-3 border-t border-slate-100 dark:border-white/[0.08] flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                          {/* Metadata Pills */}
-                          <div className="flex items-center gap-2.5 text-xs text-slate-600 dark:text-slate-300 font-medium flex-wrap">
-                            {(() => {
-                              const localRegCount =
-                                (evt.id ? getEventRegistrationsCount(evt.id) : 0) +
-                                (evt.slug && evt.slug !== evt.id ? getEventRegistrationsCount(evt.slug) : 0);
-                              const liveCount = Math.max(
-                                evt.id && registrationCounts[evt.id] ? registrationCounts[evt.id] : 0,
-                                evt.slug && registrationCounts[evt.slug] ? registrationCounts[evt.slug] : 0,
-                                typeof evt.registrationCount === 'number' ? evt.registrationCount : 0,
-                                typeof evt.participantsCount === 'number' ? evt.participantsCount : 0,
-                                (evt as any).registration_count || 0,
-                                localRegCount
-                              );
-                              const count = isPending ? localRegCount : liveCount;
-                              const displayBuilders = `${count} Builder${count === 1 ? '' : 's'}`;
+                        {/* 3. METADATA PILLS: Builders, Prize, Mode */}
+                        <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 font-medium flex-wrap">
+                          {(() => {
+                            const localRegCount =
+                              (evt.id ? getEventRegistrationsCount(evt.id) : 0) +
+                              (evt.slug && evt.slug !== evt.id ? getEventRegistrationsCount(evt.slug) : 0);
+                            const liveCount = Math.max(
+                              evt.id && registrationCounts[evt.id] ? registrationCounts[evt.id] : 0,
+                              evt.slug && registrationCounts[evt.slug] ? registrationCounts[evt.slug] : 0,
+                              typeof evt.registrationCount === 'number' ? evt.registrationCount : 0,
+                              typeof evt.participantsCount === 'number' ? evt.participantsCount : 0,
+                              (evt as any).registration_count || 0,
+                              localRegCount
+                            );
+                            const count = isPending ? localRegCount : liveCount;
+                            const displayBuilders = `${count} Builder${count === 1 ? '' : 's'}`;
 
-                              return (
-                                <Link
-                                  href={`/dashboard/events/${evt.id || evt.slug}/registrations`}
-                                  onClick={() => {
-                                    try {
-                                      sessionStorage.setItem('hackers_unity_current_event', JSON.stringify(evt));
-                                    } catch (e) {}
-                                  }}
-                                  className="flex items-center gap-1 text-[#0099e6] hover:text-[#0284c7] font-bold whitespace-nowrap shrink-0 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/50 px-2.5 py-1 rounded-lg border border-sky-100 dark:border-sky-800/40 transition-colors cursor-pointer"
-                                  title="View attendee registrations in full table"
-                                >
-                                  <Users className="w-3.5 h-3.5 shrink-0" />
-                                  <span>{displayBuilders}</span>
-                                </Link>
-                              );
-                            })()}
+                            return (
+                              <Link
+                                href={`/dashboard/events/${evt.id || evt.slug}/registrations`}
+                                onClick={() => {
+                                  try {
+                                    sessionStorage.setItem('hackers_unity_current_event', JSON.stringify(evt));
+                                  } catch (e) {}
+                                }}
+                                className="flex items-center gap-1.5 text-[#0099e6] hover:text-[#0284c7] font-bold whitespace-nowrap shrink-0 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/50 px-2.5 py-1 rounded-lg border border-sky-100 dark:border-sky-800/40 transition-colors cursor-pointer"
+                                title="View attendee registrations in full table"
+                              >
+                                <Users className="w-3.5 h-3.5 shrink-0" />
+                                <span>{displayBuilders}</span>
+                              </Link>
+                            );
+                          })()}
 
-                            <span className="flex items-center gap-1 text-[#ea580c] font-bold whitespace-nowrap shrink-0 bg-orange-50 dark:bg-orange-950/40 px-2.5 py-1 rounded-lg border border-orange-100 dark:border-orange-800/40">
-                              <Trophy className="w-3.5 h-3.5 shrink-0" />
-                              <span>Prize: {prizeString}</span>
-                            </span>
+                          <span className="flex items-center gap-1.5 text-[#ea580c] font-bold whitespace-nowrap shrink-0 bg-orange-50 dark:bg-orange-950/40 px-2.5 py-1 rounded-lg border border-orange-100 dark:border-orange-800/40">
+                            <Trophy className="w-3.5 h-3.5 shrink-0" />
+                            <span>Prize: {prizeString}</span>
+                          </span>
 
-                            <span className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-white/[0.08] whitespace-nowrap shrink-0 font-medium">
-                              {evt.mode || 'Online'}
-                            </span>
-                          </div>
+                          <span className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-white/[0.08] whitespace-nowrap shrink-0 font-medium">
+                            {evt.mode || 'Online'}
+                          </span>
+                        </div>
 
-                          {/* Action Toolbar */}
-                          <div className="flex items-center gap-2 flex-wrap lg:justify-end shrink-0">
+                        {/* 4. ACTIONS TOOLBAR */}
+                        <div className="pt-3.5 border-t border-slate-100 dark:border-white/[0.08] flex items-center justify-between gap-2.5 flex-wrap">
+                          {/* Left: Operational Management Buttons */}
+                          <div className="flex items-center gap-2 flex-wrap">
                             {/* Private Shareable Link for pending/draft */}
                             {(isPending || evt.status === 'DRAFT') && (
                               <button
@@ -2212,7 +2212,7 @@ export default function DashboardPage() {
                                 }
                                 window.location.href = `/host?edit=${encodeURIComponent(evt.id || evt.slug)}`;
                               }}
-                              className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+                              className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 border border-slate-200/60 dark:border-white/[0.08] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
                             >
                               <Edit3 className="w-3.5 h-3.5 text-[#0099e6] shrink-0" />
                               <span>Edit</span>
@@ -2292,13 +2292,16 @@ export default function DashboardPage() {
                                 return <span>Submissions ({subCount})</span>;
                               })()}
                             </Link>
+                          </div>
 
+                          {/* Right: Quick Utility Actions (Preview & Delete) */}
+                          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
                             {/* External Preview Link */}
                             <a
                               href={getEventPrivateLink(evt, typeof window !== 'undefined' ? window.location.origin : '')}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="p-1.5 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors shrink-0"
+                              className="p-1.5 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200/60 dark:border-white/[0.08] transition-colors shrink-0"
                               title="View Event Preview"
                             >
                               <ExternalLink className="w-4 h-4" />
@@ -2307,7 +2310,7 @@ export default function DashboardPage() {
                             {/* Delete Button */}
                             <button
                               onClick={() => setDeleteConfirmEvent(evt)}
-                              className="p-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer shrink-0"
+                              className="p-1.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 border border-rose-200/80 dark:border-rose-900/40 transition-colors cursor-pointer shrink-0"
                               title="Delete Event"
                             >
                               <Trash2 className="w-4 h-4" />
