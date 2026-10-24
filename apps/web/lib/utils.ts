@@ -619,18 +619,47 @@ export function formatBuildersCount(count: number | null | undefined): string {
   return `${num.toLocaleString()}+ Builders`;
 }
 
+export interface ReceiptMember {
+  name: string;
+  email: string;
+  phone?: string;
+  role?: string;
+  status?: string;
+}
+
 export interface ReceiptDownloadData {
   receiptNo: string;
   eventName: string;
   teamName: string;
   leaderName: string;
   leaderEmail: string;
+  leaderPhone?: string;
   paymentId?: string;
   bankUtr?: string;
   amount: number | string;
   currency?: string;
   date?: string;
   paymentMethod?: string;
+  status?: string;
+  members?: ReceiptMember[];
+}
+
+export interface BulkReceiptsPdfData {
+  eventTitle: string;
+  eventSlug?: string;
+  organizerName?: string;
+  includeSummaryCover?: boolean;
+  receipts: ReceiptDownloadData[];
+}
+
+function escapeHtml(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 export function downloadReceiptPdf(data: ReceiptDownloadData): void {
@@ -641,95 +670,147 @@ export function downloadReceiptPdf(data: ReceiptDownloadData): void {
   const teamName = data.teamName || 'Squad';
   const leaderName = data.leaderName || 'Participant';
   const leaderEmail = data.leaderEmail || 'support@hackersunity.com';
+  const leaderPhone = data.leaderPhone || '';
   const paymentId = data.paymentId || 'N/A';
   const bankUtr = data.bankUtr || 'N/A';
   const amount = Number(data.amount || 0).toLocaleString('en-IN');
   const dateStr = data.date || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const paymentMethod = (data.paymentMethod || 'UPI').toUpperCase();
+  const isPaid = (data.status || 'PAID').toUpperCase() === 'PAID';
+  const members = Array.isArray(data.members) ? data.members : [];
 
-  const printWindow = window.open('', '_blank', 'width=750,height=900');
+  const printWindow = window.open('', '_blank', 'width=800,height=920');
+
+  const membersHtml = members.length > 0 ? `
+    <div style="margin-top: 18px; margin-bottom: 22px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px 16px;">
+      <div style="font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
+        Registered Squad Participants (${members.length})
+      </div>
+      <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+        <thead>
+          <tr style="border-bottom: 1px solid #cbd5e1; text-align: left; color: #64748b;">
+            <th style="padding: 4px 6px;">#</th>
+            <th style="padding: 4px 6px;">Participant Name</th>
+            <th style="padding: 4px 6px;">Email</th>
+            <th style="padding: 4px 6px;">Role</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${members.map((m, idx) => `
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+              <td style="padding: 6px; color: #94a3b8; font-weight: 700;">${idx + 1}</td>
+              <td style="padding: 6px; font-weight: 700; color: #0f172a;">${escapeHtml(m.name || 'Member')}</td>
+              <td style="padding: 6px; font-family: ui-monospace, monospace; color: #475569;">${escapeHtml(m.email || '')}</td>
+              <td style="padding: 6px; font-weight: 600; color: #0284c7;">${escapeHtml(m.role || 'Member')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : '';
+
   const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Receipt-${receiptNo}</title>
+  <title>Receipt-${escapeHtml(receiptNo)}</title>
   <style>
-    @page { size: A4 portrait; margin: 15mm; }
+    @page { size: A4 portrait; margin: 12mm 15mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
-    body { background-color: #f8fafc; color: #0f172a; padding: 30px; display: flex; justify-content: center; }
-    .card { background: #ffffff; width: 100%; max-width: 620px; border: 1px solid #e2e8f0; border-radius: 24px; padding: 36px; box-shadow: 0 10px 30px -10px rgba(0,0,0,0.06); }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 2px dashed #e2e8f0; margin-bottom: 24px; }
+    body { background-color: #f8fafc; color: #0f172a; padding: 24px; display: flex; flex-direction: column; align-items: center; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .toolbar { position: sticky; top: 10px; z-index: 100; background: #0f172a; color: white; width: 100%; max-width: 650px; border-radius: 12px; padding: 10px 18px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2); }
+    .btn { background: #0099e6; color: white; border: none; border-radius: 8px; padding: 8px 14px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .btn:hover { background: #0088cc; }
+    .card { background: #ffffff; width: 100%; max-width: 650px; border: 1px solid #e2e8f0; border-radius: 20px; padding: 32px; box-shadow: 0 10px 30px -10px rgba(0,0,0,0.06); }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 18px; border-bottom: 2px dashed #e2e8f0; margin-bottom: 22px; }
     .brand-tag { font-size: 11px; font-weight: 800; color: #0099e6; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
-    .title { font-size: 24px; font-weight: 900; color: #0f172a; letter-spacing: -0.02em; }
+    .title { font-size: 22px; font-weight: 900; color: #0f172a; letter-spacing: -0.02em; }
     .badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; border-radius: 999px; font-size: 12px; font-weight: 800; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 24px; margin-bottom: 26px; }
+    .badge-pending { background: #fffbeb; color: #d97706; border-color: #fde68a; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px; margin-bottom: 22px; }
     .label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
-    .val { font-size: 14px; font-weight: 800; color: #0f172a; word-break: break-word; }
+    .val { font-size: 13.5px; font-weight: 800; color: #0f172a; word-break: break-word; }
     .val.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-    .table-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; margin-bottom: 24px; }
-    .table-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; font-size: 13px; color: #475569; }
-    .table-row.total { border-top: 2px solid #cbd5e1; margin-top: 10px; padding-top: 12px; font-size: 15px; font-weight: 900; color: #0f172a; }
-    .table-row.total .amt { color: #ea580c; font-size: 22px; font-weight: 900; font-family: ui-monospace, monospace; }
-    .footer { text-align: center; border-top: 1px solid #f1f5f9; padding-top: 20px; font-size: 11px; color: #94a3b8; line-height: 1.6; }
-    .seal { display: inline-block; padding: 4px 10px; border-radius: 6px; background: #eff6ff; color: #0284c7; font-size: 10px; font-weight: 800; margin-top: 8px; }
+    .table-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px; margin-bottom: 20px; }
+    .table-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 13px; color: #475569; }
+    .table-row.total { border-top: 2px solid #cbd5e1; margin-top: 8px; padding-top: 10px; font-size: 15px; font-weight: 900; color: #0f172a; }
+    .table-row.total .amt { color: #ea580c; font-size: 20px; font-weight: 900; font-family: ui-monospace, monospace; }
+    .footer { text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px; font-size: 11px; color: #94a3b8; line-height: 1.6; }
+    .seal { display: inline-block; padding: 4px 10px; border-radius: 6px; background: #eff6ff; color: #0284c7; font-size: 10px; font-weight: 800; margin-top: 6px; }
     @media print {
-      body { background: white; padding: 0; }
-      .card { border: none; box-shadow: none; padding: 0; max-width: 100%; }
+      body { background: white !important; padding: 0 !important; }
+      .toolbar { display: none !important; }
+      .card { border: none !important; box-shadow: none !important; padding: 0 !important; max-width: 100% !important; }
     }
   </style>
 </head>
 <body>
+  <div class="toolbar">
+    <div style="font-size: 12px; font-weight: 700;">Hacker's Unity Official Receipt</div>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn" onclick="window.print()">Save as PDF / Print</button>
+      <button class="btn" style="background: rgba(255,255,255,0.15);" onclick="window.close()">Close</button>
+    </div>
+  </div>
+
   <div class="card">
     <div class="header">
       <div>
         <div class="brand-tag">Hacker's Unity Platform</div>
         <h1 class="title">Official Payment Receipt</h1>
       </div>
-      <div class="badge">
-        <span>✓</span>
-        <span>VERIFIED PAID</span>
+      <div class="badge ${isPaid ? '' : 'badge-pending'}">
+        <span>${isPaid ? '✓ VERIFIED PAID' : '⏳ PAYMENT PENDING'}</span>
       </div>
     </div>
 
     <div class="grid">
       <div>
         <div class="label">Receipt Number</div>
-        <div class="val mono">${receiptNo}</div>
+        <div class="val mono">${escapeHtml(receiptNo)}</div>
       </div>
       <div>
         <div class="label">Payment Date</div>
-        <div class="val">${dateStr}</div>
+        <div class="val">${escapeHtml(dateStr)}</div>
       </div>
       <div>
         <div class="label">Event Title</div>
-        <div class="val">${eventName}</div>
+        <div class="val">${escapeHtml(eventName)}</div>
       </div>
       <div>
         <div class="label">Squad / Team</div>
-        <div class="val">${teamName}</div>
+        <div class="val">${escapeHtml(teamName)}</div>
       </div>
       <div>
         <div class="label">Team Leader / Builder</div>
-        <div class="val">${leaderName}</div>
+        <div class="val">${escapeHtml(leaderName)}</div>
       </div>
       <div>
         <div class="label">Email Address</div>
-        <div class="val mono">${leaderEmail}</div>
+        <div class="val mono">${escapeHtml(leaderEmail)}</div>
       </div>
+      ${leaderPhone ? `
+      <div>
+        <div class="label">Phone Number</div>
+        <div class="val mono">${escapeHtml(leaderPhone)}</div>
+      </div>
+      ` : ''}
     </div>
+
+    ${membersHtml}
 
     <div class="table-box">
       <div class="table-row">
         <span>Payment ID (Razorpay)</span>
-        <span class="mono" style="font-weight: 700; color: #0f172a;">${paymentId}</span>
+        <span class="mono" style="font-weight: 700; color: #0f172a;">${escapeHtml(paymentId)}</span>
       </div>
       <div class="table-row">
         <span>Bank UTR / Reference</span>
-        <span class="mono" style="font-weight: 700; color: #059669;">${bankUtr}</span>
+        <span class="mono" style="font-weight: 700; color: #059669;">${escapeHtml(bankUtr)}</span>
       </div>
       <div class="table-row">
         <span>Payment Method</span>
-        <span style="font-weight: 800; color: #0f172a;">${paymentMethod}</span>
+        <span style="font-weight: 800; color: #0f172a;">${escapeHtml(paymentMethod)}</span>
       </div>
       <div class="table-row total">
         <span>Amount Paid</span>
@@ -747,7 +828,7 @@ export function downloadReceiptPdf(data: ReceiptDownloadData): void {
     window.onload = function() {
       setTimeout(function() {
         window.print();
-      }, 200);
+      }, 300);
     };
   </script>
 </body>
@@ -756,6 +837,618 @@ export function downloadReceiptPdf(data: ReceiptDownloadData): void {
   if (printWindow) {
     printWindow.document.open();
     printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  } else {
+    window.print();
+  }
+}
+
+/**
+ * Downloads all payment receipts compiled into a single unified multi-page PDF document
+ */
+export function downloadBulkReceiptsPdf(data: BulkReceiptsPdfData): void {
+  if (typeof window === 'undefined') return;
+  if (!data.receipts || data.receipts.length === 0) return;
+
+  const eventTitle = data.eventTitle || 'Hackathon';
+  const organizerName = data.organizerName || "Hacker's Unity";
+  const receipts = data.receipts;
+  const includeCover = data.includeSummaryCover !== false;
+
+  const totalReceipts = receipts.length;
+  const totalAmount = receipts.reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
+  const totalParticipants = receipts.reduce((acc, r) => acc + (r.members && r.members.length > 0 ? r.members.length : 1), 0);
+  const generatedDate = new Date().toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  const generatedTime = new Date().toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const printWindow = window.open('', '_blank', 'width=920,height=980');
+
+  // Generate Master Ledger Rows for Cover Sheet
+  const ledgerRowsHtml = receipts.map((r, i) => {
+    const isPaid = (r.status || 'PAID').toUpperCase() === 'PAID';
+    const memberCount = r.members && r.members.length > 0 ? r.members.length : 1;
+    return `
+      <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11.5px; ${i % 2 === 1 ? 'background-color: #f8fafc;' : ''}">
+        <td style="padding: 7px 8px; color: #64748b; font-weight: 700;">${i + 1}</td>
+        <td style="padding: 7px 8px; font-family: ui-monospace, monospace; font-weight: 700; color: #0284c7;">${escapeHtml(r.receiptNo)}</td>
+        <td style="padding: 7px 8px; font-weight: 800; color: #0f172a;">${escapeHtml(r.teamName || 'Squad')}</td>
+        <td style="padding: 7px 8px; color: #334155;">
+          <div style="font-weight: 700;">${escapeHtml(r.leaderName || 'Participant')}</div>
+          <div style="font-size: 10px; color: #64748b; font-family: ui-monospace, monospace;">${escapeHtml(r.leaderEmail || '')}</div>
+        </td>
+        <td style="padding: 7px 8px; font-family: ui-monospace, monospace; font-weight: 700; color: #059669;">${escapeHtml(r.bankUtr || 'N/A')}</td>
+        <td style="padding: 7px 8px; text-align: center; font-weight: 700; color: #475569;">${memberCount}</td>
+        <td style="padding: 7px 8px; text-align: right; font-family: ui-monospace, monospace; font-weight: 800; color: #ea580c;">₹${Number(r.amount || 0).toLocaleString('en-IN')}</td>
+        <td style="padding: 7px 8px; text-align: center;">
+          <span style="display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; ${
+            isPaid ? 'background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0;' : 'background: #fffbeb; color: #d97706; border: 1px solid #fde68a;'
+          }">
+            ${isPaid ? 'PAID' : 'PENDING'}
+          </span>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  // Generate Individual Receipts HTML
+  const receiptsHtml = receipts.map((item, index) => {
+    const isPaid = (item.status || 'PAID').toUpperCase() === 'PAID';
+    const amountStr = Number(item.amount || 0).toLocaleString('en-IN');
+    const itemDate = item.date || generatedDate;
+    const members = Array.isArray(item.members) ? item.members : [];
+
+    const squadMembersHtml = members.length > 0 ? `
+      <div style="margin-top: 16px; margin-bottom: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div style="font-size: 10.5px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em;">
+            Squad Participants Covered (${members.length})
+          </div>
+          <div style="font-size: 10px; font-weight: 700; color: #0099e6;">
+            All Members Included
+          </div>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 11.5px;">
+          <thead>
+            <tr style="border-bottom: 1px solid #cbd5e1; text-align: left; color: #64748b; font-size: 10px; text-transform: uppercase;">
+              <th style="padding: 4px 6px;">#</th>
+              <th style="padding: 4px 6px;">Participant Name</th>
+              <th style="padding: 4px 6px;">Email Address</th>
+              <th style="padding: 4px 6px;">Phone</th>
+              <th style="padding: 4px 6px;">Role</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${members.map((m, mIdx) => `
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 5px 6px; color: #94a3b8; font-weight: 700;">${mIdx + 1}</td>
+                <td style="padding: 5px 6px; font-weight: 800; color: #0f172a;">${escapeHtml(m.name || 'Member')}</td>
+                <td style="padding: 5px 6px; font-family: ui-monospace, monospace; color: #475569;">${escapeHtml(m.email || '')}</td>
+                <td style="padding: 5px 6px; font-family: ui-monospace, monospace; color: #64748b;">${escapeHtml(m.phone || '—')}</td>
+                <td style="padding: 5px 6px; font-weight: 700; color: ${m.role?.toLowerCase().includes('lead') ? '#0284c7' : '#64748b'};">
+                  ${escapeHtml(m.role || 'Member')}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    ` : '';
+
+    return `
+      <div class="receipt-card">
+        <div class="receipt-header">
+          <div>
+            <div class="brand-tag">Hacker's Unity Platform • Official Payment Receipt</div>
+            <h2 class="receipt-title">Payment Receipt & Confirmation</h2>
+            <div class="event-title-badge">${escapeHtml(item.eventName)}</div>
+          </div>
+          <div style="text-align: right;">
+            <div class="receipt-pill">${escapeHtml(item.receiptNo)}</div>
+            <div class="badge ${isPaid ? 'badge-paid' : 'badge-pending'}">
+              <span>${isPaid ? '✓ VERIFIED PAID' : '⏳ PAYMENT PENDING'}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-grid">
+          <div>
+            <div class="info-label">Receipt Number</div>
+            <div class="info-val mono">${escapeHtml(item.receiptNo)}</div>
+          </div>
+          <div>
+            <div class="info-label">Payment Date</div>
+            <div class="info-val">${escapeHtml(itemDate)}</div>
+          </div>
+          <div>
+            <div class="info-label">Squad / Team</div>
+            <div class="info-val highlight-val">${escapeHtml(item.teamName)}</div>
+          </div>
+          <div>
+            <div class="info-label">Team Leader / Contact</div>
+            <div class="info-val">${escapeHtml(item.leaderName)}</div>
+          </div>
+          <div>
+            <div class="info-label">Registered Email</div>
+            <div class="info-val mono">${escapeHtml(item.leaderEmail)}</div>
+          </div>
+          <div>
+            <div class="info-label">Contact Phone</div>
+            <div class="info-val mono">${escapeHtml(item.leaderPhone || 'Not Specified')}</div>
+          </div>
+        </div>
+
+        ${squadMembersHtml}
+
+        <div class="financial-box">
+          <div class="financial-row">
+            <span>Payment Gateway ID (Razorpay)</span>
+            <span class="mono" style="font-weight: 700; color: #0f172a;">${escapeHtml(item.paymentId || 'N/A')}</span>
+          </div>
+          <div class="financial-row">
+            <span>Bank UTR / Transaction Reference</span>
+            <span class="mono" style="font-weight: 800; color: #059669; font-size: 13.5px;">${escapeHtml(item.bankUtr || 'N/A')}</span>
+          </div>
+          <div class="financial-row">
+            <span>Payment Mode</span>
+            <span style="font-weight: 800; color: #0f172a;">${escapeHtml((item.paymentMethod || 'UPI').toUpperCase())}</span>
+          </div>
+          <div class="financial-row total-row">
+            <span>Total Registration Fee Paid</span>
+            <span class="total-amt">₹${amountStr}</span>
+          </div>
+        </div>
+
+        <div class="receipt-footer">
+          <div>This is an official computer-generated receipt issued by Hacker's Unity (hackersunity.com). Valid for official hackathon check-in and institutional reimbursement.</div>
+          <div class="receipt-seal">AUTHENTIC DIGITAL RECEIPT • HACKER'S UNITY ACCOUNTS</div>
+          <div class="page-counter">Receipt ${index + 1} of ${totalReceipts}</div>
+        </div>
+      </div>
+      ${index < receipts.length - 1 ? '<div class="page-break"></div>' : ''}
+    `;
+  }).join('');
+
+  const fullHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(eventTitle)} - Consolidated Payment Receipts (${totalReceipts})</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 10mm 12mm;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    body {
+      background-color: #0b0f19;
+      color: #0f172a;
+      padding: 24px 16px 80px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .toolbar {
+      position: sticky;
+      top: 12px;
+      z-index: 999;
+      background: #111827;
+      border: 1px solid rgba(255,255,255,0.12);
+      color: white;
+      width: 100%;
+      max-width: 820px;
+      border-radius: 16px;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 15px 35px -5px rgba(0,0,0,0.5);
+      gap: 12px;
+    }
+    .toolbar-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .toolbar-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .toolbar-sub {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    .toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .btn-print {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #0099e6;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 8px 18px;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-print:hover {
+      background: #0088cc;
+    }
+    .btn-close {
+      background: rgba(255,255,255,0.08);
+      color: #cbd5e1;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-close:hover {
+      background: rgba(255,255,255,0.15);
+      color: white;
+    }
+    .cover-card, .receipt-card {
+      background: #ffffff;
+      width: 100%;
+      max-width: 820px;
+      border: 1px solid #e2e8f0;
+      border-radius: 20px;
+      padding: 36px 40px;
+      box-shadow: 0 12px 36px -10px rgba(0,0,0,0.2);
+      position: relative;
+    }
+    .brand-tag {
+      font-size: 10.5px;
+      font-weight: 800;
+      color: #0099e6;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 4px;
+    }
+    .cover-title {
+      font-size: 26px;
+      font-weight: 900;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+    .cover-subtitle {
+      font-size: 13px;
+      color: #475569;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin: 24px 0 28px;
+    }
+    .stat-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 14px 16px;
+    }
+    .stat-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+    .stat-val {
+      font-size: 20px;
+      font-weight: 900;
+      color: #0f172a;
+    }
+    .stat-val.highlight {
+      color: #ea580c;
+      font-family: ui-monospace, monospace;
+    }
+    .stat-val.small {
+      font-size: 14px;
+      font-weight: 800;
+      color: #334155;
+    }
+    .ledger-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+    .ledger-table thead tr {
+      background: #f1f5f9;
+      color: #475569;
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.05em;
+      border-bottom: 2px solid #cbd5e1;
+    }
+    .ledger-table th {
+      padding: 9px 8px;
+      text-align: left;
+      font-weight: 800;
+    }
+    .receipt-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding-bottom: 18px;
+      border-bottom: 2px dashed #e2e8f0;
+      margin-bottom: 22px;
+    }
+    .receipt-title {
+      font-size: 22px;
+      font-weight: 900;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+    }
+    .event-title-badge {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #0099e6;
+      margin-top: 2px;
+    }
+    .receipt-pill {
+      font-size: 11px;
+      font-weight: 800;
+      font-family: ui-monospace, monospace;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .badge-paid {
+      background: #ecfdf5;
+      color: #059669;
+      border: 1px solid #a7f3d0;
+    }
+    .badge-pending {
+      background: #fffbeb;
+      color: #d97706;
+      border: 1px solid #fde68a;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px 20px;
+      margin-bottom: 20px;
+    }
+    .info-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 3px;
+    }
+    .info-val {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #0f172a;
+      word-break: break-word;
+    }
+    .info-val.highlight-val {
+      color: #0284c7;
+    }
+    .info-val.mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    .financial-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+    }
+    .financial-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      font-size: 12.5px;
+      color: #475569;
+    }
+    .financial-row.total-row {
+      border-top: 2px solid #cbd5e1;
+      margin-top: 8px;
+      padding-top: 10px;
+      font-size: 14.5px;
+      font-weight: 900;
+      color: #0f172a;
+    }
+    .financial-row.total-row .total-amt {
+      color: #ea580c;
+      font-size: 21px;
+      font-weight: 900;
+      font-family: ui-monospace, monospace;
+    }
+    .receipt-footer {
+      text-align: center;
+      border-top: 1px solid #f1f5f9;
+      padding-top: 16px;
+      font-size: 10.5px;
+      color: #94a3b8;
+      line-height: 1.6;
+      position: relative;
+    }
+    .receipt-seal {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: #eff6ff;
+      color: #0284c7;
+      font-size: 10px;
+      font-weight: 800;
+      margin-top: 6px;
+    }
+    .page-counter {
+      margin-top: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #cbd5e1;
+      font-family: ui-monospace, monospace;
+    }
+    .page-break {
+      page-break-after: always !important;
+      break-after: page !important;
+      height: 0;
+      display: block;
+    }
+    @media print {
+      body {
+        background: white !important;
+        padding: 0 !important;
+        gap: 0 !important;
+      }
+      .toolbar {
+        display: none !important;
+      }
+      .cover-card, .receipt-card {
+        border: 1px solid #e2e8f0 !important;
+        border-radius: 12px !important;
+        box-shadow: none !important;
+        padding: 24px 28px !important;
+        max-width: 100% !important;
+        margin-bottom: 0 !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        min-height: 270mm;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .page-break {
+        page-break-after: always !important;
+        break-after: page !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div class="toolbar-info">
+      <div class="toolbar-title">
+        <span>📄</span>
+        <span>${escapeHtml(eventTitle)} — Payment Receipts (${totalReceipts})</span>
+      </div>
+      <div class="toolbar-sub">
+        ${totalParticipants} Participants Covered • Total Collections: ₹${totalAmount.toLocaleString('en-IN')}
+      </div>
+    </div>
+    <div class="toolbar-actions">
+      <button class="btn-print" onclick="window.print()">Save as PDF / Print All</button>
+      <button class="btn-close" onclick="window.close()">Close</button>
+    </div>
+  </div>
+
+  ${includeCover ? `
+    <div class="cover-card">
+      <div>
+        <div class="brand-tag">Hacker's Unity Official Accounts & Auditing Division</div>
+        <h1 class="cover-title">Payment Receipts Master Ledger</h1>
+        <div class="cover-subtitle">
+          Consolidated Financial Proof & Registration Receipts for <strong>${escapeHtml(eventTitle)}</strong>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total Receipts</div>
+            <div class="stat-val">${totalReceipts}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Participants Covered</div>
+            <div class="stat-val">${totalParticipants}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Verified Collections</div>
+            <div class="stat-val highlight">₹${totalAmount.toLocaleString('en-IN')}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Generated Timestamp</div>
+            <div class="stat-val small">${escapeHtml(generatedDate)} ${escapeHtml(generatedTime)}</div>
+          </div>
+        </div>
+
+        <div style="font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">
+          Master Receipts Index
+        </div>
+        <table class="ledger-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Receipt No</th>
+              <th>Squad / Team</th>
+              <th>Leader / Contact</th>
+              <th>Bank UTR / Ref</th>
+              <th style="text-align: center;">Members</th>
+              <th style="text-align: right;">Amount</th>
+              <th style="text-align: center;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${ledgerRowsHtml}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="receipt-footer">
+        <div>This document is an authentic computerized audit ledger issued by Hacker's Unity Platform (hackersunity.com).</div>
+        <div class="receipt-seal">MASTER CONSOLIDATED AUDIT LEDGER • HACKER'S UNITY ACCOUNTS</div>
+      </div>
+    </div>
+    <div class="page-break"></div>
+  ` : ''}
+
+  ${receiptsHtml}
+
+  <script>
+    window.onload = function() {
+      setTimeout(function() {
+        window.print();
+      }, 400);
+    };
+  </script>
+</body>
+</html>`;
+
+  if (printWindow) {
+    printWindow.document.open();
+    printWindow.document.write(fullHtml);
     printWindow.document.close();
   } else {
     window.print();

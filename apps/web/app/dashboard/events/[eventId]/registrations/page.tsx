@@ -31,6 +31,8 @@ import {
   Shield,
   Layers,
   MoreVertical,
+  Receipt,
+  FileDown,
 } from 'lucide-react';
 import {
   getEventRegistrations,
@@ -45,7 +47,12 @@ import {
   addToRecycleBin,
 } from '@/lib/storage';
 import { ExtendedEvent } from '@/lib/mock-data';
-import { formatDate } from '@/lib/utils';
+import {
+  formatDate,
+  downloadReceiptPdf,
+  downloadBulkReceiptsPdf,
+  ReceiptDownloadData,
+} from '@/lib/utils';
 import { BulkRegistrationModal } from '@/components/bulk-registration-modal';
 import { EventEmailModal } from '@/components/event-email-modal';
 import { EventLiveBroadcastModal } from '@/components/event-live-broadcast-modal';
@@ -213,6 +220,12 @@ export default function EventRegistrationsPage({ params }: PageProps) {
   // Selection state for bulk operations
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [viewingApplicant, setViewingApplicant] = useState<any | null>(null);
+
+  // Receipt PDF export states
+  const [isReceiptsModalOpen, setIsReceiptsModalOpen] = useState(false);
+  const [receiptExportMode, setReceiptExportMode] = useState<'teams' | 'participants'>('teams');
+  const [receiptIncludeCover, setReceiptIncludeCover] = useState(true);
+  const [receiptFilterPaidOnly, setReceiptFilterPaidOnly] = useState(true);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -663,6 +676,10 @@ export default function EventRegistrationsPage({ params }: PageProps) {
 
   const paidTeamsCount = useMemo(() => teamsList.filter((t) => t.isPaid).length, [teamsList]);
   const unpaidTeamsCount = useMemo(() => teamsList.filter((t) => !t.isPaid).length, [teamsList]);
+  const paidRegistrationsCount = useMemo(
+    () => registrations.filter((r) => r.paymentConfirmed || r.paymentStatus === 'PAID').length,
+    [registrations]
+  );
 
   // Filtered teams for the Teams View
   const filteredTeams = useMemo(() => {
@@ -768,6 +785,162 @@ export default function EventRegistrationsPage({ params }: PageProps) {
     }
     const str = String(val);
     return `"${str.replace(/"/g, '""').replace(/\r\n|\n|\r/g, ' ')}"`;
+  };
+
+  // Download single squad official receipt
+  const handleDownloadTeamReceipt = (team: any) => {
+    if (!event) return;
+    const teamAmount = team.paymentAmount
+      ? Number(String(team.paymentAmount).replace(/[^0-9.]/g, '')) || team.paymentAmount
+      : 800;
+
+    const recNum = team.utrNumber
+      ? `HU-REC-${team.utrNumber.slice(-8).toUpperCase()}`
+      : `HU-REC-${(event.slug || event.id).slice(0, 6).toUpperCase()}-${(team.teamName || 'SQUAD').replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase()}`;
+
+    downloadReceiptPdf({
+      receiptNo: recNum,
+      eventName: event.title,
+      teamName: team.teamName || 'Squad',
+      leaderName: team.leaderName || (team.members[0]?.userName) || 'Team Leader',
+      leaderEmail: team.leaderEmail || (team.members[0]?.userEmail) || 'N/A',
+      leaderPhone: team.leaderPhone || (team.members[0]?.phone) || '',
+      paymentId: team.paymentId || 'N/A',
+      bankUtr: team.utrNumber || (team.isPaid ? 'CONFIRMED' : 'PENDING'),
+      amount: teamAmount,
+      currency: 'INR',
+      date: team.transactionDate ? formatDate(team.transactionDate) : undefined,
+      paymentMethod: team.paymentMethod || 'UPI',
+      status: team.isPaid ? 'PAID' : 'PENDING',
+      members: Array.isArray(team.members)
+        ? team.members.map((m: any) => ({
+            name: m.userName || m.name || 'Member',
+            email: m.userEmail || m.email || '',
+            phone: m.phone || '',
+            role: m.role || (m.userEmail === team.leaderEmail ? 'Leader' : 'Member'),
+            status: m.status || 'CONFIRMED',
+          }))
+        : undefined,
+    });
+  };
+
+  // Export Consolidated Payment Receipts to a Single PDF
+  const handleExportReceiptsPDF = () => {
+    if (!event) return;
+
+    let targetReceipts: ReceiptDownloadData[] = [];
+
+    if (receiptExportMode === 'teams') {
+      const list = receiptFilterPaidOnly ? teamsList.filter((t) => t.isPaid) : teamsList;
+      if (list.length === 0) {
+        setNotification({
+          text: 'No teams squads found matching payment filter.',
+          type: 'error',
+        });
+        setTimeout(() => setNotification(null), 3000);
+        return;
+      }
+
+      targetReceipts = list.map((team, idx) => {
+        const cleanAmt = team.paymentAmount
+          ? Number(String(team.paymentAmount).replace(/[^0-9.]/g, '')) || team.paymentAmount
+          : (team.isPaid ? 800 : 0);
+
+        const recNum = team.utrNumber
+          ? `HU-REC-${team.utrNumber.slice(-8).toUpperCase()}`
+          : `HU-REC-${(event.slug || event.id).slice(0, 6).toUpperCase()}-${String(idx + 1).padStart(4, '0')}`;
+
+        return {
+          receiptNo: recNum,
+          eventName: event.title,
+          teamName: team.teamName || 'Squad',
+          leaderName: team.leaderName || (team.members[0]?.userName) || 'Team Leader',
+          leaderEmail: team.leaderEmail || (team.members[0]?.userEmail) || 'N/A',
+          leaderPhone: team.leaderPhone || (team.members[0]?.phone) || '',
+          paymentId: team.paymentId || 'N/A',
+          bankUtr: team.utrNumber || (team.isPaid ? 'CONFIRMED' : 'PENDING'),
+          amount: cleanAmt,
+          currency: 'INR',
+          date: team.transactionDate ? formatDate(team.transactionDate) : undefined,
+          paymentMethod: team.paymentMethod || 'UPI',
+          status: team.isPaid ? 'PAID' : 'PENDING',
+          members: Array.isArray(team.members)
+            ? team.members.map((m: any) => ({
+                name: m.userName || m.name || 'Member',
+                email: m.userEmail || m.email || '',
+                phone: m.phone || '',
+                role: m.role || (m.userEmail === team.leaderEmail ? 'Leader' : 'Member'),
+                status: m.status || 'CONFIRMED',
+              }))
+            : [],
+        };
+      });
+    } else {
+      // Individual Participants Mode
+      const list = receiptFilterPaidOnly
+        ? registrations.filter((r) => r.paymentConfirmed || r.paymentStatus === 'PAID')
+        : registrations;
+
+      if (list.length === 0) {
+        setNotification({
+          text: 'No participants found matching payment filter.',
+          type: 'error',
+        });
+        setTimeout(() => setNotification(null), 3000);
+        return;
+      }
+
+      targetReceipts = list.map((r, idx) => {
+        const isPaid = Boolean(r.paymentConfirmed || r.paymentStatus === 'PAID');
+        const cleanAmt = r.paymentAmount
+          ? Number(String(r.paymentAmount).replace(/[^0-9.]/g, '')) || r.paymentAmount
+          : (isPaid ? 800 : 0);
+
+        const recNum = r.utrNumber
+          ? `HU-REC-${r.utrNumber.slice(-8).toUpperCase()}`
+          : `HU-REC-${(event.slug || event.id).slice(0, 6).toUpperCase()}-P${String(idx + 1).padStart(4, '0')}`;
+
+        return {
+          receiptNo: recNum,
+          eventName: event.title,
+          teamName: r.teamName || 'Solo Builder',
+          leaderName: r.userName || 'Participant',
+          leaderEmail: r.userEmail || 'N/A',
+          leaderPhone: r.phone || '',
+          paymentId: r.paymentId || 'N/A',
+          bankUtr: r.utrNumber || (isPaid ? 'CONFIRMED' : 'PENDING'),
+          amount: cleanAmt,
+          currency: 'INR',
+          date: r.transactionDate ? formatDate(r.transactionDate) : undefined,
+          paymentMethod: r.paymentMethod || 'UPI',
+          status: isPaid ? 'PAID' : 'PENDING',
+          members: [
+            {
+              name: r.userName || 'Participant',
+              email: r.userEmail || '',
+              phone: r.phone || '',
+              role: r.role || 'Participant',
+              status: r.status || 'CONFIRMED',
+            },
+          ],
+        };
+      });
+    }
+
+    downloadBulkReceiptsPdf({
+      eventTitle: event.title,
+      eventSlug: event.slug || event.id,
+      organizerName: "Hacker's Unity",
+      includeSummaryCover: receiptIncludeCover,
+      receipts: targetReceipts,
+    });
+
+    setIsReceiptsModalOpen(false);
+    setNotification({
+      text: `Opening printable PDF with all ${targetReceipts.length} verified payment receipts!`,
+      type: 'success',
+    });
+    setTimeout(() => setNotification(null), 4000);
   };
 
   // Export Teams CSV (Exports all teams squads with member breakdown)
@@ -1284,7 +1457,33 @@ export default function EventRegistrationsPage({ params }: PageProps) {
                     </span>
                   </button>
 
-                  {/* Option 3: Selected Applicants (if any selected) */}
+                  {/* Option 3: Payment Receipts (Single Compiled PDF) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsExportDropdownOpen(false);
+                      setIsReceiptsModalOpen(true);
+                    }}
+                    disabled={paidTeamsCount === 0 && paidRegistrationsCount === 0}
+                    className="w-full px-3.5 py-2.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-amber-50 dark:hover:bg-amber-950/30 hover:text-amber-700 dark:hover:text-amber-300 flex items-center justify-between gap-3 cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400">
+                        <Receipt className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="text-left">
+                        <div className="font-bold text-xs text-slate-900 dark:text-white">Payment Receipts (PDF)</div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                          All participant receipts compiled in 1 PDF
+                        </div>
+                      </div>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-[10px] font-bold font-mono text-amber-700 dark:text-amber-300">
+                      {paidTeamsCount || paidRegistrationsCount} Paid
+                    </span>
+                  </button>
+
+                  {/* Option 4: Selected Applicants (if any selected) */}
                   {selectedIds.length > 0 && (
                     <div className="mt-1 pt-1 border-t border-slate-100 dark:border-white/[0.08]">
                       <button
@@ -1743,6 +1942,21 @@ export default function EventRegistrationsPage({ params }: PageProps) {
                                   >
                                     View Receipt <ExternalLink className="w-3 h-3" />
                                   </a>
+                                )}
+
+                                {team.isPaid && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDownloadTeamReceipt(team);
+                                    }}
+                                    className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-bold inline-flex items-center gap-1 cursor-pointer transition-colors"
+                                    title="Download printable official receipt for this squad"
+                                  >
+                                    <Receipt className="w-3 h-3" />
+                                    <span>Download Receipt</span>
+                                  </button>
                                 )}
                               </div>
                             </div>
@@ -2906,6 +3120,176 @@ export default function EventRegistrationsPage({ params }: PageProps) {
                 className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-white/[0.06] hover:bg-slate-200 dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer transition-colors"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Export Payment Receipts Modal ───────────────────────── */}
+      {isReceiptsModalOpen && event && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#101622] rounded-3xl border border-slate-200 dark:border-white/[0.1] shadow-2xl max-w-lg w-full p-6 space-y-5 animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-100 dark:border-white/[0.08]">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  <Receipt className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white">
+                    Export Payment Receipts (PDF)
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Consolidated official PDF for accounting & participant verification
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsReceiptsModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.08] text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Metrics Banner */}
+            <div className="grid grid-cols-3 gap-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/[0.06] text-center">
+              <div>
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Paid Squads</div>
+                <div className="text-base font-black text-slate-900 dark:text-white mt-0.5">
+                  {paidTeamsCount}
+                </div>
+              </div>
+              <div className="border-x border-slate-200 dark:border-white/[0.08]">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Paid Hackers</div>
+                <div className="text-base font-black text-emerald-600 dark:text-emerald-400 mt-0.5">
+                  {paidRegistrationsCount}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Estimated Total</div>
+                <div className="text-base font-black text-amber-600 dark:text-amber-400 font-mono mt-0.5">
+                  ₹{(paidTeamsCount * 800).toLocaleString('en-IN')}
+                </div>
+              </div>
+            </div>
+
+            {/* Options */}
+            <div className="space-y-4 text-xs">
+              {/* Layout Mode */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-2">
+                  Receipt Grouping Format:
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setReceiptExportMode('teams')}
+                    className={`p-3 rounded-2xl border text-left cursor-pointer transition-all ${
+                      receiptExportMode === 'teams'
+                        ? 'border-amber-500 bg-amber-500/10 text-amber-900 dark:text-amber-200 font-bold shadow-xs'
+                        : 'border-slate-200 dark:border-white/[0.08] hover:bg-slate-50 dark:hover:bg-white/[0.04] text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-extrabold text-xs">By Teams / Squads</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                        {paidTeamsCount}
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-normal text-slate-500 dark:text-slate-400">
+                      1 receipt per squad listing all members, UTR & fee
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setReceiptExportMode('participants')}
+                    className={`p-3 rounded-2xl border text-left cursor-pointer transition-all ${
+                      receiptExportMode === 'participants'
+                        ? 'border-amber-500 bg-amber-500/10 text-amber-900 dark:text-amber-200 font-bold shadow-xs'
+                        : 'border-slate-200 dark:border-white/[0.08] hover:bg-slate-50 dark:hover:bg-white/[0.04] text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-extrabold text-xs">By Individual Hackers</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                        {paidRegistrationsCount}
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-normal text-slate-500 dark:text-slate-400">
+                      1 receipt per participant registered in the event
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Scope Filter */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-1.5">
+                  Payment Scope:
+                </label>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                    <input
+                      type="radio"
+                      name="paymentScope"
+                      checked={receiptFilterPaidOnly}
+                      onChange={() => setReceiptFilterPaidOnly(true)}
+                      className="text-amber-600 focus:ring-amber-500"
+                    />
+                    <span>Only Verified Paid ({paidTeamsCount} squads)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
+                    <input
+                      type="radio"
+                      name="paymentScope"
+                      checked={!receiptFilterPaidOnly}
+                      onChange={() => setReceiptFilterPaidOnly(false)}
+                      className="text-amber-600 focus:ring-amber-500"
+                    />
+                    <span>All Squads ({teamsList.length} total)</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Master Ledger Cover Page Checkbox */}
+              <div className="pt-2 border-t border-slate-100 dark:border-white/[0.08]">
+                <label className="flex items-center gap-2.5 cursor-pointer text-slate-700 dark:text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={receiptIncludeCover}
+                    onChange={(e) => setReceiptIncludeCover(e.target.checked)}
+                    className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4"
+                  />
+                  <span className="font-semibold">
+                    Include Financial Audit & Summary Cover Page (Master Ledger)
+                  </span>
+                </label>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 ml-6 mt-0.5">
+                  Adds an official summary index on Page 1 before individual receipts.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="pt-3 border-t border-slate-100 dark:border-white/[0.08] flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsReceiptsModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-white/[0.08] hover:bg-slate-50 dark:hover:bg-white/[0.04] text-slate-700 dark:text-slate-300 font-bold text-xs cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExportReceiptsPDF}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-black text-xs flex items-center gap-2 cursor-pointer transition-all shadow-md shadow-amber-500/20"
+              >
+                <FileDown className="w-4 h-4" />
+                <span>Download Receipts PDF</span>
               </button>
             </div>
           </div>

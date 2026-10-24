@@ -2558,7 +2558,7 @@ export default function DashboardPage() {
                       onChange={(e) => setSelectedPaymentEventId(e.target.value)}
                       className="px-3 py-1.5 rounded-xl bg-white dark:bg-[#07090e] border border-slate-200 dark:border-white/[0.1] text-xs font-bold text-slate-800 dark:text-white shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#0099e6] cursor-pointer max-w-[260px] truncate"
                     >
-                      <option value="ALL">🌐 All Hackathons ({allPaymentsList.length} txns)</option>
+                      <option value="ALL">All Hackathons ({allPaymentsList.length} txns)</option>
                       {selectablePaymentEvents.map((evt) => (
                         <option key={evt.id} value={evt.id}>
                           {evt.title} ({evt.totalTxns} {evt.totalTxns === 1 ? 'txn' : 'txns'} • ₹{evt.totalAmount.toLocaleString('en-IN')})
