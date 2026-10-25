@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import CertificateOfCompletion from './CertificateOfCompletion';
-import { Award, Check, Copy, Download, ExternalLink, Printer, Share2, Sparkles, X } from 'lucide-react';
+import { Award, Check, Copy, Download, ExternalLink, Loader2, Share2, X } from 'lucide-react';
 
 interface CertificateModalProps {
   isOpen: boolean;
@@ -22,7 +22,10 @@ export function CertificateModal({
   username,
 }: CertificateModalProps) {
   const [copied, setCopied] = useState(false);
-  const [isPrinting, setIsPrinting] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [isDownloadingPng, setIsDownloadingPng] = useState(false);
+  const [pdfSuccess, setPdfSuccess] = useState(false);
+  const exportRef = useRef<HTMLDivElement>(null);
 
   // Close on Escape key
   useEffect(() => {
@@ -54,12 +57,114 @@ export function CertificateModal({
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const handlePrint = () => {
-    setIsPrinting(true);
-    setTimeout(() => {
+  const getSafeFileName = (ext: string) => {
+    const safeName = (recipientName || 'Hacker')
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]/g, '_');
+    return `HackersUnity-Certificate-${safeName}.${ext}`;
+  };
+
+  /**
+   * Captures the unscaled 1123x794 certificate element at 2x resolution
+   */
+  const captureCanvas = async () => {
+    if (typeof document !== 'undefined' && document.fonts) {
+      try {
+        await document.fonts.ready;
+      } catch {
+        // Continue even if font ready promise rejects
+      }
+    }
+
+    const exportNode = (exportRef.current?.querySelector('.hu-cert') as HTMLElement) || exportRef.current;
+    if (!exportNode) {
+      throw new Error('Certificate render element not found');
+    }
+
+    // Ensure all images are loaded
+    const images = Array.from(exportNode.querySelectorAll('img'));
+    await Promise.all(
+      images.map((img) => {
+        if (img.complete) return Promise.resolve();
+        return new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+      })
+    );
+
+    const html2canvas = (await import('html2canvas')).default;
+
+    return await html2canvas(exportNode, {
+      scale: 2, // 2x gives 2246 x 1588 high-resolution 300DPI output
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      width: 1123,
+      height: 794,
+      windowWidth: 1200,
+      windowHeight: 900,
+      x: 0,
+      y: 0,
+      scrollX: 0,
+      scrollY: 0,
+    });
+  };
+
+  /**
+   * Direct PDF Download (no print modal)
+   */
+  const handleDownloadPdf = async () => {
+    if (isDownloadingPdf || isDownloadingPng) return;
+    setIsDownloadingPdf(true);
+
+    try {
+      const canvas = await captureCanvas();
+      const imgData = canvas.toDataURL('image/png', 1.0);
+
+      const { jsPDF } = await import('jspdf');
+
+      // A4 Landscape is 297mm x 210mm
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+        compress: true,
+      });
+
+      pdf.addImage(imgData, 'PNG', 0, 0, 297, 210, undefined, 'FAST');
+      pdf.save(getSafeFileName('pdf'));
+
+      setPdfSuccess(true);
+      setTimeout(() => setPdfSuccess(false), 3000);
+    } catch (error) {
+      console.error('Direct PDF download failed, falling back to print:', error);
       window.print();
-      setIsPrinting(false);
-    }, 150);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+  /**
+   * Direct PNG Download
+   */
+  const handleDownloadPng = async () => {
+    if (isDownloadingPdf || isDownloadingPng) return;
+    setIsDownloadingPng(true);
+
+    try {
+      const canvas = await captureCanvas();
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.download = getSafeFileName('png');
+      link.href = dataUrl;
+      link.click();
+    } catch (error) {
+      console.error('PNG download failed:', error);
+    } finally {
+      setIsDownloadingPng(false);
+    }
   };
 
   const handleShareTwitter = () => {
@@ -80,119 +185,182 @@ export function CertificateModal({
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="relative w-full max-w-5xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.12] rounded-3xl shadow-2xl overflow-hidden my-auto flex flex-col">
-        {/* Modal Top Header */}
-        <div className="flex items-center justify-between px-5 sm:px-8 py-4 border-b border-slate-100 dark:border-white/[0.08] bg-slate-50/70 dark:bg-white/[0.02]">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-[#f58220] border border-amber-500/20 flex items-center justify-center shrink-0">
-              <Award className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white">
-                  Official Certificate of Completion
-                </h3>
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                  <Check className="w-3 h-3" /> 100% Verified
-                </span>
+    <>
+      {/* ─── Hidden Off-Screen Unscaled Container for Direct PDF/PNG Export ─── */}
+      <div
+        ref={exportRef}
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: 1123,
+          height: 794,
+          zIndex: -50,
+          pointerEvents: 'none',
+          opacity: 1,
+        }}
+      >
+        <style>{`
+          .hu-export-target * {
+            animation: none !important;
+            transition: none !important;
+          }
+        `}</style>
+        <div className="hu-export-target">
+          <CertificateOfCompletion
+            recipientName={recipientName}
+            completionDate={completionDate}
+            certificateId={certificateId}
+            scaleToFit={false}
+          />
+        </div>
+      </div>
+
+      {/* ─── Visible Interactive Modal ─── */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) onClose();
+        }}
+      >
+        <div className="relative w-full max-w-5xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.12] rounded-3xl shadow-2xl overflow-hidden my-auto flex flex-col">
+          {/* Modal Top Header */}
+          <div className="flex items-center justify-between px-5 sm:px-8 py-4 border-b border-slate-100 dark:border-white/[0.08] bg-slate-50/70 dark:bg-white/[0.02]">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-[#f58220] border border-amber-500/20 flex items-center justify-center shrink-0">
+                <Award className="w-5 h-5" />
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Issued by Hacker&apos;s Unity &bull; Certificate ID: <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">{certificateId}</span>
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-base sm:text-lg text-slate-900 dark:text-white">
+                    Official Certificate of Completion
+                  </h3>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                    <Check className="w-3 h-3" /> 100% Verified
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Issued by Hacker&apos;s Unity &bull; Certificate ID: <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">{certificateId}</span>
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-9 h-9 rounded-2xl bg-slate-200/60 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-slate-600 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Certificate Preview Container */}
+          <div className="p-3 sm:p-8 bg-slate-100 dark:bg-[#06090e] flex items-center justify-center overflow-hidden">
+            <div className="w-full max-w-[1000px] rounded-2xl overflow-hidden shadow-2xl border border-slate-300 dark:border-white/10 bg-white">
+              <CertificateOfCompletion
+                recipientName={recipientName}
+                completionDate={completionDate}
+                certificateId={certificateId}
+                scaleToFit={true}
+              />
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-9 h-9 rounded-2xl bg-slate-200/60 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] text-slate-600 dark:text-slate-300 flex items-center justify-center transition-all cursor-pointer"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+          {/* Modal Bottom Action Bar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-5 sm:px-8 py-4 border-t border-slate-100 dark:border-white/[0.08] bg-white dark:bg-[#0c1017]">
+            {/* Certificate Verification & ID info */}
+            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <span className="font-mono text-[11px] px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/[0.08]">
+                {certificateId}
+              </span>
+              <button
+                type="button"
+                onClick={handleCopyId}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.06] text-slate-600 dark:text-slate-300 transition-colors font-medium cursor-pointer"
+                title="Copy Certificate ID"
+              >
+                {copied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    <span className="text-emerald-600 dark:text-emerald-400">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy ID</span>
+                  </>
+                )}
+              </button>
+            </div>
 
-        {/* Certificate Preview Container */}
-        <div className="p-3 sm:p-8 bg-slate-100 dark:bg-[#06090e] flex items-center justify-center overflow-hidden">
-          <div className="w-full max-w-[1000px] rounded-2xl overflow-hidden shadow-2xl border border-slate-300 dark:border-white/10 bg-white">
-            <CertificateOfCompletion
-              recipientName={recipientName}
-              completionDate={completionDate}
-              certificateId={certificateId}
-              scaleToFit={true}
-            />
-          </div>
-        </div>
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end">
+              <button
+                type="button"
+                onClick={handleShareLinkedIn}
+                className="px-3.5 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Share on LinkedIn"
+              >
+                <Share2 className="w-4 h-4 text-[#0077b5]" />
+                <span className="hidden sm:inline">LinkedIn</span>
+              </button>
 
-        {/* Modal Bottom Action Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-5 sm:px-8 py-4 border-t border-slate-100 dark:border-white/[0.08] bg-white dark:bg-[#0c1017]">
-          {/* Certificate Verification & ID info */}
-          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-            <span className="font-mono text-[11px] px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/[0.08]">
-              {certificateId}
-            </span>
-            <button
-              type="button"
-              onClick={handleCopyId}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.06] text-slate-600 dark:text-slate-300 transition-colors font-medium cursor-pointer"
-              title="Copy Certificate ID"
-            >
-              {copied ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-500" />
-                  <span className="text-emerald-600 dark:text-emerald-400">Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Copy ID</span>
-                </>
-              )}
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={handleShareTwitter}
+                className="px-3.5 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                title="Share on X"
+              >
+                <ExternalLink className="w-4 h-4 text-sky-500" />
+                <span className="hidden sm:inline">Share</span>
+              </button>
 
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto justify-end">
-            <button
-              type="button"
-              onClick={handleShareLinkedIn}
-              className="px-3.5 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-              title="Share on LinkedIn"
-            >
-              <Share2 className="w-4 h-4 text-[#0077b5]" />
-              <span className="hidden sm:inline">LinkedIn</span>
-            </button>
+              <button
+                type="button"
+                onClick={handleDownloadPng}
+                disabled={isDownloadingPng || isDownloadingPdf}
+                className="px-3.5 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-60"
+                title="Download high-resolution PNG image"
+              >
+                {isDownloadingPng ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" />
+                ) : (
+                  <Download className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                )}
+                <span className="hidden sm:inline">PNG</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={handleShareTwitter}
-              className="px-3.5 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.06] dark:hover:bg-white/[0.1] text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-              title="Share on X"
-            >
-              <ExternalLink className="w-4 h-4 text-sky-500" />
-              <span className="hidden sm:inline">Share</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handlePrint}
-              disabled={isPrinting}
-              className="px-5 py-2.5 rounded-2xl bg-[#0099e6] hover:bg-[#0088cc] active:scale-[0.98] text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-sm"
-            >
-              <Printer className="w-4 h-4" />
-              <span>Download PDF / Print</span>
-            </button>
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={isDownloadingPdf || isDownloadingPng}
+                className="px-5 py-2.5 rounded-2xl bg-[#0099e6] hover:bg-[#0088cc] active:scale-[0.98] text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-sm disabled:opacity-70"
+              >
+                {isDownloadingPdf ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Generating PDF...</span>
+                  </>
+                ) : pdfSuccess ? (
+                  <>
+                    <Check className="w-4 h-4 text-emerald-300" />
+                    <span>PDF Downloaded!</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    <span>Download PDF</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
