@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import CertificateOfCompletion from './CertificateOfCompletion';
 import { Award, Check, Copy, Download, ExternalLink, Loader2, Share2, X } from 'lucide-react';
 
@@ -21,11 +22,17 @@ export function CertificateModal({
   certificateId,
   username,
 }: CertificateModalProps) {
+  const [mounted, setMounted] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isDownloadingPng, setIsDownloadingPng] = useState(false);
   const [pdfSuccess, setPdfSuccess] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
+
+  // Client-side mount flag for React portal
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Close on Escape key
   useEffect(() => {
@@ -49,7 +56,7 @@ export function CertificateModal({
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!mounted || !isOpen) return null;
 
   const handleCopyId = () => {
     navigator.clipboard.writeText(certificateId);
@@ -184,7 +191,7 @@ export function CertificateModal({
     window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, '_blank');
   };
 
-  return (
+  const modalContent = (
     <>
       {/* ─── Hidden Off-Screen Unscaled Container for Direct PDF/PNG Export ─── */}
       <div
@@ -217,18 +224,18 @@ export function CertificateModal({
         </div>
       </div>
 
-      {/* ─── Visible Interactive Modal ─── */}
+      {/* ─── Visible Interactive Modal (Portaled to document.body) ─── */}
       <div
         role="dialog"
         aria-modal="true"
-        className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200"
+        className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200"
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}
       >
-        <div className="relative w-full max-w-5xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.12] rounded-3xl shadow-2xl overflow-hidden my-auto flex flex-col">
+        <div className="relative w-full max-w-5xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.12] rounded-3xl shadow-2xl overflow-hidden my-auto flex flex-col max-h-[92vh]">
           {/* Modal Top Header */}
-          <div className="flex items-center justify-between px-5 sm:px-8 py-4 border-b border-slate-100 dark:border-white/[0.08] bg-slate-50/70 dark:bg-white/[0.02]">
+          <div className="shrink-0 flex items-center justify-between px-5 sm:px-8 py-4 border-b border-slate-100 dark:border-white/[0.08] bg-slate-50/70 dark:bg-white/[0.02]">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-[#f58220] border border-amber-500/20 flex items-center justify-center shrink-0">
                 <Award className="w-5 h-5" />
@@ -259,7 +266,7 @@ export function CertificateModal({
           </div>
 
           {/* Certificate Preview Container */}
-          <div className="p-3 sm:p-8 bg-slate-100 dark:bg-[#06090e] flex items-center justify-center overflow-hidden">
+          <div className="flex-1 p-3 sm:p-6 bg-slate-100 dark:bg-[#06090e] flex items-center justify-center overflow-auto min-h-0">
             <div className="w-full max-w-[1000px] rounded-2xl overflow-hidden shadow-2xl border border-slate-300 dark:border-white/10 bg-white">
               <CertificateOfCompletion
                 recipientName={recipientName}
@@ -271,7 +278,7 @@ export function CertificateModal({
           </div>
 
           {/* Modal Bottom Action Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-5 sm:px-8 py-4 border-t border-slate-100 dark:border-white/[0.08] bg-white dark:bg-[#0c1017]">
+          <div className="shrink-0 flex flex-col sm:flex-row items-center justify-between gap-4 px-5 sm:px-8 py-4 border-t border-slate-100 dark:border-white/[0.08] bg-white dark:bg-[#0c1017]">
             {/* Certificate Verification & ID info */}
             <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
               <span className="font-mono text-[11px] px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-white/[0.06] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-white/[0.08]">
@@ -363,4 +370,6 @@ export function CertificateModal({
       </div>
     </>
   );
+
+  return createPortal(modalContent, document.body);
 }
