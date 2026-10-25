@@ -60,6 +60,9 @@ import { BannerUpload } from '@/components/banner-upload';
 import { AuthModal } from '@/components/auth-modal';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { PublicProfileModal } from '@/components/public-profile-modal';
+import { ProfileCompletionWidget } from '@/components/certificate/ProfileCompletionWidget';
+import { CertificateModal } from '@/components/certificate/CertificateModal';
+import { calculateProfileCompletion } from '@/lib/profile-completion';
 
 const POPULAR_DEGREES = [
   'B.Tech / B.E (Engineering)',
@@ -341,6 +344,7 @@ export default function SettingsPage() {
   const [profileSaved, setProfileSaved] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [showCertificateModal, setShowCertificateModal] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -549,7 +553,7 @@ export default function SettingsPage() {
       return;
     }
 
-    const res = await updateUserProfile({
+    const profilePayload = {
       username: cleanUsername || undefined,
       name: name.trim() || undefined,
       phone: phone.trim() || undefined,
@@ -572,6 +576,32 @@ export default function SettingsPage() {
         linkedin: finalLinkedin,
         portfolio: finalPortfolio,
       },
+    };
+
+    const completion = calculateProfileCompletion({
+      ...profilePayload,
+      id: user?.id,
+      profileCompletedAt: user?.profileCompletedAt,
+      certificateId: user?.certificateId,
+    });
+
+    let completedAt = user?.profileCompletedAt;
+    let certId = user?.certificateId;
+    const isNewlyComplete = completion.isComplete && !user?.profileCompletedAt;
+
+    if (completion.isComplete) {
+      if (!completedAt) {
+        completedAt = new Date().toISOString();
+      }
+      if (!certId) {
+        certId = completion.certificateId;
+      }
+    }
+
+    const res = await updateUserProfile({
+      ...profilePayload,
+      profileCompletedAt: completedAt || undefined,
+      certificateId: certId || undefined,
     });
 
     setIsSavingProfile(false);
@@ -579,6 +609,9 @@ export default function SettingsPage() {
       setProfileError(res.error);
     } else {
       setProfileSaved(true);
+      if (isNewlyComplete) {
+        setShowCertificateModal(true);
+      }
       setTimeout(() => setProfileSaved(false), 3000);
     }
   };
@@ -718,6 +751,36 @@ export default function SettingsPage() {
     );
   }
 
+  const currentFormState = {
+    name,
+    username,
+    phone,
+    bio,
+    avatarUrl: avatar,
+    professionType,
+    college: professionType === 'STUDENT' ? college : undefined,
+    degree: professionType === 'STUDENT' ? (degree === 'Other' ? customDegree : degree) : undefined,
+    branch: professionType === 'STUDENT' ? (branch === 'Other' ? customBranch : branch) : undefined,
+    graduationYear: professionType === 'STUDENT' ? (graduationYear === 'Other' ? customGradYear : graduationYear) : undefined,
+    company: professionType === 'PROFESSIONAL' ? company : undefined,
+    jobTitle: professionType === 'PROFESSIONAL' ? jobTitle : professionType === 'FREELANCER' ? freelanceTitle : undefined,
+    experienceYears: professionType === 'PROFESSIONAL' ? experienceYears : professionType === 'FREELANCER' ? freelanceLevel : undefined,
+    industry: professionType === 'PROFESSIONAL' ? (industry === 'Other' ? customIndustry : industry) : professionType === 'FREELANCER' ? (freelanceDomain === 'Other' ? customDomain : freelanceDomain) : undefined,
+    skills,
+    socialLinks: {
+      github,
+      linkedin,
+      portfolio,
+    },
+    profileCompletedAt: user?.profileCompletedAt,
+    certificateId: user?.certificateId,
+  };
+
+  const completionResult = calculateProfileCompletion({
+    ...currentFormState,
+    id: user?.id,
+  });
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1">
       {/* Toast Notification */}
@@ -760,6 +823,19 @@ export default function SettingsPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          {completionResult.isComplete && (
+            <button
+              type="button"
+              onClick={() => setShowCertificateModal(true)}
+              className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#0099e6] to-[#f58220] hover:opacity-95 active:scale-[0.98] text-white text-xs font-black flex items-center gap-1.5 transition-all shadow-md shadow-orange-500/20 cursor-pointer"
+            >
+              <Award className="w-4 h-4" />
+              <span>Certificate of Completion</span>
+              <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-white text-[#f58220] font-mono">
+                100%
+              </span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setShowPublicPreview(true)}
@@ -783,20 +859,13 @@ export default function SettingsPage() {
         {/* Left Sidebar Navigation (4 cols) */}
         <div className="lg:col-span-4 space-y-4">
           <div className="p-5 rounded-3xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] shadow-sm space-y-2">
-            {/* User Mini Profile Badge */}
-            <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-sky-50/70 dark:bg-sky-500/10 border border-sky-100 dark:border-sky-500/20 mb-3">
-              <div className="w-12 h-12 rounded-2xl bg-[#0099e6] text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0 overflow-hidden">
-                {avatar && avatar.startsWith('http') ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={avatar} alt={name} className="w-full h-full object-cover" />
-                ) : (
-                  <span>{name.charAt(0) || 'H'}</span>
-                )}
-              </div>
-              <div className="overflow-hidden">
-                <div className="font-extrabold text-sm text-slate-900 dark:text-white truncate">{name || 'Hacker'}</div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate">{email}</div>
-              </div>
+            {/* User Mini Profile Badge with 100% Progress Border and Certificate Download */}
+            <div className="mb-3">
+              <ProfileCompletionWidget
+                user={user}
+                currentFormValues={currentFormState}
+                onNavigateTab={(tab) => setActiveTab(tab)}
+              />
             </div>
 
             {/* Nav Tabs */}
@@ -945,6 +1014,34 @@ export default function SettingsPage() {
                   This info is displayed to organizers and teammates when you register or form squads.
                 </p>
               </div>
+
+              {/* 100% Certificate Unlocked Banner */}
+              {completionResult.isComplete && (
+                <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-sky-500/10 via-amber-500/10 to-orange-500/10 border border-orange-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#0099e6] to-[#f58220] text-white flex items-center justify-center shrink-0 shadow-md shadow-orange-500/20">
+                      <Award className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                        <span>Profile 100% Complete!</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#f58220] text-white">Verified</span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Your official Certificate of Completion is unlocked and ready to download.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowCertificateModal(true)}
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#0099e6] to-[#f58220] hover:opacity-95 active:scale-[0.98] text-white text-xs font-black flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 cursor-pointer whitespace-nowrap"
+                  >
+                    <Award className="w-4 h-4" />
+                    <span>View & Download Certificate</span>
+                  </button>
+                </div>
+              )}
 
               {profileError && (
                 <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/20 text-rose-700 dark:text-rose-400 text-xs font-semibold flex items-center gap-2">
@@ -2424,6 +2521,16 @@ export default function SettingsPage() {
             portfolio,
           },
         }}
+      />
+
+      {/* Certificate of Completion Modal */}
+      <CertificateModal
+        isOpen={showCertificateModal}
+        onClose={() => setShowCertificateModal(false)}
+        recipientName={name.trim() || user?.name || 'Hacker'}
+        completionDate={user?.profileCompletedAt || completionResult.completionDate || new Date().toISOString()}
+        certificateId={user?.certificateId || completionResult.certificateId}
+        username={username || user?.username}
       />
     </div>
   );

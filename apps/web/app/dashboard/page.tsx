@@ -94,6 +94,7 @@ import { PublicProfileModal } from '@/components/public-profile-modal';
 import { ProjectSubmissionModal } from '@/components/project-submission-modal';
 import { ManageTeamModal } from '@/components/manage-team-modal';
 import { PaymentReminderSidebar } from '@/components/payment-reminder-sidebar';
+import { ProfileCompletionWidget } from '@/components/certificate/ProfileCompletionWidget';
 
 import { UserRole } from '@hackers-unity/shared-types';
 
@@ -1082,20 +1083,12 @@ export default function DashboardPage() {
         {/* ═══ LEFT SIDEBAR (4 cols) ═══ */}
         <aside className="lg:col-span-4 space-y-4">
           <div className="p-5 rounded-3xl bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] shadow-sm space-y-2 sticky top-24">
-            {/* User Mini Profile Badge */}
-            <div className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-sky-50/70 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-800/30 mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-[#0099e6] text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0 overflow-hidden">
-                {user?.avatarUrl && user.avatarUrl.startsWith('http') ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
-                ) : (
-                  <span>{user?.name?.charAt(0) || 'H'}</span>
-                )}
-              </div>
-              <div className="overflow-hidden flex-1">
-                <div className="font-extrabold text-sm text-slate-900 dark:text-white truncate">{user?.name || 'Hacker'}</div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate">{user?.email}</div>
-              </div>
+            {/* User Mini Profile Badge with 100% Progress Border & Certificate of Completion */}
+            <div className="mb-4">
+              <ProfileCompletionWidget
+                user={user}
+                variant="card"
+              />
             </div>
 
             {/* Nav Tab 1: Overview & Analytics */}

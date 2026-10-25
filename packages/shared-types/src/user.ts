@@ -30,6 +30,9 @@ export interface UserPublic {
   industry?: string | null;
   // Bank & Payout Details for Event Hosts
   bankDetails?: BankDetails | null;
+  // Profile Completion & Certificate
+  profileCompletedAt?: string | null;
+  certificateId?: string | null;
 }
 
 export interface BankDetails {
@@ -72,6 +75,9 @@ export interface UpdateProfileDto {
   industry?: string;
   // Bank & Payout Details
   bankDetails?: BankDetails | null;
+  // Profile Completion & Certificate
+  profileCompletedAt?: string | null;
+  certificateId?: string | null;
 }
 
 // ─── Organizer Profile ───────────────────────────────────

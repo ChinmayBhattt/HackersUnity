@@ -39,6 +39,8 @@ export async function POST(req: Request) {
       socialLinks,
       bankDetails,
       notificationPreferences,
+      profileCompletedAt,
+      certificateId,
     } = body;
 
     // 2. Prevent IDOR: ensure user can only modify their own profile
@@ -262,6 +264,8 @@ export async function POST(req: Request) {
           portfolio_url: cleanPortfolio !== null ? cleanPortfolio : existingMeta.portfolio_url,
           bank_details: cleanBankDetails !== undefined ? cleanBankDetails : existingMeta.bank_details,
           notification_preferences: cleanNotificationPreferences !== undefined ? cleanNotificationPreferences : existingMeta.notification_preferences,
+          profile_completed_at: profileCompletedAt !== undefined ? profileCompletedAt : (existingMeta.profile_completed_at || null),
+          certificate_id: certificateId !== undefined ? certificateId : (existingMeta.certificate_id || null),
         },
       });
     } catch (authMetaErr) {

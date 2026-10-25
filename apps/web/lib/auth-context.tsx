@@ -79,6 +79,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       experienceYears: meta.experience_years || saved?.experienceYears || '1-3 years',
       industry: meta.industry || saved?.industry || 'AI/ML, GenAI & Autonomous Systems',
       bankDetails: meta.bank_details || saved?.bankDetails || null,
+      profileCompletedAt: meta.profile_completed_at || saved?.profileCompletedAt || null,
+      certificateId: meta.certificate_id || saved?.certificateId || null,
       emailVerified: !!sbUser.email_confirmed_at,
       createdAt: sbUser.created_at || saved?.createdAt || new Date().toISOString(),
     };
@@ -510,6 +512,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             linkedin_url: updatedUser.socialLinks?.linkedin,
             portfolio_url: updatedUser.socialLinks?.portfolio,
             bank_details: updatedUser.bankDetails,
+            profile_completed_at: updatedUser.profileCompletedAt,
+            certificate_id: updatedUser.certificateId,
           },
         });
       } catch (clientMetaErr) {
@@ -543,6 +547,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             bannerUrl: updatedUser.bannerUrl,
             socialLinks: updatedUser.socialLinks,
             bankDetails: updatedUser.bankDetails,
+            profileCompletedAt: updatedUser.profileCompletedAt,
+            certificateId: updatedUser.certificateId,
           }),
         });
 

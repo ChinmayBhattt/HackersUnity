@@ -28,6 +28,8 @@ import {
 import { FullPublicProfileData, getPublicUserProfileByUsername } from '@/lib/supabase-service';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency } from '@/lib/utils';
+import { CertificateModal } from '@/components/certificate/CertificateModal';
+import { calculateProfileCompletion } from '@/lib/profile-completion';
 
 export default function PublicProfilePage() {
   const params = useParams();
@@ -41,6 +43,7 @@ export default function PublicProfilePage() {
   const [notFound, setNotFound] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'winnings' | 'participations' | 'projects'>('winnings');
+  const [showCertModal, setShowCertModal] = useState(false);
 
   useEffect(() => {
     if (!username) return;
@@ -172,85 +175,119 @@ export default function PublicProfilePage() {
             </div>
 
             {/* Profile Hero Card */}
-            <div className="relative rounded-3xl overflow-hidden bg-white dark:bg-[#0e131d] border border-slate-200/80 dark:border-white/[0.08] shadow-xl shadow-slate-200/50 dark:shadow-black/60">
-              {/* Banner */}
-              <div className="relative h-44 sm:h-56 w-full bg-gradient-to-r from-sky-600 via-indigo-600 to-cyan-500 overflow-hidden">
-                {user.bannerUrl ? (
-                  <img
-                    src={user.bannerUrl}
-                    alt="Banner"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="absolute inset-0 opacity-25 bg-[radial-gradient(#fff_1.5px,transparent_1.5px)] [background-size:20px_20px]" />
-                )}
-              </div>
-
-              {/* Main Info */}
-              <div className="px-6 sm:px-8 pb-8 pt-0">
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-5 pt-4 sm:pt-6">
-                  {/* Avatar */}
-                  <div className="relative shrink-0 -mt-20 sm:-mt-24">
-                    <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-3xl border-4 border-white dark:border-[#0e131d] bg-gradient-to-br from-slate-800 to-slate-900 shadow-2xl overflow-hidden flex items-center justify-center text-white text-4xl font-black">
-                      {user.avatarUrl && user.avatarUrl.length > 4 ? (
-                        <img
-                          src={user.avatarUrl}
-                          alt={user.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span>{(user.name || 'H')[0]?.toUpperCase()}</span>
-                      )}
-                    </div>
-                    <div className="absolute bottom-1 right-1 p-1.5 rounded-xl bg-emerald-500 text-white shadow-md" title="Verified Builder">
-                      <ShieldCheck className="w-4 h-4" />
-                    </div>
+            {(() => {
+              const completion = calculateProfileCompletion(user);
+              return (
+                <div className="relative rounded-3xl overflow-hidden bg-white dark:bg-[#0e131d] border border-slate-200/80 dark:border-white/[0.08] shadow-xl shadow-slate-200/50 dark:shadow-black/60">
+                  {/* Banner */}
+                  <div className="relative h-44 sm:h-56 w-full bg-gradient-to-r from-sky-600 via-indigo-600 to-cyan-500 overflow-hidden">
+                    {user.bannerUrl ? (
+                      <img
+                        src={user.bannerUrl}
+                        alt="Banner"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 opacity-25 bg-[radial-gradient(#fff_1.5px,transparent_1.5px)] [background-size:20px_20px]" />
+                    )}
                   </div>
 
-                  {/* High-level stats pill row */}
-                  <div className="grid grid-cols-3 gap-2 sm:gap-4 shrink-0 sm:mt-2">
-                    <div className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06] text-center">
-                      <div className="text-base sm:text-xl font-black text-amber-500 flex items-center justify-center gap-1">
-                        <Trophy className="w-4 h-4 fill-amber-500" />
-                        <span>{winnings.length}</span>
+                  {/* Main Info */}
+                  <div className="px-6 sm:px-8 pb-8 pt-0">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-5 pt-4 sm:pt-6">
+                      {/* Avatar with optional 100% Completion Border Ring */}
+                      <div className="relative shrink-0 -mt-20 sm:-mt-24">
+                        <div
+                          className={`w-28 h-28 sm:w-36 sm:h-36 rounded-3xl shadow-2xl flex items-center justify-center ${
+                            completion.isComplete
+                              ? 'p-1.5 bg-gradient-to-tr from-[#0099e6] via-[#0a9ed9] to-[#f58220] shadow-[0_0_24px_rgba(245,130,32,0.35)]'
+                              : 'border-4 border-white dark:border-[#0e131d]'
+                          }`}
+                        >
+                          <div className="w-full h-full rounded-[20px] bg-gradient-to-br from-slate-800 to-slate-900 overflow-hidden flex items-center justify-center text-white text-4xl font-black">
+                            {user.avatarUrl && user.avatarUrl.length > 4 ? (
+                              <img
+                                src={user.avatarUrl}
+                                alt={user.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span>{(user.name || 'H')[0]?.toUpperCase()}</span>
+                            )}
+                          </div>
+                        </div>
+                        {completion.isComplete ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowCertModal(true)}
+                            className="absolute bottom-1 right-1 p-1.5 rounded-xl bg-gradient-to-tr from-[#0099e6] to-[#f58220] text-white shadow-lg border-2 border-white dark:border-[#0e131d] cursor-pointer hover:scale-110 transition-transform"
+                            title="100% Profile Complete & Verified Certificate"
+                          >
+                            <Award className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <div className="absolute bottom-1 right-1 p-1.5 rounded-xl bg-emerald-500 text-white shadow-md" title="Verified Builder">
+                            <ShieldCheck className="w-4 h-4" />
+                          </div>
+                        )}
                       </div>
-                      <div className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
-                        Winnings
+
+                      {/* High-level stats pill row */}
+                      <div className="grid grid-cols-3 gap-2 sm:gap-4 shrink-0 sm:mt-2">
+                        <div className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06] text-center">
+                          <div className="text-base sm:text-xl font-black text-amber-500 flex items-center justify-center gap-1">
+                            <Trophy className="w-4 h-4 fill-amber-500" />
+                            <span>{winnings.length}</span>
+                          </div>
+                          <div className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
+                            Winnings
+                          </div>
+                        </div>
+
+                        <div className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06] text-center">
+                          <div className="text-base sm:text-xl font-black text-[#0099e6] flex items-center justify-center gap-1">
+                            <Rocket className="w-4 h-4" />
+                            <span>{participations.length}</span>
+                          </div>
+                          <div className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
+                            Hackathons
+                          </div>
+                        </div>
+
+                        <div className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06] text-center">
+                          <div className="text-base sm:text-xl font-black text-indigo-500 flex items-center justify-center gap-1">
+                            <Code2 className="w-4 h-4" />
+                            <span>{submissions.length}</span>
+                          </div>
+                          <div className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
+                            Projects
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06] text-center">
-                      <div className="text-base sm:text-xl font-black text-[#0099e6] flex items-center justify-center gap-1">
-                        <Rocket className="w-4 h-4" />
-                        <span>{participations.length}</span>
-                      </div>
-                      <div className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
-                        Hackathons
-                      </div>
-                    </div>
+                    {/* Identity & Bio */}
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+                          {user.name}
+                        </h1>
+                        <span className="text-sm font-mono font-bold text-[#0099e6] bg-sky-50 dark:bg-sky-500/10 px-2.5 py-0.5 rounded-lg border border-sky-200/70 dark:border-sky-500/20">
+                          @{user.username || username}
+                        </span>
 
-                    <div className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl bg-slate-50 dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06] text-center">
-                      <div className="text-base sm:text-xl font-black text-indigo-500 flex items-center justify-center gap-1">
-                        <Code2 className="w-4 h-4" />
-                        <span>{submissions.length}</span>
+                        {completion.isComplete && (
+                          <button
+                            type="button"
+                            onClick={() => setShowCertModal(true)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-amber-500/15 via-[#0099e6]/10 to-[#f58220]/15 hover:from-amber-500/25 hover:to-[#f58220]/25 border border-orange-500/30 text-[#f58220] text-xs font-black transition-all shadow-xs cursor-pointer"
+                            title="View Verified Certificate of Completion"
+                          >
+                            <Award className="w-3.5 h-3.5 text-[#f58220]" />
+                            <span>100% Profile Complete &bull; View Certificate</span>
+                          </button>
+                        )}
                       </div>
-                      <div className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
-                        Projects
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Identity & Bio */}
-                <div>
-                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                    <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                      {user.name}
-                    </h1>
-                    <span className="text-sm font-mono font-bold text-[#0099e6] bg-sky-50 dark:bg-sky-500/10 px-2.5 py-0.5 rounded-lg border border-sky-200/70 dark:border-sky-500/20">
-                      @{user.username || username}
-                    </span>
-                  </div>
 
                   {/* University & Organization line */}
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
@@ -362,6 +399,8 @@ export default function PublicProfilePage() {
                 </div>
               </div>
             </div>
+          );
+        })()}
 
             {/* Showcase Sections: Tabs */}
             <div className="mt-8">
@@ -647,6 +686,18 @@ export default function PublicProfilePage() {
             </div>
           </div>
         )}
+
+      {/* Certificate of Completion Modal */}
+      {data?.user && (
+        <CertificateModal
+          isOpen={showCertModal}
+          onClose={() => setShowCertModal(false)}
+          recipientName={data.user.name || 'Hacker'}
+          completionDate={data.user.profileCompletedAt || new Date().toISOString()}
+          certificateId={data.user.certificateId || `HU-${new Date().getFullYear()}-${data.user.id ? data.user.id.slice(-6).toUpperCase() : 'COMP'}`}
+          username={data.user.username || username}
+        />
+      )}
     </div>
   );
 }
