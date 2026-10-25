@@ -3,6 +3,9 @@
 .hu-cert-fit {
   width: 100%;
   position: relative;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  border-radius: 16px;
+  overflow: hidden;
 }
 .hu-cert-scale {
   transform-origin: top left;
@@ -20,7 +23,6 @@
   text-align: center;
   box-sizing: border-box;
   font-family: 'Bricolage Grotesque', system-ui, sans-serif;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }
 .hu-cert * {
   box-sizing: border-box;
@@ -37,7 +39,10 @@
 
 .hu-dots {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background-image: radial-gradient(#d9dee4 1.2px, transparent 1.4px);
   background-size: 22px 22px;
   -webkit-mask-image: radial-gradient(ellipse at center, transparent 38%, #000 85%);
@@ -50,21 +55,28 @@
   top: 47%;
   width: 470px;
   height: 470px;
+  margin-left: -235px;
+  margin-top: -235px;
   object-fit: contain;
-  transform: translate(-50%, -50%);
   opacity: 0.055;
   filter: grayscale(1);
 }
 
 .hu-frame {
   position: absolute;
-  inset: 24px 24px 58px;
+  top: 24px;
+  left: 24px;
+  right: 24px;
+  bottom: 58px;
   border: 2px solid #000;
 }
 .hu-frame::before {
   content: "";
   position: absolute;
-  inset: 7px;
+  top: 7px;
+  left: 7px;
+  right: 7px;
+  bottom: 7px;
   border: 1px solid #c4cad1;
 }
 .hu-c1,
@@ -88,7 +100,10 @@
 
 .hu-in {
   position: absolute;
-  inset: 24px 24px 58px;
+  top: 24px;
+  left: 24px;
+  right: 24px;
+  bottom: 58px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -248,7 +263,7 @@
   font-weight: 600;
 }
 
-/* Print: only the certificate, A4 landscape */
+/* Print fallback: exact A4 landscape */
 @media print {
   @page {
     size: 297mm 210mm;
@@ -271,9 +286,10 @@
     padding: 0 !important;
     z-index: 999999 !important;
     background: #fff !important;
+    box-shadow: none !important;
   }
   .hu-cert-scale {
-    transform: scale(1.1236) !important; /* 297mm = 1122.5px */
+    transform: scale(1.1236) !important;
     transform-origin: top left !important;
   }
   .hu-ring {

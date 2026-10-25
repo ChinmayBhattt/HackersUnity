@@ -72,9 +72,11 @@ export function CertificateModal({
   };
 
   /**
-   * Captures the unscaled 1123x794 certificate element at 2x resolution
+   * Captures the unscaled 1123x794 certificate element at exact 2x resolution
+   * using html-to-image (native browser engine, 100% accurate alignment)
+   * with fallback to html2canvas.
    */
-  const captureCanvas = async () => {
+  const captureImage = async (): Promise<string> => {
     if (typeof document !== 'undefined' && document.fonts) {
       try {
         await document.fonts.ready;
@@ -100,23 +102,34 @@ export function CertificateModal({
       })
     );
 
-    const html2canvas = (await import('html2canvas')).default;
-
-    return await html2canvas(exportNode, {
-      scale: 2, // 2x gives 2246 x 1588 high-resolution 300DPI output
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      logging: false,
-      width: 1123,
-      height: 794,
-      windowWidth: 1200,
-      windowHeight: 900,
-      x: 0,
-      y: 0,
-      scrollX: 0,
-      scrollY: 0,
-    });
+    try {
+      const { toPng } = await import('html-to-image');
+      return await toPng(exportNode, {
+        pixelRatio: 2, // 2x gives 2246 x 1588 retina resolution
+        width: 1123,
+        height: 794,
+        cacheBust: false,
+        style: {
+          margin: '0',
+          padding: '0',
+          boxShadow: 'none',
+          transform: 'none',
+        },
+      });
+    } catch (err) {
+      console.warn('html-to-image failed, falling back to html2canvas:', err);
+      const html2canvas = (await import('html2canvas')).default;
+      const canvas = await html2canvas(exportNode, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        width: 1123,
+        height: 794,
+      });
+      return canvas.toDataURL('image/png', 1.0);
+    }
   };
 
   /**
@@ -127,8 +140,7 @@ export function CertificateModal({
     setIsDownloadingPdf(true);
 
     try {
-      const canvas = await captureCanvas();
-      const imgData = canvas.toDataURL('image/png', 1.0);
+      const imgData = await captureImage();
 
       const { jsPDF } = await import('jspdf');
 
@@ -161,11 +173,10 @@ export function CertificateModal({
     setIsDownloadingPng(true);
 
     try {
-      const canvas = await captureCanvas();
-      const dataUrl = canvas.toDataURL('image/png');
+      const imgData = await captureImage();
       const link = document.createElement('a');
       link.download = getSafeFileName('png');
-      link.href = dataUrl;
+      link.href = imgData;
       link.click();
     } catch (error) {
       console.error('PNG download failed:', error);
@@ -206,15 +217,22 @@ export function CertificateModal({
           zIndex: -50,
           pointerEvents: 'none',
           opacity: 1,
+          overflow: 'hidden',
+          background: '#ffffff',
         }}
       >
         <style>{`
+          .hu-export-target .hu-cert {
+            box-shadow: none !important;
+            margin: 0 !important;
+            border-radius: 0 !important;
+          }
           .hu-export-target * {
             animation: none !important;
             transition: none !important;
           }
         `}</style>
-        <div className="hu-export-target">
+        <div className="hu-export-target" style={{ width: 1123, height: 794 }}>
           <CertificateOfCompletion
             recipientName={recipientName}
             completionDate={completionDate}
