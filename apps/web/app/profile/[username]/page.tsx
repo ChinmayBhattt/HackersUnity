@@ -220,7 +220,7 @@ export default function PublicProfilePage() {
                           <button
                             type="button"
                             onClick={() => setShowCertModal(true)}
-                            className="absolute bottom-1 right-1 p-1.5 rounded-xl bg-gradient-to-tr from-[#0099e6] to-[#f58220] text-white shadow-lg border-2 border-white dark:border-[#0e131d] cursor-pointer hover:scale-110 transition-transform"
+                            className="absolute bottom-1 right-1 p-1.5 rounded-xl bg-[#f58220] text-white shadow-sm border-2 border-white dark:border-[#0e131d] cursor-pointer hover:opacity-90 transition-opacity"
                             title="100% Profile Complete & Verified Certificate"
                           >
                             <Award className="w-4 h-4" />
@@ -280,11 +280,14 @@ export default function PublicProfilePage() {
                           <button
                             type="button"
                             onClick={() => setShowCertModal(true)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-amber-500/15 via-[#0099e6]/10 to-[#f58220]/15 hover:from-amber-500/25 hover:to-[#f58220]/25 border border-orange-500/30 text-[#f58220] text-xs font-black transition-all shadow-xs cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-white/[0.05] dark:hover:bg-white/[0.08] border border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-slate-300 text-xs font-semibold transition-all cursor-pointer"
                             title="View Verified Certificate of Completion"
                           >
                             <Award className="w-3.5 h-3.5 text-[#f58220]" />
-                            <span>100% Profile Complete &bull; View Certificate</span>
+                            <span>Certificate</span>
+                            <span className="px-1.5 py-0.2 text-[10px] rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-mono font-bold border border-emerald-500/20">
+                              100%
+                            </span>
                           </button>
                         )}
                       </div>

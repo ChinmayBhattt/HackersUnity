@@ -92,7 +92,7 @@ export function CertificateModal({
         {/* Modal Top Header */}
         <div className="flex items-center justify-between px-5 sm:px-8 py-4 border-b border-slate-100 dark:border-white/[0.08] bg-slate-50/70 dark:bg-white/[0.02]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#0099e6] to-[#f58220] flex items-center justify-center text-white shadow-md shadow-sky-500/20">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-[#f58220] border border-amber-500/20 flex items-center justify-center shrink-0">
               <Award className="w-5 h-5" />
             </div>
             <div>
@@ -185,10 +185,10 @@ export function CertificateModal({
               type="button"
               onClick={handlePrint}
               disabled={isPrinting}
-              className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-[#0099e6] to-[#f58220] hover:opacity-90 active:scale-[0.98] text-white text-xs font-black flex items-center gap-2 transition-all shadow-lg shadow-sky-500/20 cursor-pointer"
+              className="px-5 py-2.5 rounded-2xl bg-[#0099e6] hover:bg-[#0088cc] active:scale-[0.98] text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-sm"
             >
               <Printer className="w-4 h-4" />
-              <span>Download as PDF / Print</span>
+              <span>Download PDF / Print</span>
             </button>
           </div>
         </div>

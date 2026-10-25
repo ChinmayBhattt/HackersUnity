@@ -6,7 +6,7 @@ import {
   calculateProfileCompletion,
 } from '@/lib/profile-completion';
 import { CertificateModal } from './CertificateModal';
-import { Award, CheckCircle2, ChevronRight, Sparkles, AlertCircle } from 'lucide-react';
+import { Award, ChevronRight, AlertCircle } from 'lucide-react';
 
 interface ProfileCompletionWidgetProps {
   user: any;
@@ -20,8 +20,8 @@ export function ProfileProgressAvatar({
   avatarUrl,
   name,
   percentage,
-  size = 54,
-  strokeWidth = 3.5,
+  size = 48,
+  strokeWidth = 2.5,
   onClick,
 }: {
   avatarUrl?: string | null;
@@ -43,33 +43,32 @@ export function ProfileProgressAvatar({
       className="relative shrink-0 select-none group cursor-pointer"
       style={{ width: size, height: size }}
       onClick={onClick}
-      title={`Profile: ${percentage}% Complete${isComplete ? ' (Certificate Unlocked!)' : ''}`}
+      title={`Profile: ${percentage}% Complete${isComplete ? ' (Certificate Unlocked)' : ''}`}
     >
       {/* SVG Progress Ring */}
       <svg
-        className="w-full h-full -rotate-90 overflow-visible transition-all duration-700"
+        className="w-full h-full -rotate-90 overflow-visible transition-all duration-500"
         viewBox={`0 0 ${size} ${size}`}
       >
         <defs>
           <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#0099e6" />
-            <stop offset="50%" stopColor="#0a9ed9" />
             <stop offset="100%" stopColor="#f58220" />
           </linearGradient>
         </defs>
 
-        {/* Background Track Circle */}
+        {/* Background Track */}
         <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
           fill="none"
           stroke="currentColor"
-          className="text-slate-200 dark:text-white/[0.1]"
+          className="text-slate-200 dark:text-white/[0.08]"
           strokeWidth={strokeWidth}
         />
 
-        {/* Animated Progress Circle */}
+        {/* Animated Progress Ring */}
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -80,17 +79,13 @@ export function ProfileProgressAvatar({
           strokeDasharray={circumference}
           strokeDashoffset={strokeDashoffset}
           strokeLinecap="round"
-          className={`transition-all duration-1000 ease-out ${
-            isComplete ? 'filter drop-shadow-[0_0_4px_rgba(245,130,32,0.6)]' : ''
-          }`}
+          className="transition-all duration-700 ease-out"
         />
       </svg>
 
       {/* Inner Avatar Box */}
-      <div
-        className="absolute inset-[4px] rounded-full overflow-hidden bg-[#0099e6] flex items-center justify-center text-white font-black text-sm shadow-inner transition-transform group-hover:scale-105"
-      >
-        {avatarUrl && avatarUrl.startsWith('http') ? (
+      <div className="absolute inset-[3px] rounded-full overflow-hidden bg-slate-800 flex items-center justify-center text-white font-black text-xs shadow-inner">
+        {avatarUrl && (avatarUrl.startsWith('http') || avatarUrl.startsWith('data:')) ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img src={avatarUrl} alt={name || 'Hacker'} className="w-full h-full object-cover" />
         ) : avatarUrl && avatarUrl.length > 2 && avatarUrl !== '⚡' ? (
@@ -101,18 +96,16 @@ export function ProfileProgressAvatar({
         )}
       </div>
 
-      {/* 100% Complete Floating Medal / Checkmark Badge */}
+      {/* Subtle Medal Badge if 100% */}
       {isComplete ? (
         <div
-          className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-tr from-[#0099e6] to-[#f58220] text-white flex items-center justify-center shadow-md border-2 border-white dark:border-[#0c1017] animate-in zoom-in-75 duration-300"
+          className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#f58220] text-white flex items-center justify-center shadow-xs border border-white dark:border-[#0c1017]"
           title="100% Complete"
         >
-          <Award className="w-3 h-3" />
+          <Award className="w-2.5 h-2.5" />
         </div>
       ) : percentage > 0 ? (
-        <div
-          className="absolute -bottom-1 -right-1 px-1 py-0.2 rounded-full bg-slate-900 text-[9px] font-extrabold text-white shadow-sm border border-white/20 font-mono"
-        >
+        <div className="absolute -bottom-0.5 -right-0.5 px-1 rounded-full bg-slate-900 text-[8px] font-bold text-slate-300 border border-white/10 font-mono">
           {percentage}%
         </div>
       ) : null}
@@ -134,12 +127,9 @@ export function ProfileCompletionWidget({
   const data = currentFormValues || user;
   const result: ProfileCompletionResult = calculateProfileCompletion(data);
 
-  const recipientName =
-    data?.name?.trim() || user?.name?.trim() || 'Hacker';
-  const completionDate =
-    user?.profileCompletedAt || result.completionDate || new Date().toISOString();
-  const certificateId =
-    user?.certificateId || result.certificateId;
+  const recipientName = data?.name?.trim() || user?.name?.trim() || 'Hacker';
+  const completionDate = user?.profileCompletedAt || result.completionDate || new Date().toISOString();
+  const certificateId = user?.certificateId || result.certificateId;
 
   if (variant === 'badge') {
     return (
@@ -148,19 +138,19 @@ export function ProfileCompletionWidget({
           <button
             type="button"
             onClick={() => setShowModal(true)}
-            className={`px-3 py-1.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-[#0099e6]/10 to-[#f58220]/10 hover:from-amber-500/20 hover:to-[#f58220]/20 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-black flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${className}`}
+            className={`px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${className}`}
           >
-            <Award className="w-4 h-4 text-[#f58220]" />
-            <span>Certificate of Completion</span>
-            <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-[#f58220] text-white font-mono">
+            <Award className="w-3.5 h-3.5 text-[#f58220]" />
+            <span>Certificate</span>
+            <span className="px-1.5 py-0.2 text-[10px] rounded-md bg-emerald-500/10 text-emerald-400 font-mono font-bold border border-emerald-500/20">
               100%
             </span>
           </button>
         ) : (
           <div
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-100 dark:bg-white/[0.05] border border-slate-200 dark:border-white/10 text-xs text-slate-600 dark:text-slate-300 font-semibold ${className}`}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.03] border border-white/[0.06] text-xs text-slate-400 font-medium ${className}`}
           >
-            <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
             <span>Profile: {result.percentage}%</span>
           </div>
         )}
@@ -178,14 +168,14 @@ export function ProfileCompletionWidget({
   }
 
   return (
-    <div className={`space-y-3 ${className}`}>
-      {/* Mini Profile Badge with Border Progress Ring */}
-      <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-sky-50/70 dark:bg-sky-500/10 border border-sky-100 dark:border-sky-500/20">
+    <div className={`p-3 rounded-2xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/[0.06] space-y-2.5 ${className}`}>
+      {/* Top Mini Profile Row */}
+      <div className="flex items-center gap-3">
         <ProfileProgressAvatar
           avatarUrl={data?.avatarUrl || user?.avatarUrl}
           name={recipientName}
           percentage={result.percentage}
-          size={52}
+          size={46}
           onClick={() => {
             if (result.isComplete) setShowModal(true);
           }}
@@ -193,12 +183,16 @@ export function ProfileCompletionWidget({
 
         <div className="overflow-hidden flex-1 min-w-0">
           <div className="flex items-center justify-between gap-1">
-            <div className="font-extrabold text-sm text-slate-900 dark:text-white truncate">
+            <div className="font-bold text-sm text-slate-900 dark:text-white truncate">
               {recipientName}
             </div>
-            {result.isComplete && (
-              <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-gradient-to-r from-[#0099e6] to-[#f58220] text-white shrink-0">
+            {result.isComplete ? (
+              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
                 100%
+              </span>
+            ) : (
+              <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                {result.percentage}%
               </span>
             )}
           </div>
@@ -208,99 +202,61 @@ export function ProfileCompletionWidget({
         </div>
       </div>
 
-      {/* Profile Completion Progress Card */}
-      <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-white/[0.03] border border-slate-200/80 dark:border-white/[0.07] space-y-3">
-        <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300">
-            {result.isComplete ? (
-              <>
-                <Award className="w-4 h-4 text-[#f58220]" />
-                <span className="text-slate-900 dark:text-white">Profile 100% Complete</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-3.5 h-3.5 text-[#0099e6]" />
-                <span>Profile Completion</span>
-              </>
-            )}
+      {/* When 100%: Simple, elegant certificate link */}
+      {result.isComplete ? (
+        <button
+          type="button"
+          onClick={() => setShowModal(true)}
+          className="w-full py-2 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.09] dark:bg-white/[0.04] dark:hover:bg-white/[0.08] text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-white/[0.08] text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer"
+        >
+          <Award className="w-3.5 h-3.5 text-[#f58220]" />
+          <span>Certificate of Completion</span>
+        </button>
+      ) : (
+        /* When < 100%: Minimal clean progress bar & items left */
+        <div className="space-y-1.5 pt-0.5">
+          <div className="w-full h-1.5 rounded-full bg-slate-200 dark:bg-white/[0.06] overflow-hidden">
+            <div
+              className="h-full rounded-full bg-[#0099e6] transition-all duration-500 ease-out"
+              style={{ width: `${result.percentage}%` }}
+            />
           </div>
-          <span
-            className={`font-black font-mono text-xs ${
-              result.isComplete
-                ? 'text-[#f58220]'
-                : 'text-[#0099e6]'
-            }`}
+
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="w-full flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer text-left py-0.5"
           >
-            {result.percentage}%
-          </span>
+            <span>{result.missingItems.length} items to 100%</span>
+            <ChevronRight
+              className={`w-3 h-3 transition-transform duration-200 ${
+                isExpanded ? 'rotate-90' : ''
+              }`}
+            />
+          </button>
+
+          {isExpanded && (
+            <div className="space-y-1 pt-1 border-t border-slate-200/60 dark:border-white/[0.06] animate-in fade-in">
+              {result.missingItems.slice(0, 4).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onNavigateTab && onNavigateTab(item.tab)}
+                  className="w-full flex items-center justify-between p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/[0.04] text-[11px] text-left transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                    <AlertCircle className="w-3 h-3 text-amber-500 shrink-0" />
+                    <span className="truncate">{item.label}</span>
+                  </div>
+                  <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                    +{item.points}%
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-
-        {/* Progress Bar with Gradient */}
-        <div className="w-full h-2.5 rounded-full bg-slate-200 dark:bg-white/[0.08] overflow-hidden p-0.5">
-          <div
-            className={`h-full rounded-full transition-all duration-700 ease-out ${
-              result.isComplete
-                ? 'bg-gradient-to-r from-[#0099e6] via-[#0a9ed9] to-[#f58220] shadow-[0_0_8px_rgba(245,130,32,0.5)]'
-                : 'bg-gradient-to-r from-[#0099e6] to-[#0a9ed9]'
-            }`}
-            style={{ width: `${result.percentage}%` }}
-          />
-        </div>
-
-        {/* If 100% Complete: Certificate Unlock Call to Action */}
-        {result.isComplete ? (
-          <div className="pt-1">
-            <button
-              type="button"
-              onClick={() => setShowModal(true)}
-              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#0099e6] to-[#f58220] hover:opacity-95 active:scale-[0.99] text-white text-xs font-black flex items-center justify-center gap-2 shadow-md shadow-orange-500/15 cursor-pointer transition-all"
-            >
-              <Award className="w-4 h-4" />
-              <span>Download Certificate</span>
-            </button>
-            <p className="text-[10px] text-center text-slate-500 dark:text-slate-400 mt-1.5">
-              Official verifiable credential issued by Hacker&apos;s Unity
-            </p>
-          </div>
-        ) : (
-          /* If < 100%: Show remaining fields guide */
-          <div className="space-y-2 pt-1">
-            <button
-              type="button"
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="w-full flex items-center justify-between text-[11px] font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer text-left"
-            >
-              <span>{result.missingItems.length} items remaining for 100%</span>
-              <ChevronRight
-                className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                  isExpanded ? 'rotate-90' : ''
-                }`}
-              />
-            </button>
-
-            {isExpanded && (
-              <div className="space-y-1.5 pt-1 border-t border-slate-200/60 dark:border-white/[0.06] animate-in fade-in">
-                {result.missingItems.slice(0, 5).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => onNavigateTab && onNavigateTab(item.tab)}
-                    className="w-full flex items-center justify-between p-1.5 rounded-lg hover:bg-slate-200/50 dark:hover:bg-white/[0.05] text-[11px] text-left transition-colors cursor-pointer"
-                  >
-                    <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                      <AlertCircle className="w-3 h-3 text-amber-500 shrink-0" />
-                      <span className="truncate">{item.label}</span>
-                    </div>
-                    <span className="text-[10px] font-mono text-slate-400 shrink-0">
-                      +{item.points}%
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Certificate Modal */}
       <CertificateModal
