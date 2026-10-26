@@ -8,13 +8,15 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "sync:sheets": "npx tsx scripts/sync-sheets.ts"
+    "sync:sheets": "npx tsx scripts/sync-sheets.ts",
+    "test:cloudinary": "npx tsx scripts/test-cloudinary.ts"
   },
   "dependencies": {
     "@hackers-unity/shared-types": "workspace:*",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
     "@tanstack/react-query": "^5.75.0",
+    "cloudinary": "^2.11.0",
     "clsx": "^2.1.1",
     "framer-motion": "^13.3.0",
     "google-auth-library": "^11.0.2",

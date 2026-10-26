@@ -323,13 +323,37 @@ export async function generateUniqueSlug(title: string): Promise<string> {
 }
 
 /**
- * ─── 2. ASSET UPLOAD (Supabase Storage) ───────────────────────────────────────
+ * ─── 2. ASSET UPLOAD (Cloudinary with Supabase Storage Fallback) ───────────────
  */
 export async function uploadHackathonAsset(
   file: File,
   folder: 'logos' | 'banners' | 'general' = 'general'
 ): Promise<{ url: string | null; error?: string }> {
   try {
+    // 1. Primary: Upload to Cloudinary via /api/upload
+    try {
+      if (typeof window !== 'undefined') {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('folder', folder);
+
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (res.ok) {
+          const json = await res.json();
+          if (json.url) {
+            return { url: json.url };
+          }
+        }
+      }
+    } catch (uploadRouteErr) {
+      console.warn('[Cloudinary upload fallback to Supabase Storage]:', uploadRouteErr);
+    }
+
+    // 2. Secondary fallback: Supabase Storage
     const ext = file.name.split('.').pop() || 'png';
     const filePath = `${folder}/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
 

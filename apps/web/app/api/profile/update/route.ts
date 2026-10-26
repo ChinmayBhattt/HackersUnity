@@ -5,8 +5,10 @@ import {
   unauthorizedResponse,
   forbiddenResponse,
 } from '@/lib/api-auth';
+import { uploadToCloudinary } from '@/lib/cloudinary';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+
 
 export async function POST(req: Request) {
   try {
@@ -88,59 +90,85 @@ export async function POST(req: Request) {
     let finalAvatarUrl: string | null = avatarUrl || null;
     let finalBannerUrl: string | null = bannerUrl || null;
 
-    // 3. Process Avatar Image Upload to Supabase Storage if base64 data URL
+    // 3. Process Avatar Image Upload (Cloudinary with Supabase Storage fallback)
     if (avatarUrl && typeof avatarUrl === 'string' && avatarUrl.startsWith('data:image/')) {
       try {
-        const matches = avatarUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-        if (matches && matches.length === 3) {
-          const contentType = matches[1] || 'image/jpeg';
-          const buffer = Buffer.from(matches[2], 'base64');
-          const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
-          const filePath = `profiles/${effectiveUserId}/avatar.${ext}`;
-
-          const { error: uploadError } = await supabaseAdmin.storage
-            .from('hackathon-assets')
-            .upload(filePath, buffer, {
-              contentType,
-              upsert: true,
-            });
-
-          if (!uploadError) {
-            finalAvatarUrl = `${supabaseUrl}/storage/v1/object/public/hackathon-assets/${filePath}?t=${Date.now()}`;
-          } else {
-            console.warn('[Profile Update] Avatar storage upload warning:', uploadError);
-          }
+        // Primary: Cloudinary
+        const cloudRes = await uploadToCloudinary(avatarUrl, {
+          folder: 'profiles/avatars',
+          publicId: `avatar_${effectiveUserId}`,
+          tags: ['avatar', `user_${effectiveUserId}`],
+        });
+        if (cloudRes.url) {
+          finalAvatarUrl = cloudRes.url;
         }
-      } catch (uploadErr) {
-        console.warn('[Profile Update] Avatar upload exception:', uploadErr);
+      } catch (cloudErr) {
+        console.warn('[Profile Update] Cloudinary avatar upload warning, attempting Supabase fallback:', cloudErr);
+        try {
+          const matches = avatarUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+          if (matches && matches.length === 3) {
+            const contentType = matches[1] || 'image/jpeg';
+            const buffer = Buffer.from(matches[2], 'base64');
+            const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
+            const filePath = `profiles/${effectiveUserId}/avatar.${ext}`;
+
+            const { error: uploadError } = await supabaseAdmin.storage
+              .from('hackathon-assets')
+              .upload(filePath, buffer, {
+                contentType,
+                upsert: true,
+              });
+
+            if (!uploadError) {
+              finalAvatarUrl = `${supabaseUrl}/storage/v1/object/public/hackathon-assets/${filePath}?t=${Date.now()}`;
+            } else {
+              console.warn('[Profile Update] Avatar storage upload warning:', uploadError);
+            }
+          }
+        } catch (uploadErr) {
+          console.warn('[Profile Update] Avatar upload exception:', uploadErr);
+        }
       }
     }
 
-    // 4. Process Banner Image Upload to Supabase Storage if base64 data URL
+    // 4. Process Banner Image Upload (Cloudinary with Supabase Storage fallback)
     if (bannerUrl && typeof bannerUrl === 'string' && bannerUrl.startsWith('data:image/')) {
       try {
-        const matches = bannerUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-        if (matches && matches.length === 3) {
-          const contentType = matches[1] || 'image/jpeg';
-          const buffer = Buffer.from(matches[2], 'base64');
-          const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
-          const filePath = `profiles/${effectiveUserId}/banner.${ext}`;
-
-          const { error: uploadError } = await supabaseAdmin.storage
-            .from('hackathon-assets')
-            .upload(filePath, buffer, {
-              contentType,
-              upsert: true,
-            });
-
-          if (!uploadError) {
-            finalBannerUrl = `${supabaseUrl}/storage/v1/object/public/hackathon-assets/${filePath}?t=${Date.now()}`;
-          } else {
-            console.warn('[Profile Update] Banner storage upload warning:', uploadError);
-          }
+        // Primary: Cloudinary
+        const cloudRes = await uploadToCloudinary(bannerUrl, {
+          folder: 'profiles/banners',
+          publicId: `banner_${effectiveUserId}`,
+          tags: ['banner', `user_${effectiveUserId}`],
+        });
+        if (cloudRes.url) {
+          finalBannerUrl = cloudRes.url;
         }
-      } catch (uploadErr) {
-        console.warn('[Profile Update] Banner upload exception:', uploadErr);
+      } catch (cloudErr) {
+        console.warn('[Profile Update] Cloudinary banner upload warning, attempting Supabase fallback:', cloudErr);
+        try {
+          const matches = bannerUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+          if (matches && matches.length === 3) {
+            const contentType = matches[1] || 'image/jpeg';
+            const buffer = Buffer.from(matches[2], 'base64');
+            const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
+            const filePath = `profiles/${effectiveUserId}/banner.${ext}`;
+
+            const { error: uploadError } = await supabaseAdmin.storage
+              .from('hackathon-assets')
+              .upload(filePath, buffer, {
+                contentType,
+                upsert: true,
+              });
+
+            if (!uploadError) {
+              finalBannerUrl = `${supabaseUrl}/storage/v1/object/public/hackathon-assets/${filePath}?t=${Date.now()}`;
+            } else {
+              console.warn('[Profile Update] Banner storage upload warning:', uploadError);
+            }
+          }
+        } catch (uploadErr) {
+          console.warn('[Profile Update] Banner upload exception:', uploadErr);
+        }
       }
     }
 
