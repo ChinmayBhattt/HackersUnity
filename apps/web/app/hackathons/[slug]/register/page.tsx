@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, use, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -109,6 +109,20 @@ export function getSquadMemberCount(squad: any, maxCap: number = 4): number {
 }
 
 export default function HackathonRegistrationPage({ params }: RegisterPageProps) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex-1 flex items-center justify-center min-h-[60vh]">
+          <div className="w-9 h-9 rounded-full border-3 border-[#0099e6] border-t-transparent animate-spin" />
+        </div>
+      }
+    >
+      <HackathonRegistrationContent params={params} />
+    </Suspense>
+  );
+}
+
+function HackathonRegistrationContent({ params }: RegisterPageProps) {
   const resolvedParams = use(params);
   const router = useRouter();
   const { event, loading: eventLoading } = useEvent(resolvedParams.slug);
@@ -770,6 +784,19 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
     }
   }, [createdTeamId, isSquadLeader]);
 
+  // If external redirect is allowed and link is configured, render direct external gateway view
+  const isRedirectAllowed = isExternalRedirectAllowed(event);
+  const normalizedExternalLink = getExternalRedirectUrl(event);
+
+  useEffect(() => {
+    if (isRedirectAllowed && normalizedExternalLink && typeof window !== 'undefined') {
+      const timer = setTimeout(() => {
+        window.location.href = normalizedExternalLink;
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isRedirectAllowed, normalizedExternalLink]);
+
   const handleApproveRequest = async (req: any) => {
     if (!createdTeamId) return;
     setActionPendingRequestId(req.id);
@@ -913,7 +940,7 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
     e.preventDefault();
     setErrorMsg(null);
 
-    if (mode === 'SOLO') {
+    if (mode === 'SOLO' && !isSoloAllowed) {
       setErrorMsg('Solo participation is not available for this hackathon. Please create or join a squad.');
       return;
     }
@@ -1293,19 +1320,6 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
       setResolvingLink(false);
     }
   };
-
-  // If external redirect is allowed and link is configured, render direct external gateway view
-  const isRedirectAllowed = isExternalRedirectAllowed(event);
-  const normalizedExternalLink = getExternalRedirectUrl(event);
-
-  useEffect(() => {
-    if (normalizedExternalLink && typeof window !== 'undefined') {
-      const timer = setTimeout(() => {
-        window.location.href = normalizedExternalLink;
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [normalizedExternalLink]);
 
   if (isRedirectAllowed && normalizedExternalLink) {
     return (
