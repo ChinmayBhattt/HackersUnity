@@ -512,6 +512,47 @@ export async function PATCH(req: Request) {
       updatePayload.tags = newTags;
     }
 
+    // Synchronize redirect permission and registration link into tags
+    const allowRedirectVal = updates.allowExternalRedirect !== undefined
+      ? Boolean(updates.allowExternalRedirect)
+      : (updates as any).allow_external_redirect !== undefined
+      ? Boolean((updates as any).allow_external_redirect)
+      : undefined;
+
+    const regLinkVal = updates.registrationLink !== undefined
+      ? updates.registrationLink
+      : (updates as any).registration_link !== undefined
+      ? (updates as any).registration_link
+      : undefined;
+
+    let baseTags = updatePayload.tags !== undefined
+      ? [...updatePayload.tags]
+      : Array.isArray(updates.tags)
+      ? [...updates.tags]
+      : Array.isArray(existingEvent?.tags)
+      ? [...existingEvent.tags]
+      : null;
+
+    if (baseTags || allowRedirectVal !== undefined || regLinkVal !== undefined) {
+      if (!baseTags) {
+        baseTags = Array.isArray(existingEvent?.tags) ? [...existingEvent.tags] : [];
+      }
+      if (allowRedirectVal !== undefined) {
+        if (allowRedirectVal) {
+          if (!baseTags.includes('allow_external_redirect')) baseTags.push('allow_external_redirect');
+        } else {
+          baseTags = baseTags.filter((t: string) => t !== 'allow_external_redirect');
+        }
+      }
+      if (regLinkVal !== undefined) {
+        baseTags = baseTags.filter((t: string) => typeof t === 'string' && !t.startsWith('hu_reg_link:') && !t.startsWith('hu_reg_url:'));
+        if (typeof regLinkVal === 'string' && regLinkVal.trim()) {
+          baseTags.push('hu_reg_link:' + regLinkVal.trim());
+        }
+      }
+      updatePayload.tags = baseTags;
+    }
+
     updatePayload.updated_at = new Date().toISOString();
 
     const VALID_STATUSES = ['DRAFT', 'PENDING_APPROVAL', 'PUBLISHED', 'REGISTRATION_OPEN', 'LIVE', 'JUDGING', 'COMPLETED', 'ARCHIVED', 'REJECTED'];

@@ -965,7 +965,17 @@ function HostHackathonContent() {
       participantsCount: 1,
       featured: true,
       tags: (() => {
-        const base = tagsInput.split(',').map((t: string) => t.trim()).filter((t: string) => t && !t.startsWith('hu_sub_schedule:'));
+        const base = tagsInput
+          .split(',')
+          .map((t: string) => t.trim())
+          .filter(
+            (t: string) =>
+              t &&
+              !t.startsWith('hu_sub_schedule:') &&
+              !t.startsWith('hu_reg_link:') &&
+              !t.startsWith('hu_reg_url:') &&
+              t !== 'allow_external_redirect'
+          );
         const subStartIso = submissionsEnabled && submissionStartDate ? toUTCISO(submissionStartDate, submissionStartTime || '09:00', timezone) : null;
         const subEndIso = submissionsEnabled && submissionEndDate ? toUTCISO(submissionEndDate, submissionEndTime || '18:00', timezone) : null;
         base.push('hu_sub_schedule:' + JSON.stringify({
@@ -977,6 +987,12 @@ function HostHackathonContent() {
           endTime: submissionEndTime || '18:00',
           endIso: subEndIso,
         }));
+        if (allowExternalRedirect) {
+          base.push('allow_external_redirect');
+        }
+        if (allowExternalRedirect && registrationLink && registrationLink.trim()) {
+          base.push('hu_reg_link:' + registrationLink.trim());
+        }
         return base;
       })(),
       bannerGradient: 'from-slate-900 via-sky-950 to-[#0c1017]',
@@ -989,7 +1005,7 @@ function HostHackathonContent() {
       registrationCapacity: isUnlimitedCapacity ? null : registrationCapacity,
       approvalMode,
       registrationLink:
-        registrationMode === 'EXTERNAL' && allowExternalRedirect && registrationLink
+        allowExternalRedirect && registrationLink && registrationLink.trim()
           ? registrationLink.trim()
           : null,
       allowExternalRedirect,

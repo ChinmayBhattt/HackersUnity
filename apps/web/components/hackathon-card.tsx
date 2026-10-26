@@ -15,7 +15,7 @@ import {
 import { EventCategory, EventStatus } from '@hackers-unity/shared-types';
 import { ExtendedEvent } from '@/lib/mock-data';
 import { EVENT_IMAGE_MAP, getEventImageSrc } from '@/lib/event-images';
-import { formatCurrency, getDaysLeft, getStatusBadge, getCategoryBadge, formatRegistrationCount, getEffectiveEventStatus, formatDate, filterDisplayTags } from '@/lib/utils';
+import { formatCurrency, getDaysLeft, getStatusBadge, getCategoryBadge, formatRegistrationCount, getEffectiveEventStatus, formatDate, filterDisplayTags, getExternalRedirectUrl, isExternalRedirectAllowed } from '@/lib/utils';
 import { toggleBookmarkEvent, getBookmarkedEventIds } from '@/lib/storage';
 import { useAuth } from '@/lib/auth-context';
 import { RegistrationModal } from './registration-modal';
@@ -54,17 +54,8 @@ export function HackathonCard({ event, isBookmarked, onBookmarkChange }: Hackath
   const categoryInfo = getCategoryBadge(event.category);
   const deadlineInfo = getDaysLeft(event.registrationDeadline);
 
-  const isRedirectAllowed = Boolean(
-    event.allowExternalRedirect === true ||
-    (event as any)?.allow_external_redirect === true ||
-    (Array.isArray(event.tags) && event.tags.includes('allow_external_redirect'))
-  );
-  const rawExternalLink = (event.registrationLink || '').trim();
-  const normalizedExternalLink = rawExternalLink
-    ? rawExternalLink.startsWith('http://') || rawExternalLink.startsWith('https://')
-      ? rawExternalLink
-      : `https://${rawExternalLink}`
-    : null;
+  const isRedirectAllowed = isExternalRedirectAllowed(event);
+  const normalizedExternalLink = getExternalRedirectUrl(event);
 
   const handleBookmark = (e: React.MouseEvent) => {
     e.preventDefault();

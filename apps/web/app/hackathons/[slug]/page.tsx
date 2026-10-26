@@ -70,6 +70,8 @@ import {
   isEventRegistrationClosed,
   isEventEnded,
   isEventRegistrationEnded,
+  getExternalRedirectUrl,
+  isExternalRedirectAllowed,
 } from '@/lib/utils';
 import { RegistrationModal } from '@/components/registration-modal';
 import { TeamRegistrationModal } from '@/components/team-registration-modal';
@@ -482,20 +484,8 @@ function HackathonDetailContent({ params }: PageProps) {
 
   const hasPrivateAccess = !isUnpublished || hasKeyAccess || isOrganizerOrAdmin || isExplicitPreview;
 
-  const isRedirectAllowed = Boolean(
-    event.allowExternalRedirect === true ||
-    (event as any)?.allow_external_redirect === true ||
-    (Array.isArray(event.tags) && event.tags.includes('allow_external_redirect'))
-  );
-
-  const rawExternalLink = (event.registrationLink || '').trim();
-  const normalizedExternalLink = rawExternalLink
-    ? rawExternalLink.startsWith('http://') || rawExternalLink.startsWith('https://')
-      ? rawExternalLink
-      : `https://${rawExternalLink}`
-    : null;
-
-  const externalRedirectUrl = isRedirectAllowed && normalizedExternalLink ? normalizedExternalLink : null;
+  const isRedirectAllowed = isExternalRedirectAllowed(event);
+  const externalRedirectUrl = getExternalRedirectUrl(event);
 
   // If hackathon is not published and viewer has no private access token, show locked screen
   if (isUnpublished && !hasPrivateAccess) {

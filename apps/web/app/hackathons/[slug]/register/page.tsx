@@ -63,7 +63,7 @@ import {
   cancelTeamJoinRequestSupabase,
   fetchUserPendingTeamRequest,
 } from '@/lib/supabase-service';
-import { formatCurrency, formatDate, formatDateTime, getDaysLeft, downloadReceiptPdf, isEventRegistrationClosed, isEventEnded, isEventRegistrationEnded } from '@/lib/utils';
+import { formatCurrency, formatDate, formatDateTime, getDaysLeft, downloadReceiptPdf, isEventRegistrationClosed, isEventEnded, isEventRegistrationEnded, getExternalRedirectUrl, isExternalRedirectAllowed } from '@/lib/utils';
 import { EventStatus } from '@hackers-unity/shared-types';
 import { removeRegistrationForEvent, getMyRegistrations } from '@/lib/storage';
 import { supabase } from '@/lib/supabase';
@@ -1295,17 +1295,17 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
   };
 
   // If external redirect is allowed and link is configured, render direct external gateway view
-  const isRedirectAllowed = Boolean(
-    event?.allowExternalRedirect === true ||
-    (event as any)?.allow_external_redirect === true ||
-    (Array.isArray(event?.tags) && event?.tags.includes('allow_external_redirect'))
-  );
-  const rawExternalLink = (event?.registrationLink || '').trim();
-  const normalizedExternalLink = rawExternalLink
-    ? rawExternalLink.startsWith('http://') || rawExternalLink.startsWith('https://')
-      ? rawExternalLink
-      : `https://${rawExternalLink}`
-    : null;
+  const isRedirectAllowed = isExternalRedirectAllowed(event);
+  const normalizedExternalLink = getExternalRedirectUrl(event);
+
+  useEffect(() => {
+    if (normalizedExternalLink && typeof window !== 'undefined') {
+      const timer = setTimeout(() => {
+        window.location.href = normalizedExternalLink;
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [normalizedExternalLink]);
 
   if (isRedirectAllowed && normalizedExternalLink) {
     return (
@@ -1315,9 +1315,9 @@ export default function HackathonRegistrationPage({ params }: RegisterPageProps)
             <Globe className="w-7 h-7" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-slate-900 dark:text-white">External Registration</h2>
+            <h2 className="text-xl font-black text-slate-900 dark:text-white">Redirecting to External Registration</h2>
             <p className="text-xs text-slate-600 dark:text-slate-400 mt-1.5 leading-relaxed">
-              Registrations for <strong className="text-slate-900 dark:text-white">{event.title}</strong> are hosted on an external official portal.
+              Registrations for <strong className="text-slate-900 dark:text-white">{event.title}</strong> are hosted on an external official portal. Forwarding you now...
             </p>
           </div>
           <a

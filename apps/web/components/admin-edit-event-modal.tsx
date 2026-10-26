@@ -176,8 +176,26 @@ export function AdminEditEventModal({
       setBannerUrl(event.banner_url || '');
       setLogoUrl(event.logo_url || '');
       setAdminFeedback(event.admin_feedback || '');
-      setAllowExternalRedirect(Boolean(event.allow_external_redirect));
-      setRegistrationLink(event.registration_link || '');
+      setAllowExternalRedirect(
+        Boolean(
+          event.allow_external_redirect === true ||
+          (Array.isArray(event.tags) && event.tags.includes('allow_external_redirect'))
+        )
+      );
+      const initialRegLink =
+        event.registration_link ||
+        (() => {
+          if (Array.isArray(event.tags)) {
+            const l = event.tags.find(
+              (t: any) =>
+                typeof t === 'string' &&
+                (t.startsWith('hu_reg_link:') || t.startsWith('hu_reg_url:'))
+            );
+            if (l) return l.replace(/^hu_reg_(link|url):/, '').trim();
+          }
+          return '';
+        })();
+      setRegistrationLink(initialRegLink || '');
       setErrorMessage('');
     }
   }, [event]);
@@ -200,8 +218,10 @@ export function AdminEditEventModal({
       ? event.tags.filter(
           (t) =>
             typeof t === 'string' &&
+            !t.startsWith('hu_reg_link:') &&
+            !t.startsWith('hu_reg_url:') &&
+            t !== 'allow_external_redirect' &&
             (t.startsWith('hu_') ||
-              t === 'allow_external_redirect' ||
               t === 'PENDING_APPROVAL' ||
               t.startsWith('{') ||
               t.startsWith('['))
@@ -209,6 +229,13 @@ export function AdminEditEventModal({
       : [];
 
     const mergedTags = [...parsedTags, ...internalTags];
+    if (allowExternalRedirect) {
+      mergedTags.push('allow_external_redirect');
+    }
+    const cleanRegLink = registrationLink.trim();
+    if (cleanRegLink) {
+      mergedTags.push('hu_reg_link:' + cleanRegLink);
+    }
 
     const updatedEvent: AdminEvent = {
       ...event,

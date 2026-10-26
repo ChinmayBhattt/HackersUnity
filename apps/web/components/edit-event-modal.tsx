@@ -6,7 +6,7 @@ import { ExtendedEvent } from '@/lib/mock-data';
 import { EventStatus, EventType } from '@hackers-unity/shared-types';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { VenuePicker } from '@/components/venue-picker';
-import { filterDisplayTags } from '@/lib/utils';
+import { filterDisplayTags, extractRegistrationLink, isExternalRedirectAllowed } from '@/lib/utils';
 
 interface EditEventModalProps {
   isOpen: boolean;
@@ -42,7 +42,7 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
       setMode(event.mode || (event.eventType === EventType.ONLINE ? 'Online' : 'In-Person'));
       setLocation(event.location || '');
       setStatus(event.status || EventStatus.PUBLISHED);
-      setRegistrationLink(event.registrationLink || '');
+      setRegistrationLink(extractRegistrationLink(event) || event.registrationLink || '');
       setTagsInput(event.tags ? filterDisplayTags(event.tags).join(', ') : '');
       setParticipantsDisplay(event.participantsDisplay || `${event.participantsCount || 500}+`);
       setCtaText(event.ctaText || 'Learn More');
@@ -65,19 +65,29 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
         .filter(Boolean)
     );
 
+    const isRedirectAllowed = isExternalRedirectAllowed(event);
     const internalTags = Array.isArray(event.tags)
       ? event.tags.filter(
           (t) =>
             typeof t === 'string' &&
+            !t.startsWith('hu_reg_link:') &&
+            !t.startsWith('hu_reg_url:') &&
+            t !== 'allow_external_redirect' &&
             (t.startsWith('hu_') ||
-              t === 'allow_external_redirect' ||
               t === 'PENDING_APPROVAL' ||
               t.startsWith('{') ||
               t.startsWith('['))
         )
       : [];
 
-    const mergedTags = parsedTags.length > 0 ? [...parsedTags, ...internalTags] : event.tags;
+    const mergedTags = [...parsedTags, ...internalTags];
+    if (isRedirectAllowed) {
+      mergedTags.push('allow_external_redirect');
+    }
+    const cleanRegLink = registrationLink.trim();
+    if (cleanRegLink) {
+      mergedTags.push('hu_reg_link:' + cleanRegLink);
+    }
 
     const updated: ExtendedEvent = {
       ...event,
@@ -91,7 +101,8 @@ export function EditEventModal({ isOpen, event, onClose, onSave }: EditEventModa
       eventType: mode === 'Online' ? EventType.ONLINE : EventType.OFFLINE,
       location: location.trim(),
       status: status,
-      registrationLink: registrationLink.trim() || event.registrationLink,
+      registrationLink: cleanRegLink || event.registrationLink || null,
+      allowExternalRedirect: isRedirectAllowed,
       tags: mergedTags,
       participantsDisplay: participantsDisplay.trim() || event.participantsDisplay,
       ctaText: ctaText.trim() || 'Learn More',

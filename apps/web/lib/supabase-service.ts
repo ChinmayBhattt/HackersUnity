@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 import { ExtendedEvent, MOCK_EVENTS } from './mock-data';
-import { getEventPreviewToken, isEventRegistrationClosed, isEventEnded, filterDisplayTags } from './utils';
+import { getEventPreviewToken, isEventRegistrationClosed, isEventEnded, filterDisplayTags, extractRegistrationLink, isExternalRedirectAllowed } from './utils';
 import {
   UserPublic,
   EventStatus,
@@ -84,11 +84,8 @@ export function mapDbEventToExtended(item: any): ExtendedEvent {
     image: item.image || item.banner_url || null,
     logoUrl: item.logo_url || null,
     rulesDocUrl: item.rules_doc_url || null,
-    registrationLink: item.registration_link || null,
-    allowExternalRedirect: Boolean(
-      item.allow_external_redirect === true ||
-      (Array.isArray(item.tags) && item.tags.includes('allow_external_redirect'))
-    ),
+    registrationLink: item.registration_link || extractRegistrationLink(item) || null,
+    allowExternalRedirect: isExternalRedirectAllowed(item),
     status: (() => {
       const rawStatus = (item.status as EventStatus) || EventStatus.PUBLISHED;
       const statusUpper = String(rawStatus || '').toUpperCase();
@@ -1357,6 +1354,45 @@ export async function updateEventInSupabase(
         );
       }
       updatePayload.tags = newTags;
+    }
+
+    // Ensure tags are always synchronized with allow_external_redirect and hu_reg_link
+    const allowRedirectVal = updates.allowExternalRedirect !== undefined
+      ? Boolean(updates.allowExternalRedirect)
+      : (updates as any).allow_external_redirect !== undefined
+      ? Boolean((updates as any).allow_external_redirect)
+      : undefined;
+
+    const regLinkVal = updates.registrationLink !== undefined
+      ? updates.registrationLink
+      : (updates as any).registration_link !== undefined
+      ? (updates as any).registration_link
+      : undefined;
+
+    let baseTags = updatePayload.tags !== undefined
+      ? [...updatePayload.tags]
+      : Array.isArray(updates.tags)
+      ? [...updates.tags]
+      : null;
+
+    if (baseTags || allowRedirectVal !== undefined || regLinkVal !== undefined) {
+      if (!baseTags) {
+        baseTags = Array.isArray(updates.tags) ? [...updates.tags] : [];
+      }
+      if (allowRedirectVal !== undefined) {
+        if (allowRedirectVal) {
+          if (!baseTags.includes('allow_external_redirect')) baseTags.push('allow_external_redirect');
+        } else {
+          baseTags = baseTags.filter((t: string) => t !== 'allow_external_redirect');
+        }
+      }
+      if (regLinkVal !== undefined) {
+        baseTags = baseTags.filter((t: string) => typeof t === 'string' && !t.startsWith('hu_reg_link:') && !t.startsWith('hu_reg_url:'));
+        if (typeof regLinkVal === 'string' && regLinkVal.trim()) {
+          baseTags.push('hu_reg_link:' + regLinkVal.trim());
+        }
+      }
+      updatePayload.tags = baseTags;
     }
 
     updatePayload.updated_at = new Date().toISOString();

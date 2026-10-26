@@ -1480,3 +1480,57 @@ export function filterDisplayTags(tags: unknown[] | null | undefined): string[] 
     return true;
   });
 }
+
+/**
+ * Extract external registration link from an event object (checking direct field, snake_case field, and tags)
+ */
+export function extractRegistrationLink(event: any): string | null {
+  if (!event) return null;
+  const direct =
+    typeof event.registrationLink === 'string'
+      ? event.registrationLink.trim()
+      : typeof event.registration_link === 'string'
+      ? event.registration_link.trim()
+      : '';
+  if (direct && direct !== '#' && direct !== '/') return direct;
+
+  if (Array.isArray(event.tags)) {
+    const linkTag = event.tags.find(
+      (t: any) =>
+        typeof t === 'string' &&
+        (t.startsWith('hu_reg_link:') || t.startsWith('hu_reg_url:'))
+    );
+    if (linkTag) {
+      const val = linkTag.replace(/^hu_reg_(link|url):/, '').trim();
+      if (val && val !== '#' && val !== '/') return val;
+    }
+  }
+  return null;
+}
+
+/**
+ * Determine if an event is allowed to redirect to an external registration portal
+ */
+export function isExternalRedirectAllowed(event: any): boolean {
+  if (!event) return false;
+  return Boolean(
+    event.allowExternalRedirect === true ||
+    event.allow_external_redirect === true ||
+    (Array.isArray(event.tags) && event.tags.includes('allow_external_redirect'))
+  );
+}
+
+/**
+ * Returns a normalized, clickable URL if external redirect is allowed and link is present, or null otherwise
+ */
+export function getExternalRedirectUrl(event: any): string | null {
+  if (!isExternalRedirectAllowed(event)) return null;
+  const raw = extractRegistrationLink(event);
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === '#' || trimmed === '/') return null;
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://')
+    ? trimmed
+    : `https://${trimmed}`;
+}
+

@@ -576,6 +576,18 @@ export async function GET(req: NextRequest) {
         (Array.isArray(evt.tags) && evt.tags.includes('allow_external_redirect'))
       );
 
+      const resolvedRegLink = evt.registration_link || (() => {
+        if (Array.isArray(evt.tags)) {
+          const linkTag = evt.tags.find(
+            (t: any) =>
+              typeof t === 'string' &&
+              (t.startsWith('hu_reg_link:') || t.startsWith('hu_reg_url:'))
+          );
+          if (linkTag) return linkTag.replace(/^hu_reg_(link|url):/, '').trim();
+        }
+        return null;
+      })();
+
       const cleanTags = Array.isArray(evt.tags)
         ? evt.tags.filter(
             (t: string) =>
@@ -592,8 +604,9 @@ export async function GET(req: NextRequest) {
       return {
         ...evt,
         allow_external_redirect: isRedirectAllowed,
-        registration_link: evt.registration_link || null,
-        tags: cleanTags,
+        registration_link: resolvedRegLink,
+        display_tags: cleanTags,
+        tags: Array.isArray(evt.tags) && evt.tags.length > 0 ? evt.tags : cleanTags,
         display_order: displayOrder,
         registration_count: regCount,
         submission_count: subCount,
@@ -1269,15 +1282,96 @@ export async function PATCH(req: NextRequest) {
         }
       }
 
+      // 1. Fetch current event to preserve metadata tags
+      let getQuery = supabase.from('events').select('id, tags, title');
+      getQuery = isUuid ? getQuery.eq('id', eventId) : getQuery.eq('slug', eventId);
+      const { data: currentEvt } = await getQuery.maybeSingle();
+
+      const existingTags: string[] = Array.isArray(currentEvt?.tags) ? [...currentEvt.tags] : [];
+      const incomingTags: string[] = Array.isArray(updates.tags) ? [...updates.tags] : existingTags;
+
+      // Filter out redirect & link tags from incoming, but keep other internal hu_* tags
+      const internalOtherTags = existingTags.filter(
+        (t: string) =>
+          typeof t === 'string' &&
+          t.startsWith('hu_') &&
+          !t.startsWith('hu_reg_link:') &&
+          !t.startsWith('hu_reg_url:')
+      );
+
+      const cleanUserTags = incomingTags.filter(
+        (t: string) =>
+          typeof t === 'string' &&
+          !t.startsWith('hu_') &&
+          !t.startsWith('#hu_') &&
+          t !== 'allow_external_redirect' &&
+          t !== 'PENDING_APPROVAL' &&
+          !t.startsWith('{') &&
+          !t.startsWith('[')
+      );
+
+      const mergedFinalTags = [...cleanUserTags, ...internalOtherTags];
+
+      // Handle allow_external_redirect
+      const shouldAllowRedirect = updates.allow_external_redirect !== undefined
+        ? Boolean(updates.allow_external_redirect)
+        : existingTags.includes('allow_external_redirect');
+
+      if (shouldAllowRedirect) {
+        if (!mergedFinalTags.includes('allow_external_redirect')) {
+          mergedFinalTags.push('allow_external_redirect');
+        }
+      }
+
+      // Handle registration_link
+      const effectiveRegLink = updates.registration_link !== undefined
+        ? (updates.registration_link ? String(updates.registration_link).trim() : null)
+        : (() => {
+            const lTag = existingTags.find((t: string) => typeof t === 'string' && (t.startsWith('hu_reg_link:') || t.startsWith('hu_reg_url:')));
+            return lTag ? lTag.replace(/^hu_reg_(link|url):/, '').trim() : null;
+          })();
+
+      if (effectiveRegLink) {
+        mergedFinalTags.push('hu_reg_link:' + effectiveRegLink);
+      }
+
+      updateData.tags = mergedFinalTags;
+      if (updates.allow_external_redirect !== undefined) {
+        updateData.allow_external_redirect = shouldAllowRedirect;
+      }
+      if (updates.registration_link !== undefined) {
+        updateData.registration_link = effectiveRegLink;
+      }
+
       let query = supabase.from('events').update(updateData);
       query = isUuid ? query.eq('id', eventId) : query.eq('slug', eventId);
       let { data, error } = await query.select('*').single();
 
-      // Graceful column fallback if optional columns missing
-      if (error && (error.code === '42703' || error.code === 'PGRST204' || error.message?.includes('column'))) {
-        delete updateData.reviewed_at;
-        delete updateData.admin_feedback;
-        delete updateData.allow_external_redirect;
+      // Graceful column fallback loop if optional columns missing in DB
+      let retries = 0;
+      while (
+        error &&
+        (error.code === '42703' || error.code === 'PGRST204' || error.message?.includes('column')) &&
+        retries < 6
+      ) {
+        retries++;
+        const msg = error.message || '';
+        console.warn(`[admin-csap update_event] Column missing (retry ${retries}):`, msg);
+        const match =
+          msg.match(/'([^']+)' column/) ||
+          msg.match(/column "([^"]+)"/i) ||
+          msg.match(/column ([a-zA-Z0-9_]+)/i);
+        const colName = match ? match[1] : null;
+
+        if (colName && updateData[colName] !== undefined) {
+          delete updateData[colName];
+        } else {
+          delete updateData.allow_external_redirect;
+          delete updateData.registration_link;
+          delete updateData.reviewed_at;
+          delete updateData.admin_feedback;
+        }
+
         let retry = supabase.from('events').update(updateData);
         retry = isUuid ? retry.eq('id', eventId) : retry.eq('slug', eventId);
         const result = await retry.select('*').single();
@@ -1287,6 +1381,12 @@ export async function PATCH(req: NextRequest) {
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      // Enrich returned event with resolved redirect attributes
+      if (data) {
+        data.allow_external_redirect = shouldAllowRedirect;
+        data.registration_link = effectiveRegLink;
       }
 
       // Broadcast update to realtime channel
@@ -1356,13 +1456,21 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
+      const regLink = (data as any)?.registration_link || (() => {
+        if (Array.isArray(data?.tags)) {
+          const lTag = data.tags.find((t: any) => typeof t === 'string' && (t.startsWith('hu_reg_link:') || t.startsWith('hu_reg_url:')));
+          if (lTag) return lTag.replace(/^hu_reg_(link|url):/, '').trim();
+        }
+        return null;
+      })();
+
       // Realtime broadcast update
       try {
         const channel = supabase.channel('public:events_realtime');
         await channel.send({
           type: 'broadcast',
           event: 'event_updated',
-          payload: { eventId, event: data },
+          payload: { eventId, event: { ...data, allow_external_redirect: allowed, registration_link: regLink } },
         });
       } catch (broadcastErr) {
         console.warn('Realtime broadcast warning:', broadcastErr);
@@ -1376,6 +1484,7 @@ export async function PATCH(req: NextRequest) {
         event: {
           ...data,
           allow_external_redirect: allowed,
+          registration_link: regLink,
         },
       });
     }

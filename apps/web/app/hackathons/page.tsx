@@ -18,7 +18,7 @@ import { EventCategory, EventStatus, EventType } from '@hackers-unity/shared-typ
 import { HackathonCard } from '@/components/hackathon-card';
 import { usePublishedEvents } from '@/lib/hooks/use-events';
 import { ExtendedEvent } from '@/lib/mock-data';
-import { formatCurrency, getDaysLeft, getStatusBadge, getCategoryBadge, getEffectiveEventStatus } from '@/lib/utils';
+import { formatCurrency, getDaysLeft, getStatusBadge, getCategoryBadge, getEffectiveEventStatus, getExternalRedirectUrl, isExternalRedirectAllowed } from '@/lib/utils';
 import { RegistrationModal } from '@/components/registration-modal';
 import { stripHtmlAndMarkdown } from '@/lib/format-description';
 
@@ -355,8 +355,9 @@ export default function HackathonsDirectoryPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (event.allowExternalRedirect && event.registrationLink && event.registrationLink.startsWith('http')) {
-                            window.open(event.registrationLink, '_blank', 'noopener,noreferrer');
+                          const redirectUrl = getExternalRedirectUrl(event);
+                          if (redirectUrl) {
+                            window.open(redirectUrl, '_blank', 'noopener,noreferrer');
                           } else {
                             setActiveRegEvent(event);
                           }
