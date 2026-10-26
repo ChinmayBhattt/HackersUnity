@@ -831,6 +831,31 @@ export async function fetchEventBySlug(slugOrId: string): Promise<ExtendedEvent 
               if (mapped.registrationStart) res.registrationStart = mapped.registrationStart;
               if (mapped.entryFee !== undefined && mapped.entryFee !== null) res.entryFee = mapped.entryFee;
               if (mapped.registrationType) res.registrationType = mapped.registrationType;
+
+              // CRITICAL: Database permissions, status, registration redirect and tags ALWAYS take precedence over local overrides
+              res.allowExternalRedirect = isExternalRedirectAllowed(mapped);
+              if (mapped.registrationLink) res.registrationLink = mapped.registrationLink;
+              if (mapped.status) res.status = mapped.status;
+              if (Array.isArray(mapped.tags)) {
+                const combinedTags = Array.from(new Set([...(Array.isArray(res.tags) ? res.tags : []), ...mapped.tags]));
+                if (!isExternalRedirectAllowed(mapped)) {
+                  res.tags = combinedTags.filter((t) => t !== 'allow_external_redirect');
+                } else {
+                  res.tags = combinedTags;
+                }
+              }
+
+              // Also sync local override in storage so subsequent client reads reflect authoritative DB state
+              try {
+                override.allowExternalRedirect = res.allowExternalRedirect;
+                override.tags = res.tags;
+                if (res.registrationLink) override.registrationLink = res.registrationLink;
+                overrides[mapped.id] = override;
+                if (mapped.slug) overrides[mapped.slug] = override;
+                localStorage.setItem('hackers_unity_events_overrides', JSON.stringify(overrides));
+                localStorage.setItem('hackers_unity_events_override', JSON.stringify(overrides));
+              } catch {}
+
               return res;
             }
           }

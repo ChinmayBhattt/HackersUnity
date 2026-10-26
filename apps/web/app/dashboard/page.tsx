@@ -87,7 +87,7 @@ import {
 } from '@/lib/supabase-service';
 import { supabase } from '@/lib/supabase';
 import { HackathonCard } from '@/components/hackathon-card';
-import { formatDate, formatCurrency, getEventPrivateLink, downloadReceiptPdf, getSubmissionPortalStatus, isEventRegistrationEnded } from '@/lib/utils';
+import { formatDate, formatCurrency, getEventPrivateLink, downloadReceiptPdf, getSubmissionPortalStatus, isEventRegistrationEnded, isExternalRedirectAllowed, extractRegistrationLink } from '@/lib/utils';
 import { AuthModal } from '@/components/auth-modal';
 import { EditEventModal } from '@/components/edit-event-modal';
 import { PublicProfileModal } from '@/components/public-profile-modal';
@@ -2375,7 +2375,12 @@ export default function DashboardPage() {
                             <button
                               onClick={() => {
                                 try {
-                                  sessionStorage.setItem('hackers_unity_edit_event', JSON.stringify(evt));
+                                  const sanitizedEvt = {
+                                    ...evt,
+                                    allowExternalRedirect: isExternalRedirectAllowed(evt),
+                                    registrationLink: extractRegistrationLink(evt) || evt.registrationLink,
+                                  };
+                                  sessionStorage.setItem('hackers_unity_edit_event', JSON.stringify(sanitizedEvt));
                                 } catch (e) {
                                   console.warn('sessionStorage save error:', e);
                                 }

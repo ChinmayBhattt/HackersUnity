@@ -73,7 +73,8 @@ import {
   removeEventAdmin,
   EventTeamData,
 } from '@/lib/supabase-service';
-import { getEventPreviewToken, getEventPrivateLink, calculateEventDuration, toUTCISO, fromUTCISO, filterDisplayTags } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
+import { getEventPreviewToken, getEventPrivateLink, calculateEventDuration, toUTCISO, fromUTCISO, filterDisplayTags, isExternalRedirectAllowed, extractRegistrationLink } from '@/lib/utils';
 import { HackathonCard } from '@/components/hackathon-card';
 import { getEventImageSrc } from '@/lib/event-images';
 import { RichTextEditor } from '@/components/rich-text-editor';
@@ -455,32 +456,39 @@ function HostHackathonContent() {
       try {
         let found: ExtendedEvent | null = null;
 
-        // 0. Try sessionStorage first (set by Dashboard Edit button — most reliable)
+        // 1. Authoritative fetch from Supabase first (Source of truth for admin approvals & status)
         try {
-          const cached = sessionStorage.getItem('hackers_unity_edit_event');
-          if (cached) {
-            const parsed = JSON.parse(cached) as ExtendedEvent;
-            if (parsed && (parsed.id === editParam || parsed.slug === editParam)) {
-              found = parsed;
-              sessionStorage.removeItem('hackers_unity_edit_event');
-            }
-          }
-        } catch {
-          // ignore parse errors
-        }
-
-        // 1. Try remote fetch from Supabase
-        if (!found) {
           found = await fetchEventBySlug(editParam!);
+        } catch (fetchErr) {
+          console.warn('[host] Remote fetch error, falling back:', fetchErr);
         }
 
-        // 2. Try local storage
+        // 2. Try sessionStorage (set by Dashboard Edit button) only as fallback if remote wasn't reachable
+        if (!found) {
+          try {
+            const cached = sessionStorage.getItem('hackers_unity_edit_event');
+            if (cached) {
+              const parsed = JSON.parse(cached) as ExtendedEvent;
+              if (parsed && (parsed.id === editParam || parsed.slug === editParam)) {
+                found = parsed;
+              }
+            }
+          } catch {
+            // ignore parse errors
+          }
+        }
+        // Always clean up any stale sessionStorage edit snapshot once loaded or attempted
+        try {
+          sessionStorage.removeItem('hackers_unity_edit_event');
+        } catch {}
+
+        // 3. Try local storage
         if (!found) {
           const custom = getCustomEvents();
           found = custom.find((e) => e.id === editParam || e.slug === editParam) || null;
         }
 
-        // 3. Try mock data
+        // 4. Try mock data
         if (!found) {
           found = MOCK_EVENTS.find((e) => e.id === editParam || e.slug === editParam) || null;
         }
@@ -610,15 +618,12 @@ function HostHackathonContent() {
           if (found.customQuestions && found.customQuestions.length > 0) {
             setCustomQuestions(found.customQuestions);
           }
-          const isRedirectPermitted = Boolean(
-            found.allowExternalRedirect === true ||
-            (found as any).allow_external_redirect === true ||
-            (Array.isArray(found.tags) && found.tags.includes('allow_external_redirect'))
-          );
+          const isRedirectPermitted = isExternalRedirectAllowed(found);
           setAllowExternalRedirect(isRedirectPermitted);
 
-          if (found.registrationLink) {
-            setRegistrationLink(found.registrationLink);
+          const extLink = extractRegistrationLink(found) || found.registrationLink || '';
+          if (extLink) {
+            setRegistrationLink(extLink);
             if (isRedirectPermitted) {
               setRegistrationMode('EXTERNAL');
             }
@@ -731,8 +736,59 @@ function HostHackathonContent() {
 
     loadEventToEdit();
 
+    // Live sync for when admin updates redirect permission in CSAP or another tab
+    const handleLiveSync = () => {
+      if (editParam) {
+        fetchEventBySlug(editParam).then((fresh) => {
+          if (fresh && isMounted) {
+            const permitted = isExternalRedirectAllowed(fresh);
+            setAllowExternalRedirect(permitted);
+            const freshLink = extractRegistrationLink(fresh) || fresh.registrationLink;
+            if (freshLink) {
+              setRegistrationLink(freshLink);
+              if (permitted) setRegistrationMode('EXTERNAL');
+            }
+          }
+        }).catch(() => {});
+      }
+    };
+
+    window.addEventListener('storage', handleLiveSync);
+    window.addEventListener('hackers_unity_storage_change', handleLiveSync);
+
+    const realtimeChannel = supabase.channel(`host-sync-${editParam || 'default'}`)
+      .on('broadcast', { event: 'event_redirect_toggled' }, (payload: any) => {
+        const p = payload?.payload;
+        if (p && (p.eventId === editParam || p.slug === editParam) && isMounted) {
+          if (typeof p.allowExternalRedirect === 'boolean') {
+            setAllowExternalRedirect(p.allowExternalRedirect);
+            if (p.allowExternalRedirect && p.registrationLink) {
+              setRegistrationLink(p.registrationLink);
+              setRegistrationMode('EXTERNAL');
+            }
+          }
+        }
+      })
+      .on('broadcast', { event: 'event_updated' }, (payload: any) => {
+        const p = payload?.payload;
+        const ev = p?.event;
+        if (ev && (ev.id === editParam || ev.slug === editParam) && isMounted) {
+          const permitted = isExternalRedirectAllowed(ev);
+          setAllowExternalRedirect(permitted);
+          const link = extractRegistrationLink(ev) || ev.registrationLink;
+          if (link) {
+            setRegistrationLink(link);
+            if (permitted) setRegistrationMode('EXTERNAL');
+          }
+        }
+      })
+      .subscribe();
+
     return () => {
       isMounted = false;
+      window.removeEventListener('storage', handleLiveSync);
+      window.removeEventListener('hackers_unity_storage_change', handleLiveSync);
+      supabase.removeChannel(realtimeChannel);
     };
   }, [editParam]);
 

@@ -1472,6 +1472,12 @@ export async function PATCH(req: NextRequest) {
           event: 'event_updated',
           payload: { eventId, event: { ...data, allow_external_redirect: allowed, registration_link: regLink } },
         });
+        const channel2 = supabase.channel('csap-admin-channel');
+        await channel2.send({
+          type: 'broadcast',
+          event: 'event_redirect_toggled',
+          payload: { eventId, slug: data?.slug, allowExternalRedirect: allowed, registrationLink: regLink },
+        });
       } catch (broadcastErr) {
         console.warn('Realtime broadcast warning:', broadcastErr);
       }

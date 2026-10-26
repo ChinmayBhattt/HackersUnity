@@ -471,6 +471,46 @@ export default function AdminCsapPortal() {
         if (selectedEvent?.id === event.id) {
           setSelectedEvent((prev) => (prev ? { ...prev, allow_external_redirect: nextAllowed } : null));
         }
+
+        if (typeof window !== 'undefined') {
+          try {
+            const rawOverrides = localStorage.getItem('hackers_unity_events_overrides') || localStorage.getItem('hackers_unity_events_override');
+            if (rawOverrides) {
+              const overrides = JSON.parse(rawOverrides);
+              const target = overrides[event.id] || (event.slug ? overrides[event.slug] : null);
+              if (target) {
+                target.allowExternalRedirect = nextAllowed;
+                if (!Array.isArray(target.tags)) target.tags = [];
+                if (nextAllowed && !target.tags.includes('allow_external_redirect')) {
+                  target.tags.push('allow_external_redirect');
+                } else if (!nextAllowed) {
+                  target.tags = target.tags.filter((t: string) => t !== 'allow_external_redirect');
+                }
+                overrides[event.id] = target;
+                if (event.slug) overrides[event.slug] = target;
+                localStorage.setItem('hackers_unity_events_overrides', JSON.stringify(overrides));
+                localStorage.setItem('hackers_unity_events_override', JSON.stringify(overrides));
+              }
+            }
+
+            const rawHosted = localStorage.getItem('hackers_unity_hosted_events');
+            if (rawHosted) {
+              const hosted = JSON.parse(rawHosted);
+              const updatedHosted = hosted.map((h: any) => {
+                if (h.id === event.id || (event.slug && h.slug === event.slug)) {
+                  let tags = Array.isArray(h.tags) ? [...h.tags] : [];
+                  if (nextAllowed && !tags.includes('allow_external_redirect')) tags.push('allow_external_redirect');
+                  if (!nextAllowed) tags = tags.filter((t: string) => t !== 'allow_external_redirect');
+                  return { ...h, allowExternalRedirect: nextAllowed, tags };
+                }
+                return h;
+              });
+              localStorage.setItem('hackers_unity_hosted_events', JSON.stringify(updatedHosted));
+            }
+
+            window.dispatchEvent(new Event('hackers_unity_storage_change'));
+          } catch {}
+        }
       } else {
         setNotificationMsg({
           type: 'error',
