@@ -103,14 +103,6 @@ export async function GET(req: Request) {
         const { data: reg } = await query.order('registered_at', { ascending: false }).limit(1).maybeSingle();
 
         if (reg) {
-          const isInvited = Boolean(
-            reg.status === 'APPROVED' ||
-            reg.status === 'CONFIRMED' ||
-            reg.custom_answers?.rsvpInvited === true ||
-            reg.custom_answers?.rsvp_invited === true ||
-            reg.custom_answers?.shortlisted === true
-          );
-
           existingRegistration = {
             id: reg.id,
             userName: reg.user_name,
@@ -118,7 +110,6 @@ export async function GET(req: Request) {
             teamName: reg.team_name,
             phone: reg.phone,
             status: reg.status,
-            isInvited,
             tshirtSize: reg.tshirt_size || reg.custom_answers?.tshirtSize || reg.custom_answers?.tshirt_size,
             dietaryPreference: reg.dietary_preference || reg.custom_answers?.dietaryPreference || reg.custom_answers?.dietary_preference,
             rsvpStatus: reg.custom_answers?.rsvpStatus || null,
@@ -288,29 +279,17 @@ export async function POST(req: Request) {
       }
 
       if (!existingReg) {
-        return NextResponse.json(
-          { error: 'No active registration found for this email address. Please make sure you registered for this event with this email.' },
-          { status: 404 }
-        );
-      }
-
-      // Check if candidate has been approved or invited to RSVP by organizers
-      const isInvited = Boolean(
-        existingReg.status === 'APPROVED' ||
-        existingReg.status === 'CONFIRMED' ||
-        existingReg.custom_answers?.rsvpInvited === true ||
-        existingReg.custom_answers?.rsvp_invited === true ||
-        existingReg.custom_answers?.shortlisted === true
-      );
-
-      if (!isInvited) {
-        return NextResponse.json(
-          {
-            error: 'Your application is currently under review. RSVP confirmation is strictly by invitation only. Please wait until you receive an official RSVP invitation email from the organizers.',
-            notInvited: true
-          },
-          { status: 403 }
-        );
+        // Fallback: check by email across registrations
+        try {
+          const { data: altReg } = await serverSupabase
+            .from('registrations')
+            .select('*')
+            .eq('user_email', cleanEmail)
+            .order('registered_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (altReg) existingReg = altReg;
+        } catch {}
       }
     }
 
@@ -342,8 +321,24 @@ export async function POST(req: Request) {
       custom_answers: customAnswers,
     };
 
-    // Update registration in database
+    // Update or insert registration in database
     let dbSuccess = false;
+    if (isUuid && !existingReg?.id) {
+      try {
+        const { data: newRow, error: insErr } = await serverSupabase
+          .from('registrations')
+          .insert(updatePayload)
+          .select()
+          .maybeSingle();
+        if (!insErr && newRow) {
+          existingReg = newRow;
+          dbSuccess = true;
+        }
+      } catch (err: any) {
+        console.warn('[api/rsvp] Fallback insert error:', err?.message);
+      }
+    }
+
     if (isUuid && existingReg?.id) {
       try {
         const { error: updateErr } = await serverSupabase

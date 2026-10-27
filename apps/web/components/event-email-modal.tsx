@@ -1257,7 +1257,7 @@ export function EventEmailModal({
                     </span>
                   </div>
                   <a
-                    href={`/rsvp?eventId=${encodeURIComponent(event.id)}&eventTitle=${encodeURIComponent(event.title)}&name=${encodeURIComponent(previewRecipient.userName)}&team=${encodeURIComponent((previewRecipient as any).teamName || `${previewRecipient.userName}'s Squad`)}&email=${encodeURIComponent(previewRecipient.userEmail)}`}
+                    href={`/confirm-rsvp?eventId=${encodeURIComponent(event.id)}&eventTitle=${encodeURIComponent(event.title)}&name=${encodeURIComponent(previewRecipient.userName)}&team=${encodeURIComponent((previewRecipient as any).teamName || `${previewRecipient.userName}'s Squad`)}&email=${encodeURIComponent(previewRecipient.userEmail)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-2.5 py-1 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-bold text-[10px] shrink-0 inline-flex items-center gap-1 transition-colors"

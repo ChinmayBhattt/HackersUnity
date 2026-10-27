@@ -79,32 +79,21 @@ function RsvpContent() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [priorRsvp, setPriorRsvp] = useState<any | null>(null);
 
-  // Invitation access status: 'CHECKING' | 'INVITED' | 'UNDER_REVIEW' | 'NOT_FOUND' | 'NO_EMAIL'
-  const [inviteStatus, setInviteStatus] = useState<'CHECKING' | 'INVITED' | 'UNDER_REVIEW' | 'NOT_FOUND' | 'NO_EMAIL'>('CHECKING');
-  const [lookupEmail, setLookupEmail] = useState<string>(urlEmail || '');
-  const [checkingLookup, setCheckingLookup] = useState<boolean>(false);
-
   // Fetch event and prior registration details from API
-  const loadEventData = async (targetEmail?: string) => {
+  const loadEventData = async () => {
     if (!eventId) {
       setFetchingInfo(false);
       return;
     }
 
-    const queryEmail = (targetEmail !== undefined ? targetEmail : (email || urlEmail)).trim().toLowerCase();
-
-    if (!queryEmail) {
-      setInviteStatus('NO_EMAIL');
-      setFetchingInfo(false);
-      return;
-    }
+    const queryEmail = (email || urlEmail).trim().toLowerCase();
 
     setFetchingInfo(true);
     setErrorMessage(null);
     try {
       const queryParams = new URLSearchParams();
       if (eventId) queryParams.set('eventId', eventId);
-      queryParams.set('email', queryEmail);
+      if (queryEmail) queryParams.set('email', queryEmail);
 
       const res = await fetch(`/api/rsvp?${queryParams.toString()}`);
       if (res.ok) {
@@ -125,7 +114,7 @@ function RsvpContent() {
 
           if (data.registration) {
             const reg = data.registration;
-            setEmail(queryEmail);
+            if (queryEmail) setEmail(queryEmail);
             if (!teamName && reg.teamName) setTeamName(reg.teamName);
             if (!personName && reg.userName) setPersonName(reg.userName);
             if (!phone && reg.phone) setPhone(reg.phone);
@@ -136,14 +125,6 @@ function RsvpContent() {
               setPriorRsvp(reg);
               setAttending(reg.rsvpStatus === 'ATTENDING' ? 'yes' : 'no');
             }
-
-            if (reg.isInvited) {
-              setInviteStatus('INVITED');
-            } else {
-              setInviteStatus('UNDER_REVIEW');
-            }
-          } else {
-            setInviteStatus('NOT_FOUND');
           }
         }
       }
@@ -158,16 +139,12 @@ function RsvpContent() {
     loadEventData();
   }, [eventId]);
 
-  const handleVerifyEmail = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!lookupEmail.trim() || !lookupEmail.includes('@')) {
-      setErrorMessage('Please enter a valid email address.');
-      return;
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/rsvp')) {
+      const search = window.location.search || '';
+      router.replace(`/confirm-rsvp${search}`);
     }
-    setCheckingLookup(true);
-    await loadEventData(lookupEmail.trim().toLowerCase());
-    setCheckingLookup(false);
-  };
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -432,134 +409,8 @@ function RsvpContent() {
           ) : fetchingInfo ? (
             <div className="p-16 rounded-3xl bg-[#0f172a]/80 border border-white/[0.08] text-center space-y-4">
               <Loader2 className="w-8 h-8 text-[#0099e6] animate-spin mx-auto" />
-              <p className="text-sm text-slate-400">Verifying RSVP invitation status...</p>
+              <p className="text-sm text-slate-400">Loading RSVP form details...</p>
             </div>
-          ) : inviteStatus === 'UNDER_REVIEW' ? (
-            /* ─── UNDER REVIEW STATE ─────────────────────────────────── */
-            <motion.div
-              key="under-review-state"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="p-8 sm:p-10 rounded-3xl bg-[#0f172a]/90 border border-amber-500/30 text-center space-y-5 shadow-2xl backdrop-blur-xl"
-            >
-              <div className="w-16 h-16 rounded-2xl bg-amber-500/15 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/30 shadow-inner">
-                <Lock className="w-8 h-8" />
-              </div>
-              <div className="space-y-1.5">
-                <span className="px-3 py-1 rounded-full text-[10px] font-black bg-amber-500/15 text-amber-400 border border-amber-500/30 uppercase tracking-wider inline-block">
-                  Invitation Only Event
-                </span>
-                <h1 className="text-2xl sm:text-3xl font-black text-white">Application Under Review</h1>
-                <p className="text-xs text-[#0099e6] font-semibold">{eventTitle}</p>
-              </div>
-              <p className="text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
-                Your squad registration is currently under review by the event organizing team.
-                RSVP attendance confirmation is strictly reserved for shortlisted teams who have received an official email invitation.
-              </p>
-              <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08] max-w-md mx-auto text-xs text-left space-y-2">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <Mail className="w-4 h-4 text-[#0099e6] shrink-0" />
-                  <span className="truncate">Registered Email: <strong className="text-white font-mono">{email}</strong></span>
-                </div>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  If your squad is shortlisted by the organizers, you will receive an official RSVP invitation email with a direct link to lock in your spot.
-                </p>
-              </div>
-              <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
-                <Link
-                  href="/dashboard"
-                  className="px-5 py-2.5 rounded-xl bg-[#0099e6] hover:bg-[#0088cc] text-white text-xs font-bold transition-all shadow-md inline-flex items-center gap-1.5"
-                >
-                  <span>Return to My Dashboard</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => setInviteStatus('NO_EMAIL')}
-                  className="px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-bold text-slate-300 transition-colors"
-                >
-                  Check Another Email
-                </button>
-              </div>
-            </motion.div>
-          ) : (inviteStatus === 'NO_EMAIL' || inviteStatus === 'NOT_FOUND') ? (
-            /* ─── VERIFY INVITATION STATE ────────────────────────────── */
-            <motion.div
-              key="verify-email-state"
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="p-8 sm:p-10 rounded-3xl bg-[#0f172a]/90 border border-white/[0.08] text-center space-y-5 shadow-2xl backdrop-blur-xl"
-            >
-              <div className="w-16 h-16 rounded-2xl bg-[#0099e6]/15 text-[#38bdf8] flex items-center justify-center mx-auto border border-[#0099e6]/30 shadow-inner">
-                <ShieldCheck className="w-8 h-8" />
-              </div>
-              <div className="space-y-1.5">
-                <span className="px-3 py-1 rounded-full text-[10px] font-black bg-[#0099e6]/15 text-[#38bdf8] border border-[#0099e6]/30 uppercase tracking-wider inline-block">
-                  Invitation Verification
-                </span>
-                <h1 className="text-2xl sm:text-3xl font-black text-white">RSVP by Invitation Only</h1>
-                <p className="text-xs text-slate-400">{eventTitle}</p>
-              </div>
-              <p className="text-sm text-slate-300 max-w-md mx-auto leading-relaxed">
-                RSVP attendance is exclusively reserved for candidates who have received an official email invitation.
-                Please enter your registered email address to verify your invitation:
-              </p>
-
-              {inviteStatus === 'NOT_FOUND' && (
-                <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 max-w-md mx-auto text-left space-y-1">
-                  <div className="font-bold flex items-center gap-1.5 text-rose-400">
-                    <XCircle className="w-4 h-4 shrink-0" />
-                    <span>No Registration Found</span>
-                  </div>
-                  <p className="text-[11px] text-rose-200/90 leading-relaxed">
-                    No active registration was found for <strong className="font-mono text-white">{lookupEmail}</strong> in this event. Please verify that you entered the exact email address used when registering.
-                  </p>
-                </div>
-              )}
-
-              {errorMessage && (
-                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-300 max-w-md mx-auto">
-                  {errorMessage}
-                </div>
-              )}
-
-              <form onSubmit={handleVerifyEmail} className="max-w-md mx-auto space-y-3">
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="email"
-                    required
-                    value={lookupEmail}
-                    onChange={(e) => setLookupEmail(e.target.value)}
-                    placeholder="Enter your registered email address..."
-                    className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/[0.05] border border-white/[0.12] text-white text-sm placeholder-slate-500 outline-none focus:border-[#0099e6] transition-colors"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={checkingLookup}
-                  className="w-full py-3 rounded-xl bg-[#0099e6] hover:bg-[#0088cc] text-white font-bold text-xs transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-[#0099e6]/25 cursor-pointer"
-                >
-                  {checkingLookup ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Verifying Invitation...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Verify RSVP Invitation</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </>
-                  )}
-                </button>
-              </form>
-
-              <div className="pt-2">
-                <Link href="/dashboard" className="text-xs text-slate-400 hover:text-white transition-colors underline">
-                  ← Return to My Dashboard
-                </Link>
-              </div>
-            </motion.div>
           ) : (
             /* ─── INTERACTIVE RSVP FORM ────────────────────────────── */
             <motion.div

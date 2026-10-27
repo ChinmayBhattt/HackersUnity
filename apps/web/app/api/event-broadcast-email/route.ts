@@ -199,7 +199,8 @@ export async function POST(req: Request) {
       const isRsvpFlow =
         templateType === 'rsvp' ||
         ctaText.toLowerCase().includes('rsvp') ||
-        ctaUrl.includes('/rsvp');
+        ctaUrl.includes('/rsvp') ||
+        ctaUrl.includes('/confirm-rsvp');
 
       if (isRsvpFlow) {
         const rsvpParams = new URLSearchParams();
@@ -209,7 +210,7 @@ export async function POST(req: Request) {
         if (recipientName) rsvpParams.set('name', recipientName);
         if (teamName) rsvpParams.set('team', teamName);
         if (r.college) rsvpParams.set('college', r.college);
-        recipientCtaUrl = `${baseUrl}/rsvp?${rsvpParams.toString()}`;
+        recipientCtaUrl = `${baseUrl}/confirm-rsvp?${rsvpParams.toString()}`;
       }
 
       // Sanitize any raw evt_ internal IDs in URL
