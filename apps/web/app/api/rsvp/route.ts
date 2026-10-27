@@ -121,7 +121,7 @@ export async function GET(req: Request) {
             isInvited,
             tshirtSize: reg.tshirt_size || reg.custom_answers?.tshirtSize || reg.custom_answers?.tshirt_size,
             dietaryPreference: reg.dietary_preference || reg.custom_answers?.dietaryPreference || reg.custom_answers?.dietary_preference,
-            rsvpStatus: reg.custom_answers?.rsvpStatus || (reg.status === 'CONFIRMED' ? 'ATTENDING' : null),
+            rsvpStatus: reg.custom_answers?.rsvpStatus || null,
             rsvpAt: reg.custom_answers?.rsvpAt || null,
             rsvpData: reg.custom_answers || {},
           };
