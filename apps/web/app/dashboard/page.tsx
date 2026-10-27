@@ -1804,19 +1804,10 @@ export default function DashboardPage() {
                                   <span>Spot Released / Declined</span>
                                 </span>
                               ) : isPendingApproval ? (
-                                <div className="flex items-center gap-1.5">
-                                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40 flex items-center gap-1">
-                                    <Clock className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
-                                    <span>Pending Approval</span>
-                                  </span>
-                                  <Link
-                                    href={`/rsvp?eventId=${matchedEvent?.id || reg.eventId}&slug=${matchedEvent?.slug || reg.slug || reg.eventId}&team=${encodeURIComponent(reg.teamName || '')}`}
-                                    className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#0099e6]/10 text-[#0099e6] hover:bg-[#0099e6] hover:text-white border border-[#0099e6]/30 transition-all flex items-center gap-0.5"
-                                    title="Confirm attendance via RSVP to get approved"
-                                  >
-                                    Confirm RSVP →
-                                  </Link>
-                                </div>
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40 flex items-center gap-1">
+                                  <Clock className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                                  <span>Pending Review</span>
+                                </span>
                               ) : (
                                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
                                   ✓ {reg.status || 'CONFIRMED'}

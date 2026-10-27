@@ -103,6 +103,14 @@ export async function GET(req: Request) {
         const { data: reg } = await query.order('registered_at', { ascending: false }).limit(1).maybeSingle();
 
         if (reg) {
+          const isInvited = Boolean(
+            reg.status === 'APPROVED' ||
+            reg.status === 'CONFIRMED' ||
+            reg.custom_answers?.rsvpInvited === true ||
+            reg.custom_answers?.rsvp_invited === true ||
+            reg.custom_answers?.shortlisted === true
+          );
+
           existingRegistration = {
             id: reg.id,
             userName: reg.user_name,
@@ -110,6 +118,7 @@ export async function GET(req: Request) {
             teamName: reg.team_name,
             phone: reg.phone,
             status: reg.status,
+            isInvited,
             tshirtSize: reg.tshirt_size || reg.custom_answers?.tshirtSize || reg.custom_answers?.tshirt_size,
             dietaryPreference: reg.dietary_preference || reg.custom_answers?.dietaryPreference || reg.custom_answers?.dietary_preference,
             rsvpStatus: reg.custom_answers?.rsvpStatus || (reg.status === 'CONFIRMED' ? 'ATTENDING' : null),
@@ -263,7 +272,7 @@ export async function POST(req: Request) {
     const finalStatus = attending ? 'CONFIRMED' : 'CANCELLED';
     const nowIso = new Date().toISOString();
 
-    // 2. Fetch existing registration to preserve previous fields
+    // 2. Fetch existing registration to verify active status & invitation
     let existingReg: any = null;
     if (isUuid) {
       try {
@@ -276,6 +285,32 @@ export async function POST(req: Request) {
         existingReg = reg;
       } catch (err: any) {
         console.warn('[api/rsvp] Reg lookup warning:', err?.message);
+      }
+
+      if (!existingReg) {
+        return NextResponse.json(
+          { error: 'No active registration found for this email address. Please make sure you registered for this event with this email.' },
+          { status: 404 }
+        );
+      }
+
+      // Check if candidate has been approved or invited to RSVP by organizers
+      const isInvited = Boolean(
+        existingReg.status === 'APPROVED' ||
+        existingReg.status === 'CONFIRMED' ||
+        existingReg.custom_answers?.rsvpInvited === true ||
+        existingReg.custom_answers?.rsvp_invited === true ||
+        existingReg.custom_answers?.shortlisted === true
+      );
+
+      if (!isInvited) {
+        return NextResponse.json(
+          {
+            error: 'Your application is currently under review. RSVP confirmation is strictly by invitation only. Please wait until you receive an official RSVP invitation email from the organizers.',
+            notInvited: true
+          },
+          { status: 403 }
+        );
       }
     }
 
@@ -307,34 +342,19 @@ export async function POST(req: Request) {
       custom_answers: customAnswers,
     };
 
-    // If existing registration, update it
+    // Update registration in database
     let dbSuccess = false;
-    if (isUuid) {
+    if (isUuid && existingReg?.id) {
       try {
-        if (existingReg?.id) {
-          const { error: updateErr } = await serverSupabase
-            .from('registrations')
-            .update(updatePayload)
-            .eq('id', existingReg.id);
+        const { error: updateErr } = await serverSupabase
+          .from('registrations')
+          .update(updatePayload)
+          .eq('id', existingReg.id);
 
-          if (!updateErr) {
-            dbSuccess = true;
-          } else {
-            console.warn('[api/rsvp] Update DB error:', updateErr.message);
-          }
+        if (!updateErr) {
+          dbSuccess = true;
         } else {
-          // If no registration row exists yet, create one
-          updatePayload.registered_at = nowIso;
-          updatePayload.role = 'Team Leader';
-          const { error: insertErr } = await serverSupabase
-            .from('registrations')
-            .insert(updatePayload);
-
-          if (!insertErr) {
-            dbSuccess = true;
-          } else {
-            console.warn('[api/rsvp] Insert DB error:', insertErr.message);
-          }
+          console.warn('[api/rsvp] Update DB error:', updateErr.message);
         }
 
         // If this is a squad registration, also update status for all squad teammates

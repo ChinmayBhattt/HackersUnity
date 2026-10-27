@@ -2691,30 +2691,21 @@ function HackathonRegistrationContent({ params }: RegisterPageProps) {
                 </div>
               </div>
 
-              {/* RSVP Attendance Callout */}
+              {/* Application Under Review Notice */}
               {isPendingApproval && !isPaymentPending && (
-                <div className="max-w-md mx-auto p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left space-y-2.5">
+                <div className="max-w-md mx-auto p-4 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-left space-y-2">
                   <div className="flex items-start gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 mt-0.5">
-                      <Sparkles className="w-4 h-4" />
+                    <div className="w-7 h-7 rounded-lg bg-sky-500/20 text-[#0099e6] flex items-center justify-center shrink-0 mt-0.5">
+                      <Clock className="w-4 h-4" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-xs font-bold text-amber-900 dark:text-amber-200">
-                        RSVP Attendance Confirmation Required
+                      <h4 className="text-xs font-bold text-sky-950 dark:text-sky-200">
+                        Application Under Review
                       </h4>
-                      <p className="text-[11px] text-amber-800/90 dark:text-amber-300/80 mt-0.5 leading-relaxed">
-                        To finalize your approval, please confirm whether your squad will attend the event in person. Once you confirm <strong className="text-amber-950 dark:text-amber-100">&quot;Yes, We Are Attending!&quot;</strong>, your registration status will instantly update to <strong className="text-emerald-700 dark:text-emerald-400">Approved</strong>.
+                      <p className="text-[11px] text-sky-800/90 dark:text-sky-300/80 mt-0.5 leading-relaxed">
+                        Your squad registration has been submitted and is currently being reviewed by the organizing committee. Shortlisted teams will receive an official RSVP invitation via email.
                       </p>
                     </div>
-                  </div>
-                  <div className="pt-1">
-                    <Link
-                      href={`/rsvp?eventId=${event.id}&slug=${event.slug}&team=${encodeURIComponent(createdTeamData?.name || teamName || '')}&email=${encodeURIComponent(supabaseUser?.email || user?.email || '')}&name=${encodeURIComponent(fullName || user?.name || '')}&phone=${encodeURIComponent(phone || '')}`}
-                      className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all"
-                    >
-                      <span>Confirm RSVP Attendance Now</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
                   </div>
                 </div>
               )}

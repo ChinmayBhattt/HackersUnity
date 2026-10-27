@@ -138,6 +138,48 @@ export async function POST(req: Request) {
       );
     }
 
+    // Determine if this broadcast is an RSVP invitation
+    const isRsvpFlow =
+      templateType === 'rsvp' ||
+      Boolean(ctaText && ctaText.toLowerCase().includes('rsvp')) ||
+      Boolean(ctaUrl && ctaUrl.includes('/rsvp')) ||
+      Boolean(subject && subject.toLowerCase().includes('rsvp'));
+
+    // When organizers send an RSVP email, explicitly authorize/invite these participants in the database
+    if (isRsvpFlow && !isTest && targetRecipients.length > 0 && eventId) {
+      try {
+        const adminSupabase = createAdminClient();
+        const emails = targetRecipients.map((r) => r.email?.toLowerCase().trim()).filter(Boolean);
+        if (emails.length > 0) {
+          const isTargetUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(eventId);
+          let q = adminSupabase.from('registrations').select('id, user_email, custom_answers');
+          if (isTargetUuid) {
+            q = q.eq('event_id', eventId);
+          }
+          q = q.in('user_email', emails);
+          const { data: matchedRegs } = await q;
+
+          if (matchedRegs && matchedRegs.length > 0) {
+            const nowIso = new Date().toISOString();
+            for (const r of matchedRegs) {
+              await adminSupabase
+                .from('registrations')
+                .update({
+                  custom_answers: {
+                    ...(r.custom_answers || {}),
+                    rsvpInvited: true,
+                    rsvpInvitedAt: nowIso,
+                  },
+                })
+                .eq('id', r.id);
+            }
+          }
+        }
+      } catch (flagErr) {
+        console.warn('[event-broadcast-email] Error setting rsvpInvited flag:', flagErr);
+      }
+    }
+
     // Default sender from info@hackersunity.com
     const fromEmail = process.env.RESEND_FROM_EMAIL || 'Hacker\'s Unity <info@hackersunity.com>';
 
