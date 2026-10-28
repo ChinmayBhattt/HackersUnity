@@ -22,7 +22,7 @@ export function Logo({
       <div className="relative shrink-0 flex items-center justify-center">
         {/* Light Mode Logo (Visible in Light theme) */}
         <Image
-          src={lightError ? '/logo.png' : '/logo-black.png'}
+          src={lightError ? 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189208/hackers-unity/branding/logo.png' : 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189205/hackers-unity/branding/logo-black.png'}
           alt="Hacker's Unity Logo"
           width={size}
           height={size}
@@ -34,7 +34,7 @@ export function Logo({
 
         {/* Dark Mode Logo (Visible in Dark theme - white logo) */}
         <Image
-          src={darkError ? '/logo-transparent.png' : '/logo-main.png'}
+          src={darkError ? 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189609/hackers-unity/branding/logo-transparent.png' : 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189609/hackers-unity/branding/logo-main.png'}
           alt="Hacker's Unity Logo"
           width={size}
           height={size}

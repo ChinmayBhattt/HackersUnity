@@ -55,7 +55,7 @@ export async function GET(req: Request) {
           subtitle: row.subtitle || '',
           excerpt: row.excerpt || row.subtitle || '',
           category: row.category,
-          image: row.image || '/blogs/agentic-ai.jpg',
+          image: row.image || 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189656/hackers-unity/blogs/agentic-ai.jpg',
           coverGradient: row.cover_gradient || 'from-sky-600/30 via-cyan-600/20 to-blue-950/40',
           publishedAt: row.created_at
             ? new Date(row.created_at).toLocaleDateString('en-US', {

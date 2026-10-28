@@ -18,8 +18,8 @@ export interface Signer {
 }
 
 const DEFAULT_SIGNERS: [Signer, Signer] = [
-  { name: "Jha Suraj Kumar", title: "Founder, Hacker’s Unity", signatureSrc: "/assets/suraj-signature.png", signatureHeight: 58 },
-  { name: "Chinmay Bhatt", title: "Co-founder, Hacker’s Unity", signatureSrc: "/assets/chinmay-signature.png" },
+  { name: "Jha Suraj Kumar", title: "Founder, Hacker’s Unity", signatureSrc: "https://res.cloudinary.com/p6qljeni/image/upload/v1793191141/hackers-unity/signatures/suraj-signature.png", signatureHeight: 58 },
+  { name: "Chinmay Bhatt", title: "Co-founder, Hacker’s Unity", signatureSrc: "https://res.cloudinary.com/p6qljeni/image/upload/v1793191143/hackers-unity/signatures/chinmay-signature.png" },
 ];
 
 export interface CertificateOfCompletionProps {
@@ -84,7 +84,7 @@ export default function CertificateOfCompletion({
   recipientName,
   completionDate,
   certificateId,
-  logoSrc = "/assets/hackers-unity-logo.png",
+  logoSrc = "https://res.cloudinary.com/p6qljeni/image/upload/v1793191150/hackers-unity/branding/hackers-unity-logo.png",
   signers = DEFAULT_SIGNERS,
   highlights = ["Build", "Create", "Collaborate"],
   scaleToFit = true,

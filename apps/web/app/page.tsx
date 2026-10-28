@@ -33,40 +33,12 @@ import { ClubsSection } from '@/components/clubs-section';
 import { MetallicGlassCard } from '@/components/ui/metallic-glass-card';
 import { GuideBot } from '@/components/guide-bot';
 
-// Event gallery photos
-import galleryStage from '@/assets/hackstorm_stage.jpg';
-import galleryHall from '@/assets/hackstorm_hall.jpg';
-import galleryWinners from '@/assets/hackstorm_winners.jpg';
-import galleryInauguration from '@/assets/hackstorm_inauguration.jpg';
-import gallerySpeaker from '@/assets/hackstorm_speaker.jpg';
-import galleryBooth from '@/assets/hackstorm_booth.jpg';
-import galleryDevelopers from '@/assets/hackstorm_developers.jpg';
-import galleryMentoring from '@/assets/hackstorm_mentoring.jpg';
-import galleryDiscussions from '@/assets/hackstorm_discussions.jpg';
-import galleryFocus from '@/assets/hackstorm_focus.jpg';
-import galleryStellar from '@/assets/stellar_bootcamp.jpg';
-import galleryHive from '@/assets/hive_mentors.jpg';
-
-// CodeWars event photos
-import codeWars1 from '@/assets/CodeWars1.jpg';
-import codeWars2 from '@/assets/CodeWars2.jpg';
-import codeWars3 from '@/assets/CodeWars3.jpg';
-import codeWars4 from '@/assets/CodeWars4.jpg';
-import codeWars5 from '@/assets/CodeWars5.jpg';
-import codeWars6 from '@/assets/CodeWars6.jpg';
-import codeWars7 from '@/assets/CodeWars7.jpg';
-import codeWars8 from '@/assets/CodeWars8.jpg';
-import codeWars9 from '@/assets/CodeWars9.jpg';
-import codeWars10 from '@/assets/CodeWars10.jpg';
-import codeWars11 from '@/assets/CodeWars11.jpg';
-import codeWars12 from '@/assets/CodeWars12.jpg';
-import codeWars13 from '@/assets/CodeWars13.jpg';
-import codeWars14 from '@/assets/CodeWars14.jpg';
-import codeWars15 from '@/assets/CodeWars15.jpg';
-import stellarHU from '@/assets/StellarHU.jpg';
-import stellarHU1 from '@/assets/StellarHU1.jpg';
-import stellarHU2 from '@/assets/StellarHU2.jpg';
-import workshopPhoto from '@/assets/6.jpg';
+// Event gallery photos & moments (Cloudinary CDN)
+import {
+  GALLERY_ROW_1,
+  GALLERY_ROW_2,
+  GALLERY_MOMENTS_MAP,
+} from '@/lib/gallery-moments';
 
 export default function HomePage() {
   const { events, loading } = usePublishedEvents();
@@ -136,41 +108,8 @@ export default function HomePage() {
 
 
 
-  const galleryRow1 = [
-    { src: galleryStage, label: 'Hackstorm — Grand Stage' },
-    { src: codeWars1, label: 'CodeWars — Inauguration Stage' },
-    { src: galleryHall, label: 'Hackstorm — Hacking Arena' },
-    { src: codeWars2, label: 'CodeWars — Opening Ceremony' },
-    { src: galleryWinners, label: 'Hackstorm — Winners' },
-    { src: codeWars3, label: 'CodeWars — Keynote Session' },
-    { src: galleryInauguration, label: 'Hackstorm — Inauguration' },
-    { src: codeWars4, label: 'CodeWars — Panel Discussion' },
-    { src: gallerySpeaker, label: 'Hackstorm — Speaker Session' },
-    { src: codeWars5, label: 'CodeWars — Hacking Arena' },
-    { src: galleryBooth, label: 'Hackstorm — Sponsor Booth' },
-    { src: codeWars6, label: 'CodeWars — Team Collaboration' },
-    { src: codeWars7, label: 'CodeWars — Demo Presentation' },
-    { src: stellarHU, label: 'Stellar Bootcamp — Workshop' },
-  ];
-
-  const galleryRow2 = [
-    { src: galleryDevelopers, label: 'Hackstorm — Developers' },
-    { src: codeWars8, label: 'CodeWars — Mentoring Session' },
-    { src: galleryMentoring, label: 'Hackstorm — Mentoring' },
-    { src: codeWars9, label: 'CodeWars — Judging Round' },
-    { src: galleryDiscussions, label: 'Hackstorm — Discussions' },
-    { src: codeWars10, label: 'CodeWars — Audience' },
-    { src: galleryFocus, label: 'Hackstorm — Focus Mode' },
-    { src: codeWars11, label: 'CodeWars — Prize Ceremony' },
-    { src: galleryStellar, label: 'Stellar Bootcamp' },
-    { src: codeWars12, label: 'CodeWars — Winners Celebration' },
-    { src: galleryHive, label: 'Hive — Mentor Connect' },
-    { src: codeWars13, label: 'CodeWars — Networking' },
-    { src: codeWars14, label: 'CodeWars — Closing Ceremony' },
-    { src: codeWars15, label: 'CodeWars — Group Photo' },
-    { src: stellarHU1, label: 'Stellar Bootcamp — Hands-on' },
-    { src: stellarHU2, label: 'Stellar Bootcamp — Community' },
-  ];
+  const galleryRow1 = GALLERY_ROW_1;
+  const galleryRow2 = GALLERY_ROW_2;
 
   return (
     <div className="flex flex-col flex-1">
@@ -823,11 +762,10 @@ export default function HomePage() {
                   {/* Slide 0: workshopPhoto (6.jpg) */}
                   <div className="relative w-1/2 h-full flex-shrink-0">
                     <Image
-                      src={workshopPhoto}
+                      src={GALLERY_MOMENTS_MAP.workshop6}
                       alt="AI & Blockchain Workshop — JECRC Foundation"
                       className="w-full h-full object-cover"
                       fill
-                      placeholder="blur"
                       sizes="(max-width: 1024px) 100vw, 60vw"
                     />
                     <div className="absolute inset-x-0 bottom-0 h-28 sm:h-36 bg-gradient-to-t from-black/95 via-black/60 to-transparent flex flex-col justify-end p-3.5 sm:p-6">
@@ -842,11 +780,10 @@ export default function HomePage() {
                   {/* Slide 1: stellarHU (StellarHU.jpg) */}
                   <div className="relative w-1/2 h-full flex-shrink-0">
                     <Image
-                      src={stellarHU}
+                      src={GALLERY_MOMENTS_MAP.StellarHU}
                       alt="Stellar Bootcamp — Poornima College"
                       className="w-full h-full object-cover"
                       fill
-                      placeholder="blur"
                       sizes="(max-width: 1024px) 100vw, 60vw"
                     />
                     <div className="absolute inset-x-0 bottom-0 h-28 sm:h-36 bg-gradient-to-t from-black/95 via-black/60 to-transparent flex flex-col justify-end p-3.5 sm:p-6">

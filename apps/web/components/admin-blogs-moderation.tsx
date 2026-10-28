@@ -602,7 +602,7 @@ export function AdminBlogsModeration({ onNotification, currentUserRole }: AdminB
                   {/* Thumbnail */}
                   <div className="relative w-full sm:w-36 h-24 rounded-2xl overflow-hidden bg-slate-900 shrink-0 border border-slate-200 dark:border-white/10">
                     <Image
-                      src={blog.image || '/blogs/agentic-ai.jpg'}
+                      src={blog.image || 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189656/hackers-unity/blogs/agentic-ai.jpg'}
                       alt={blog.title}
                       fill
                       unoptimized
@@ -767,7 +767,7 @@ export function AdminBlogsModeration({ onNotification, currentUserRole }: AdminB
             {/* Modal Header Cover */}
             <div className="relative h-52 sm:h-64 w-full bg-slate-900">
               <Image
-                src={selectedBlog.image || '/blogs/agentic-ai.jpg'}
+                src={selectedBlog.image || 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189656/hackers-unity/blogs/agentic-ai.jpg'}
                 alt={selectedBlog.title}
                 fill
                 unoptimized

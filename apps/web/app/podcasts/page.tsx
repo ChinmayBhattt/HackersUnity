@@ -191,13 +191,13 @@ export default function PodcastsPage() {
                 <div className="flex items-center gap-2.5">
                   <div className="flex -space-x-2">
                     <div className="w-8 h-8 rounded-full border-2 border-white dark:border-[#0c1220] overflow-hidden bg-slate-800 shadow-sm">
-                      <Image src="/podcasts/mihirshelar.jpg" alt="Mihir Shelar" width={32} height={32} className="w-full h-full object-cover" />
+                      <Image src="https://res.cloudinary.com/p6qljeni/image/upload/v1793189634/hackers-unity/podcasts/mihirshelar.jpg" alt="Mihir Shelar" width={32} height={32} className="w-full h-full object-cover" />
                     </div>
                     <div className="w-8 h-8 rounded-full border-2 border-white dark:border-[#0c1220] overflow-hidden bg-slate-800 shadow-sm">
-                      <Image src="/podcasts/kirshna.jpg" alt="Krishna Kishor" width={32} height={32} className="w-full h-full object-cover" />
+                      <Image src="https://res.cloudinary.com/p6qljeni/image/upload/v1793189632/hackers-unity/podcasts/kirshna.jpg" alt="Krishna Kishor" width={32} height={32} className="w-full h-full object-cover" />
                     </div>
                     <div className="w-8 h-8 rounded-full border-2 border-white dark:border-[#0c1220] overflow-hidden bg-slate-800 shadow-sm">
-                      <Image src="/podcasts/ankur.jpg" alt="Ankur Bhatnagar" width={32} height={32} className="w-full h-full object-cover" />
+                      <Image src="https://res.cloudinary.com/p6qljeni/image/upload/v1793189629/hackers-unity/podcasts/ankur.jpg" alt="Ankur Bhatnagar" width={32} height={32} className="w-full h-full object-cover" />
                     </div>
                     <div className="w-8 h-8 rounded-full border-2 border-white dark:border-[#0c1220] overflow-hidden bg-[#0099e6] text-white text-[9px] font-black flex items-center justify-center shadow-sm">
                       50K+

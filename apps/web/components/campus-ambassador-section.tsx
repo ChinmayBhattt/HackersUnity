@@ -143,7 +143,7 @@ export function CampusAmbassadorSection() {
         {/* Hackers background photo */}
         <div className="absolute inset-0 z-0 h-full w-full pointer-events-none">
           <Image
-            src="/assets/campus-ambassador/hackstorm-developers.jpg"
+            src="https://res.cloudinary.com/p6qljeni/image/upload/v1793191145/hackers-unity/campus-ambassador/hackstorm-developers.jpg"
             alt="Campus Ambassador"
             fill
             className="object-cover object-center"
@@ -165,8 +165,8 @@ export function CampusAmbassadorSection() {
       <div className="hidden md:block">
         <ScrollExpandMedia
           mediaType="image"
-          mediaSrc="/assets/campus-ambassador/hackstorm-developers.jpg"
-          bgImageSrc="/assets/campus-ambassador/bg-arena.jpg"
+          mediaSrc="https://res.cloudinary.com/p6qljeni/image/upload/v1793191145/hackers-unity/campus-ambassador/hackstorm-developers.jpg"
+          bgImageSrc="https://res.cloudinary.com/p6qljeni/image/upload/v1793191148/hackers-unity/campus-ambassador/bg-arena.jpg"
           title="CAMPUS AMBASSADOR"
           date="Lead Your College Chapter"
         >

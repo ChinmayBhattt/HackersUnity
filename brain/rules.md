@@ -1,8 +1,9 @@
 # Hacker's Unity — Engineering Rules & Code Standards
 
-> **Document Version:** 2.4.0  
+> **Document Version:** 2.6.0  
 > **Applies to:** Entire Monorepo (`apps/web`, `apps/api`, `packages/shared-types`)  
 > **Enforcement:** Mandatory for all AI agents, contributors, and core developers  
+> **Last Updated:** October 2026  
 
 ---
 
@@ -37,6 +38,14 @@ export default function EventPage({ params }: PageProps) {
 ```
 
 ```tsx
+// ✅ CORRECT (Server Component or Route Handler in Next.js 16)
+export default async function EventPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  // ...
+}
+```
+
+```tsx
 // ❌ INCORRECT (Will trigger runtime warning/error in Next.js 16)
 export default function EventPage({ params }: { params: { slug: string } }) {
   const slug = params.slug; // ERROR: params is a Promise!
@@ -54,41 +63,75 @@ Any client component calling `useSearchParams()` must be wrapped in a `<Suspense
 
 ---
 
-## 3. TypeScript & Data Contract Rules
+## 3. Server Route Handlers & Security Architecture
+
+### 3.1. Standardized Server-Side Authentication
+Always use the centralized helpers in `@/lib/api-auth`:
+- `authenticateRequest(req)`: Validates the caller's Supabase session from HTTP-only cookies or Authorization Bearer tokens.
+- `createAdminClient()`: Instantiates the Supabase client with the service role key to perform authorized operations bypassing RLS.
+- `unauthorizedResponse()`: Returns standard 401 response.
+- `forbiddenResponse()`: Returns standard 403 response.
+
+```ts
+import { authenticateRequest, createAdminClient, unauthorizedResponse, forbiddenResponse } from '@/lib/api-auth';
+
+export async function POST(req: Request) {
+  const auth = await authenticateRequest(req);
+  if (!auth) {
+    return unauthorizedResponse('You must be signed in.');
+  }
+
+  const supabase = createAdminClient();
+  // Safe administrative operations...
+}
+```
+
+### 3.2. Event Authorization Hierarchy
+When guarding event management endpoints (`/api/events/*`):
+1. **Primary Owner:** `event.organizer_id === auth.userId` (Can edit, delete, regenerate invite links, remove co-hosts).
+2. **Co-Host Admin:** Record in `public.event_admins` where `event_id === event.id` and `user_id === auth.userId` (Can edit event, review registrations, view submissions; CANNOT delete event or remove primary owner).
+3. **Platform Super Admin:** `auth.user.user_metadata?.role === 'ADMIN'` or `auth.email === process.env.ADMIN_EMAIL`.
+
+### 3.3. Service Role Key Isolation
+- `SUPABASE_SECRET_KEY` / `SUPABASE_SERVICE_ROLE_KEY` is strictly server-only.
+- NEVER prefix with `NEXT_PUBLIC_` or import into client components.
+
+---
+
+## 4. TypeScript & Data Contract Rules
 
 1. **Strict Type Checking:** `noImplicitAny: true` is strictly enforced. Avoid using `any`. Use `unknown` with type narrowing or define explicit interfaces.
 2. **DTO & Enum Canonical Source:**
    - User Roles: `UserRole` (`PARTICIPANT`, `ORGANIZER`, `ADMIN`, `SUPER_ADMIN`).
    - Event Statuses: `EventStatus` (`DRAFT`, `PUBLISHED`, `REGISTRATION_CLOSED`, `ONGOING`, `COMPLETED`, `ARCHIVED`).
    - Event Formats: `EventType` (`ONLINE`, `OFFLINE`, `HYBRID`).
-   - Notification Types: `NotificationDbType` & `NotificationTargetType`.
-3. **Response Envelopes:** Standard API responses should conform to `ApiResponse<T>` or `PaginatedResponse<T>` from `packages/shared-types`.
+   - Payment Statuses: `PENDING`, `COMPLETED`, `FAILED`, `REFUNDED`.
+3. **Response Envelopes:** Standard API responses should conform to `ApiResponse<T>` from `packages/shared-types`.
 
 ---
 
-## 4. Styling & TailwindCSS v4 Conventions
+## 5. Styling & TailwindCSS v4 Conventions
 
 1. **Brand Color Fidelity:** Never invent arbitrary hex codes. Always use the designated brand tokens:
    - Sky Blue: `#00A6DA` / `#0099e6`
    - Signal Orange: `#FF8500` / `#f97316` / `#ea580c`
-   - Brand Black: `#000000` / `#0f172a`
+   - Dark Canvas: `#0c1017` / `#0f172a`
    - Cream: `#EEE5D4` / `#f5f0e8`
    - White: `#FFFFFF`
-2. **Tailwind v4 Theme Tokens:** Reference CSS variables via `@theme inline` defined in `apps/web/app/globals.css`.
+2. **Dark Mode Parity:** Every UI component must support dark mode classes (`dark:bg-[#0c1017]`, `dark:border-white/[0.08]`, `dark:text-white`, `dark:text-slate-400`).
 3. **Mobile-First Layouts:** Design for 375px screens first. Use `sm:`, `md:`, `lg:`, `xl:` responsive prefixes progressively.
-4. **No Inline Heavy Styles:** All glassmorphism, gradients, and custom scrollbars must use utility classes (`.glass-panel`, `.glass-panel-hover`, `.text-gradient-brand`, `.bg-grid-pattern`).
 
 ---
 
-## 5. Supabase & PostgreSQL Best Practices
+## 6. Supabase & PostgreSQL Best Practices
 
 1. **Idempotent SQL Scripts:** All migrations must be idempotent:
    ```sql
-   CREATE TABLE IF NOT EXISTS public.teams (...);
-   ALTER TABLE public.events ADD COLUMN IF NOT EXISTS tagline TEXT;
+   CREATE TABLE IF NOT EXISTS public.event_admins (...);
+   ALTER TABLE public.events ADD COLUMN IF NOT EXISTS admin_invite_code TEXT;
    DROP POLICY IF EXISTS "Public can view published events" ON public.events;
    CREATE POLICY "Public can view published events" ON public.events ...;
-   CREATE INDEX IF NOT EXISTS idx_events_slug ON public.events (slug);
+   CREATE INDEX IF NOT EXISTS idx_event_admins_event_user ON public.event_admins (event_id, user_id);
    ```
 2. **Mandatory Row Level Security (RLS):** Every single table created in the `public` schema **MUST** have RLS enabled:
    ```sql
@@ -96,39 +139,3 @@ Any client component calling `useSearchParams()` must be wrapped in a `<Suspense
    ```
 3. **Optimized Indexes:** Ensure foreign keys and lookup columns (`slug`, `event_id`, `user_id`, `leader_id`, `status`) have dedicated B-Tree indexes.
 4. **Security Definer Functions:** When writing PL/pgSQL functions that bypass RLS (e.g., triggers that update registration counts), declare `SECURITY DEFINER` and specify explicit search paths to prevent search-path injection.
-5. **No Direct Secret Exposure:** Never put `SUPABASE_SECRET_KEY` or `SERVICE_ROLE_KEY` in files bundled to the client. Only `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are allowed on the frontend.
-
----
-
-## 6. State Management & Dual-Storage Rules
-
-1. **Synchronous Broadcast Pattern:** When updating local cached state in `lib/storage.ts`, always dispatch the cross-tab event:
-   ```ts
-   window.dispatchEvent(new Event('hackers_unity_storage_change'));
-   ```
-2. **Background Supabase Sync:** If a user is authenticated, local cache mutations must trigger a background sync with Supabase:
-   ```ts
-   if (userId) {
-     toggleBookmarkInSupabase(userId, eventId).catch(console.error);
-   }
-   ```
-3. **Session Hydration:** The `AuthProvider` must initialize immediately from local storage (`getStoredUser()`) to avoid layout flashing while Supabase session validation runs asynchronously in the background.
-
----
-
-## 7. Monorepo & Git Workflow Rules
-
-1. **Commit Message Standard:** Follow Conventional Commits:
-   - `feat(web): add CSV export to event registrations`
-   - `fix(host): resolve timezone validation in step 2`
-   - `refactor(types): consolidate notification target enums`
-   - `docs: update architecture and PRD documentation`
-2. **Zero Breaking Changes Across Packages:** When modifying `packages/shared-types`, verify that both `apps/web` and `apps/api` compile cleanly by running:
-   ```bash
-   pnpm turbo typecheck
-   pnpm turbo build
-   ```
-3. **Environment Separation:**
-   - `.env.local` for `apps/web` local secrets.
-   - `.env` for `apps/api` local configuration.
-   - Never commit actual API keys, database passwords, or private SMTP tokens to Git.

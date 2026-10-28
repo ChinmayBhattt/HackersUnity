@@ -26,7 +26,7 @@ const PARTNER_COLLEGES: CollegeLogoPartner[] = [
   {
     id: 'pcu',
     name: 'Pimpri Chinchwad University (PCU)',
-    logo: '/clubs/pcet-college.webp',
+    logo: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189963/hackers-unity/clubs/pcet-college.webp',
     alt: 'Pimpri Chinchwad University Logo',
     width: 200,
     height: 80,
@@ -34,7 +34,7 @@ const PARTNER_COLLEGES: CollegeLogoPartner[] = [
   {
     id: 'subodh',
     name: 'S.S. Jain Subodh P.G. College',
-    logo: '/clubs/subodh-college.jpg',
+    logo: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189967/hackers-unity/clubs/subodh-college.jpg',
     alt: 'S.S. Jain Subodh P.G. College Logo',
     width: 100,
     height: 80,

@@ -84,7 +84,7 @@ export default function BrandGuidelinesPage() {
               {/* Logo */}
               <div className="relative">
                 <Image
-                  src="/logo-black.png"
+                  src="https://res.cloudinary.com/p6qljeni/image/upload/v1793189205/hackers-unity/branding/logo-black.png"
                   alt="Hacker's Unity — Black Variant"
                   width={180}
                   height={180}
@@ -116,7 +116,7 @@ export default function BrandGuidelinesPage() {
               {/* Logo */}
               <div className="relative">
                 <Image
-                  src="/logo-main.png"
+                  src="https://res.cloudinary.com/p6qljeni/image/upload/v1793189609/hackers-unity/branding/logo-main.png"
                   alt="Hacker's Unity — White/Cream Variant"
                   width={180}
                   height={180}
@@ -333,12 +333,12 @@ export default function BrandGuidelinesPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
               {/* Black Logo Download */}
               <a
-                href="/logo-black.png"
+                href="https://res.cloudinary.com/p6qljeni/image/upload/v1793189205/hackers-unity/branding/logo-black.png"
                 download="hackers-unity-logo-black.png"
                 className="group flex items-center gap-4 p-5 rounded-xl bg-white border border-[#ddd] hover:border-[#00A6DA] transition-colors"
               >
                 <div className="w-14 h-14 rounded-lg bg-[#f5f0e8] flex items-center justify-center shrink-0 p-2">
-                  <Image src="/logo-black.png" alt="Black Logo" width={48} height={48} className="w-full h-full object-contain" unoptimized />
+                  <Image src="https://res.cloudinary.com/p6qljeni/image/upload/v1793189205/hackers-unity/branding/logo-black.png" alt="Black Logo" width={48} height={48} className="w-full h-full object-contain" unoptimized />
                 </div>
                 <div>
                   <p className="text-[11px] font-mono font-black uppercase tracking-[0.1em] text-black group-hover:text-[#00A6DA] transition-colors">Black Variant</p>
@@ -348,12 +348,12 @@ export default function BrandGuidelinesPage() {
 
               {/* White/Cream Logo Download */}
               <a
-                href="/logo-main.png"
+                href="https://res.cloudinary.com/p6qljeni/image/upload/v1793189609/hackers-unity/branding/logo-main.png"
                 download="hackers-unity-logo-white.png"
                 className="group flex items-center gap-4 p-5 rounded-xl bg-[#111] border border-[#333] hover:border-[#FF8500] transition-colors"
               >
                 <div className="w-14 h-14 rounded-lg bg-[#222] flex items-center justify-center shrink-0 p-2">
-                  <Image src="/logo-main.png" alt="White Logo" width={48} height={48} className="w-full h-full object-contain" unoptimized />
+                  <Image src="https://res.cloudinary.com/p6qljeni/image/upload/v1793189609/hackers-unity/branding/logo-main.png" alt="White Logo" width={48} height={48} className="w-full h-full object-contain" unoptimized />
                 </div>
                 <div>
                   <p className="text-[11px] font-mono font-black uppercase tracking-[0.1em] text-white group-hover:text-[#FF8500] transition-colors">White Variant</p>

@@ -150,7 +150,7 @@ function SignupForm({ initialMode }: { initialMode?: 'login' | 'register' }) {
             <Link href="/" className="flex items-center gap-2.5 group">
               <div className="w-9 h-9 rounded-xl bg-slate-900 border border-slate-700/80 flex items-center justify-center overflow-hidden p-1 shadow-sm group-hover:border-[#0099e6]/60 transition-colors">
                 <Image
-                  src="/logo-main.png"
+                  src="https://res.cloudinary.com/p6qljeni/image/upload/v1793189609/hackers-unity/branding/logo-main.png"
                   alt="Hacker's Unity"
                   width={36}
                   height={36}

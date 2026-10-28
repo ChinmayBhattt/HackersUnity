@@ -1,17 +1,17 @@
-import codewarsImg from '@/assets/CodeWars-2.png';
-import clashOfCodersImg from '@/assets/clash-of-coders.jpeg';
-import openaiHackathonImg from '@/assets/openai-hackathon.jpeg.jpeg';
-import kestraImg from '@/assets/Event_Orchestration.png';
-import hackvisionImg from '@/assets/Hackvision.jpeg';
-import hackstormImg from '@/assets/Hackstorm.jpeg';
-import wchlImg from '@/assets/WCHL.jpeg';
-
 /**
- * Maps event IDs and slugs to their statically-imported banner images.
- * Using Next.js static imports guarantees the images are always
- * bundled and available across client and SSR.
+ * Maps event IDs and slugs to their Cloudinary CDN banner images.
+ * Stored on high-speed global CDN for fast SSR and client delivery.
  */
-export const EVENT_IMAGE_MAP: Record<string, any> = {
+
+const codewarsImg = 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189736/hackers-unity/gallery/CodeWars-2.png';
+const clashOfCodersImg = 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189734/hackers-unity/gallery/clash-of-coders.jpg';
+const openaiHackathonImg = 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189798/hackers-unity/gallery/openai-hackathon_jpeg.jpg';
+const kestraImg = 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189727/hackers-unity/gallery/Event_Orchestration.png';
+const hackvisionImg = 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189724/hackers-unity/gallery/Hackvision.jpg';
+const hackstormImg = 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189713/hackers-unity/gallery/Hackstorm.jpg';
+const wchlImg = 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189729/hackers-unity/gallery/WCHL.jpg';
+
+export const EVENT_IMAGE_MAP: Record<string, string> = {
   codewars: codewarsImg,
   'codewars-hackathon': codewarsImg,
   'codewars-2': codewarsImg,
@@ -69,29 +69,26 @@ export function getEventImageSrc(event?: {
   // 2. Lookup by id or slug
   const idKey = (event.id || '').toLowerCase().trim();
   if (idKey && EVENT_IMAGE_MAP[idKey]) {
-    const img = EVENT_IMAGE_MAP[idKey];
-    return typeof img === 'string' ? img : img.src;
+    return EVENT_IMAGE_MAP[idKey];
   }
 
   const slugKey = (event.slug || '').toLowerCase().trim();
   if (slugKey && EVENT_IMAGE_MAP[slugKey]) {
-    const img = EVENT_IMAGE_MAP[slugKey];
-    return typeof img === 'string' ? img : img.src;
+    return EVENT_IMAGE_MAP[slugKey];
   }
 
   // 3. Fallback matching by title keywords
   const title = (event.title || event.name || '').toLowerCase();
-  if (title.includes('codewar')) return codewarsImg.src;
-  if (title.includes('clash') || (title.includes('coder') && !title.includes('codex'))) return clashOfCodersImg.src;
-  if (title.includes('openai') || title.includes('chatgpt') || title.includes('codex')) return openaiHackathonImg.src;
-  if (title.includes('kestra') || title.includes('orchestration')) return kestraImg.src;
-  if (title.includes('hackvision') || title.includes('vision')) return hackvisionImg.src;
-  if (title.includes('hackstorm') || title.includes('storm')) return hackstormImg.src;
-  if (title.includes('wchl') || title.includes('league')) return wchlImg.src;
+  if (title.includes('codewar')) return codewarsImg;
+  if (title.includes('clash') || (title.includes('coder') && !title.includes('codex'))) return clashOfCodersImg;
+  if (title.includes('openai') || title.includes('chatgpt') || title.includes('codex')) return openaiHackathonImg;
+  if (title.includes('kestra') || title.includes('orchestration')) return kestraImg;
+  if (title.includes('hackvision') || title.includes('vision')) return hackvisionImg;
+  if (title.includes('hackstorm') || title.includes('storm')) return hackstormImg;
+  if (title.includes('wchl') || title.includes('league')) return wchlImg;
 
   // 4. Return candidate if non-empty string
   if (candidateUrl) return candidateUrl;
 
   return null;
 }
-

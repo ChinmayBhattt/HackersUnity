@@ -1,157 +1,161 @@
 # Hacker's Unity — Product Requirements Document (PRD)
 
-> **Document Version:** 2.4.0  
+> **Document Version:** 2.6.0  
 > **Target Release:** Production 2026  
 > **Product Name:** Hacker's Unity (HU Platform)  
 > **Repository:** `hackers-unity`  
-> **Status:** Active / In Development & Staging  
+> **Status:** Active / In Production & Continuous Expansion  
 
 ---
 
 ## 1. Executive Summary & Vision
 
-**Hacker's Unity** is an all-in-one ecosystem and hackathon operating system built to bridge student technologists, developers, and designers with premier hackathons, tech sprints, bounties, and hiring challenges worldwide. 
+**Hacker's Unity** is an all-in-one hackathon operating system and competitive innovation ecosystem engineered to empower student technologists, independent developers, collegiate clubs, and industry organizers.
 
-Existing hackathon aggregation portals suffer from fragmented communication, clunky team formation, rigid registration workflows, and detached judging mechanisms. Hacker's Unity solves this by offering:
-- A frictionless **7-Step Event Hosting Engine** with customizable questions, dynamic tracks, prize distribution, and submission schemas.
-- High-performance **Squad Formation & Matchmaking** with invite tokens, automated email invitations, and skill matching.
-- **Unified Organizer Dashboard** providing real-time applicant review, approval toggles, and CSV/spreadsheet exports.
-- **Enterprise-Grade Real-Time Notification & News Engine** broadcasting platform announcements, deadlines, and live event updates via Supabase Realtime WebSockets.
-- **Rich Competitive Identity** with hacker profiles, Elo ratings, global leaderboards, university rankings, and verified project portfolios.
+Existing hackathon platforms suffer from fragmented communication, opaque team formation, rigid registration schemas, lack of co-organizer delegation, and detached evaluation mechanisms. Hacker's Unity resolves these pain points by providing:
+- A modular **7-Step Event Hosting & Delegation Engine** with customizable dynamic questionnaires, live preview, and multi-admin co-host access.
+- Frictionless **Squad Formation & Matchmaking** backed by cryptographic invite tokens and automated transactional emails.
+- **Financial Infrastructure** supporting both Free and Paid hackathons via Razorpay order creation, status verification, and webhook reconciliation.
+- **Organizer Operations Suite** including real-time applicant screening, waitlisting, one-click CSV export, and bi-directional Google Sheets live sync.
+- **Two-Phase RSVP Attendance System** ensuring high physical turnouts for offline and hybrid events.
+- **Campus & Ambassador Network** driving grassroots engagement through the Campus Student Ambassador Program (CSAP), Club partnerships, and Mentorship.
+- **AI Product Evaluation Engine** powered by Groq Llama 3 assessing submissions for genuine product-market fit, feasibility, and technical execution.
 
 ---
 
 ## 2. Target Audience & Personas
 
 ### 2.1. The Student & Independent Builder (Hacker)
-- **Profile:** College student (B.Tech, BCA, MCA, BS) or self-taught developer looking to showcase skills, build resume projects, win prizes, and land internships.
-- **Pain Points:** Hard to find dedicated teammates matching required tech stacks (e.g., Solidity, ML/PyTorch, Next.js); missing application deadlines; lack of transparency in registration status.
-- **Platform Needs:** Instant discovery, 1-click registration, squad invite links, real-time in-app and email notifications, project submission portal.
+- **Profile:** College student (B.Tech, BCA, MCA, BS) or self-taught developer looking to build real-world products, find compatible teammates, win cash prizes, and secure job/internship opportunities.
+- **Pain Points:** Hard to find dedicated teammates matching required tech stacks; missing critical deadlines; lack of visibility into application status.
+- **Platform Features:** 1-click registration, automated squad matchmaking, profile portfolio with verified hackathon wins, real-time in-app and email notifications, certificate generation.
 
 ### 2.2. Event Organizers & College Chapters
-- **Profile:** Student tech clubs (GDG, ACM, IEEE), collegiate hackathon directors, and corporate innovation teams.
-- **Pain Points:** Managing Google Forms + Discord links is messy; screening thousands of applicants is manual; collecting submission links and repositories lacks standardized validation.
-- **Platform Needs:** End-to-end 7-step wizard, custom form builder, applicant approval/waitlist workflow, branded event landing page with custom banners, participant CSV export, and submission tracking.
+- **Profile:** Collegiate tech clubs (GDG, ACM, IEEE), university hackathon directors, and corporate innovation teams.
+- **Pain Points:** Google Forms + Discord management is chaotic; screening thousands of applicants is manual; collecting submission links lacks standardized validation; organizing teams need shared admin permissions.
+- **Platform Features:** 7-step host wizard, custom form builder, co-host admin invite links, applicant approval/waitlist workflow, branded landing pages, live Google Sheets sync, participant broadcast emails, and submissions grading suite.
 
-### 2.3. Platform Administrators & Community Leads
-- **Profile:** Hacker's Unity core team and regional community managers.
-- **Platform Needs:** Global announcement broadcast console, curated news publishing engine, event verification/featured badge toggles, and ecosystem analytics.
+### 2.3. Campus Ambassadors & Club Leaders
+- **Profile:** Student tech leads representing Hacker's Unity on university campuses across India.
+- **Platform Features:** Dedicated CSAP admin dashboard, referral UTM tracking links, club collaboration applications, and ambassador leaderboard.
+
+### 2.4. Platform Administrators
+- **Profile:** Hacker's Unity core team and community moderators.
+- **Platform Features:** Global announcement broadcast console, event review & approval pipeline, news publishing CMS, and ecosystem telemetry.
 
 ---
 
-## 3. Key Feature Modules & Requirements
+## 3. Key Feature Modules & Functional Requirements
 
-### 3.1. Authentication & Profile Management
+### 3.1. Authentication & Profile Identity
 - **Multi-Method Authentication:**
-  - Email & Password with Supabase Auth (`signUp`, `signInWithPassword`).
+  - Supabase Auth: Email & Password (`signUp`, `signInWithPassword`).
   - Passwordless Email Magic Link & Phone SMS OTP (`signInWithOtp`).
-  - OAuth Providers (GitHub & Google) for fast developer onboarding.
+  - OAuth Providers: GitHub & Google for rapid developer onboarding.
 - **Adaptive Developer Profile:**
-  - Dynamic Profession Selector: `STUDENT`, `PROFESSIONAL`, or `FREELANCER`.
-  - Academic Details: Degree (`B.Tech`, `BCA`, `MCA`, etc.), Branch (`CSE`, `AI/DS`, `IT`, etc.), College/University, Graduation Year.
-  - Professional Details: Company, Job Title, Years of Experience, Industry Domain.
-  - Media: Profile Avatar & Banner image upload with client-side canvas cropping (`react-easy-crop`) stored in Supabase Storage (`hackathon-assets`).
-  - Developer Footprint: GitHub, LinkedIn, Portfolio links, and tagging of core technical skills.
-  - Public Profile Modal: Shareable view highlighting Elo score, won hackathons, bio, and badges.
+  - Profession Selector: `STUDENT`, `PROFESSIONAL`, or `FREELANCER`.
+  - Academic Metadata: Degree, Branch, College/University, Roll Number, Graduation Year.
+  - Work Metadata: Company, Job Title, Years of Experience, Domain.
+  - Media: Profile Avatar & Banner upload with client-side canvas cropping (`react-easy-crop`) stored in Supabase Storage (`hackathon-assets`).
+  - Developer Footprint: GitHub, LinkedIn, Twitter, Portfolio URLs, and skill tags.
+  - Profile Completion Score: 0-100% computed dynamically based on completeness matrix (`lib/profile-completion.ts`).
+  - Public Profile Showcase (`/profile/[username]` & `/u/[username]`): Highlights hackathon winnings, project submissions, participation history, and shareable certificates (`<CertificateModal />`).
 
-### 3.2. Hackathon Discovery & Directory Engine
-- **Search & Filtering:**
-  - Hero instant search with debounced autocomplete and direct slug navigation.
-  - Multi-parameter filters: Event Category (`HACKATHON`, `COMPETITION`, `WORKSHOP`, `HIRING_CHALLENGE`, `QUIZ`), Format (`ONLINE`, `OFFLINE`, `HYBRID`), Timeline status (`LIVE`, `REGISTRATION_OPEN`, `COMPLETED`), and Sort by (`newest`, `deadline`, `popular`, `prize`).
-  - Dynamic View Modes: Responsive 3-column cards grid and streamlined list view.
-  - Interactive Hackathon Cards: Live countdown timers ("X days left"), prize pool formatters, participant count tickers, mode badges, and bookmarking.
+### 3.2. Hackathon Discovery & Directory Engine (`/hackathons` & `/events`)
+- **Search & Multi-Dimensional Filtering:**
+  - Instant debounced search querying event title, description, tags, and organizer names.
+  - Category Filters: `HACKATHON`, `COMPETITION`, `WORKSHOP`, `HIRING_CHALLENGE`, `QUIZ`.
+  - Format Filters: `ONLINE`, `OFFLINE`, `HYBRID`.
+  - Status Indicators: `LIVE`, `REGISTRATION_OPEN`, `REGISTRATION_CLOSED`, `COMPLETED`.
+  - Sorting Options: `newest`, `deadline`, `popular`, `prize_high_to_low`.
+- **Display Modes:**
+  - Responsive 3-column glassmorphic cards grid.
+  - Streamlined compact list view.
+  - Interactive cards with countdown timers, prize badges, and bookmarking.
 
-### 3.3. Hackathon Detail Experience (`/hackathons/[slug]`)
-- **Branded Showcase:** Dynamic gradient hero banner, verified organizer badge, registration deadline pill, and prize pool highlight.
-- **Tabbed Architecture:**
-  - **Overview:** Tagline, rich HTML description, eligibility rules, difficulty level, and tags.
-  - **Timeline / Stages:** Chronological milestone roadmap (Registration -> Hackathon Day -> Judging -> Awards).
-  - **Submission Guidelines:** Required and optional deliverables (Repo link, Demo video, ZIP file, Slide deck).
-  - **Prizes & Tracks:** Position awards (1st, 2nd, 3rd, Special Track prizes) with prize pools and sponsored bounties.
-  - **Rules & Conduct:** Full guidelines and code of conduct.
-  - **Sponsors & Partners:** Tiered sponsor grid (Title Partner, Host Partner, Ecosystem Partner).
-  - **FAQs:** Accordion-based quick questions and answers.
-- **Contextual Actions:** Solo registration, team squad creation, join via invite token, project submission modal, bookmark toggle, and social link sharing.
+### 3.3. Hackathon Detail Showcase (`/hackathons/[slug]`)
+- **Branded Event Experience:** Dynamic gradient banner, organizer credentials, registration countdown, and prize pool highlight.
+- **Comprehensive Tab Navigation:**
+  - **Overview:** Tagline, rich HTML description, eligibility rules, tags.
+  - **Timeline & Stages:** Step-by-step milestones (Registration, Hackathon Sprints, Judging, Awards).
+  - **Prizes & Tracks:** Categorized prize tiers (1st, 2nd, 3rd, Track Bounties, Best Beginner).
+  - **Rules & Conduct:** Full guidelines, submission requirements, code of conduct.
+  - **Sponsors & Partners:** Tiered sponsor recognition (Title, Associate, Community).
+  - **FAQs:** Interactive accordion.
+- **Contextual Actions:** Solo registration, team squad creation, join via invite code, project submission modal, bookmark toggle, and social link sharing.
 
-### 3.4. 7-Step Hackathon Hosting Engine (`/host`)
-Comprehensive creation wizard supporting both new draft creation and editing existing events:
-1. **Step 1 — Basic Info:** Event title, slug auto-generation, tagline, host organization name, host type (`COLLEGE`, `COMPANY`, `COMMUNITY`), category, format (`ONLINE`, `OFFLINE`, `HYBRID`), and venue picker (interactive address/city/venue search).
-2. **Step 2 — Dates & Schedule:** Registration start and deadline, event start and end datetimes, timezone selector (defaults to `Asia/Kolkata`), with full validation ensuring chronological integrity.
-3. **Step 3 — Details & Rules:** Rich text editor for detailed description, eligibility requirements, difficulty level (`BEGINNER`, `INTERMEDIATE`, `ADVANCED`, `OPEN`), tags, and code of conduct.
-4. **Step 4 — Prizes & Tracks:** Total prize pool calculation, position-based prize rows, themed tracks with track-specific prizes, and sponsor cards with tiered badges.
-5. **Step 5 — Registration Settings:** Capacity limit, pricing (`FREE` vs `PAID` with automated gateway inquiry email generator), approval mode (`AUTO` vs `MANUAL`), team limits (min/max members), default registration fields toggle, and dynamic Custom Question Builder (text, textarea, dropdown with options).
-6. **Step 6 — Submission Requirements:** Toggle mandatory fields (Title, Description, GitHub repo) and optional fields (Demo video, ZIP file, Slide deck, Live demo URL).
-7. **Step 7 — Review & Publish:** Live responsive preview of the Hackathon Card, validation checklist, and 1-click publishing to Supabase `events` table with real-time broadcast.
+### 3.4. 7-Step Hackathon Hosting & Delegation Engine (`/host`)
+A comprehensive wizard for drafting, editing, and delegating hackathon management:
+1. **Step 1 — Basic Info:** Event title, slug auto-generation, tagline, host organization, host type (`COLLEGE`, `COMPANY`, `COMMUNITY`), category, format, and venue picker.
+2. **Step 2 — Schedule & Timezone:** Registration start/deadline, event start/end datetimes, timezone selection with automated chronological validation.
+3. **Step 3 — Details & Rules:** Rich text editor (`<RichTextEditor />`) for detailed description, eligibility requirements, difficulty level, and tags.
+4. **Step 4 — Prizes & Tracks:** Total prize pool calculator, track-specific bounties, sponsor profiles with tiered badges.
+5. **Step 5 — Registration Settings:** Capacity limit, pricing (`FREE` vs `PAID` with Razorpay fee configuration), approval mode (`AUTO` vs `MANUAL`), team size limits (min/max), default fields toggle, and dynamic Custom Question Builder (text, textarea, dropdown with options).
+6. **Step 6 — Submission Deliverables:** Configurable mandatory and optional deliverables (Title, Description, GitHub repo, Live URL, Demo Video, Pitch Deck, ZIP file).
+7. **Step 7 — Organizing Team & Review:** 
+   - Co-Host Admin delegation via secure invite links (`/host/[slug]/admin/join/[code]`).
+   - Co-Host management table with removal controls and invite code regeneration.
+   - Live interactive card preview before publishing.
 
-### 3.5. Squads & Team Matchmaking Engine (`/teammates` & Team Flow)
-- **Squad Formation:** Team creation tied to specific hackathons, setting custom squad names and required roles (`AI/ML`, `Full-Stack`, `Smart Contract`, `Cloud`, `Robotics`).
-- **Cryptographic Team Invites:**
-  - Generation of 24-byte secure hex invite tokens (`gen_random_bytes(24)`).
-  - Invite token routing: `/hackathons/[slug]/invite?token=[token]`.
-  - Transactional Email Dispatch: Automated HTML emails sent via `/api/invite-email` utilizing Nodemailer / SMTP with personalized inviter names and hackathon branding.
-  - In-App Accept / Decline flow with team member quota enforcement.
+### 3.5. Paid Events & Financial Settlement Engine
+- **Razorpay Integration:**
+  - Server-side order creation (`/api/payments/create-order`).
+  - Seamless Razorpay Checkout modal on the registration flow.
+  - HMAC-SHA256 signature verification (`/api/payments/verify`).
+  - Webhook listener (`/api/webhooks/razorpay`) ensuring payment status reconciliation even if client drops connection.
+  - Order audit logging in `public.payments` table.
+
+### 3.6. Squad Formation & Hacker Matchmaking (`/teammates` & `/hackathons/[slug]/invite`)
+- **Squad Formation:** Team creation tied to specific hackathons with customizable squad names and skill requisites.
+- **Cryptographic Invites:**
+  - 24-byte hex token generation (`gen_random_bytes(24)`).
+  - Transactional HTML email dispatch via Nodemailer (`/api/invite-email`).
+  - Deep-link invite acceptance engine (`/hackathons/[slug]/invite?token=[token]`).
 - **Hacker Matchmaking Arena (`/teammates`):**
-  - Directory of builders open to squads (`openForTeams = true`).
-  - Filter by domain and keyword search.
-  - Direct invitation modal sending team pitch messages.
+  - Public directory of hackers marked open for teams (`openForTeams = true`).
+  - Domain search (`Frontend`, `Backend`, `AI/ML`, `Blockchain`, `Mobile`).
+  - Direct squad invite modal.
 
-### 3.6. Project Submission Flow
-- Standardized modal triggered during hackathon submission window.
-- Captures Project Title, Tagline, Detailed Description, GitHub/GitLab Repository URL, Live Demo URL, Video Walkthrough URL, and Track selection.
-- Validates URL formats and character minimums.
-- Stored in `submissions` table with status progression: `SUBMITTED` -> `UNDER_REVIEW` -> `ACCEPTED` -> `WINNER` / `REJECTED`.
+### 3.7. Organizer Operations & Applicant Management (`/dashboard/events/[id]/*`)
+- **Registration Roster (`/registrations`):**
+  - Comprehensive table with search, status filters (Pending, Approved, Rejected, Waitlisted).
+  - Instant status change toggles.
+  - Custom questions viewer modal.
+  - 1-Click CSV export containing applicant details, team members, and custom answers.
+- **Submissions Manager (`/submissions`):**
+  - Project review table with direct GitHub, Live Demo, and Video links.
+  - Qualitative scoring and track evaluations.
+- **Mass Participant Communications:**
+  - Event broadcast email tool (`/api/event-broadcast-email`) for instant updates.
+  - Live event banner broadcast (`/api/events/broadcast-live`).
 
-### 3.7. User Dashboard & Management (`/dashboard`)
-- **Overview:** High-level metrics ticker (Active registrations, Organized events, Saved bookmarks, Team invites).
-- **Participations Tab:** Cards for upcoming, ongoing, and completed hackathons with quick access to squad status and submission modal.
-- **Organizing Tab:** List of events created by the logged-in user with live registration counts, status pills, edit shortcuts, and direct links to the Registrations Manager.
-- **Registrations Manager (`/dashboard/events/[eventId]/registrations`):**
-  - Real-time table of all applicants with search and status filtering (`ALL`, `PENDING`, `APPROVED`, `REJECTED`).
-  - Action buttons to approve or reject pending participants.
-  - 1-Click CSV / Spreadsheet download of applicant rosters with custom questionnaire answers.
-- **Bookmarks Tab:** Quick-access grid to bookmarked hackathons.
+### 3.8. Two-Phase RSVP Attendance System (`/rsvp` & `/confirm-rsvp`)
+- **Pre-Event Confirmation:** Automatic RSVP invitation sent to approved participants 48-72 hours prior to offline events.
+- **QR / Token Verification:** Secure verification endpoint (`/api/rsvp`) that confirms attendance, updates badge state, and prevents venue overcrowding.
 
-### 3.8. Notifications & News Engine (`/news` & `/admin/notifications`)
-- **Two-Tier Notification Architecture:**
-  - `public.notifications`: Master notification records with type, message, icon, related event/news ID, and target scope (`all`, `specific_user`, `event_participants`, `team_members`).
-  - `public.user_notifications`: Per-user inbox records with unread tracking (`is_read: boolean`).
-- **Realtime Delivery:** Supabase Realtime WebSocket subscription pushes toasts and badges instantly to active users without page reload.
-- **News Magazine (`/news` & `/news/[slug]`):**
-  - Categories: `hackathons`, `technology`, `ai`, `competitions`, `internships`, `platform_updates`.
-  - Rich article display with author metadata, read times, cover images, and social sharing.
-- **Admin Broadcast Console (`/admin/notifications`):**
-  - Instant platform-wide or targeted notification creation.
-  - News article composer with optional automatic push notification broadcast to all users.
-  - Broadcast history log with status and targeting details.
+### 3.9. Automated Google Sheets Synchronization
+- Bi-directional sync connecting Supabase database events with organizers' private Google Sheets via webhook endpoints (`/api/webhooks/supabase-to-sheets` & `/api/admin/sync-sheets`).
+- Eliminates manual CSV exports during rapid on-ground check-ins.
 
-### 3.9. Competitive Leaderboard (`/leaderboard`)
-- Dual tab rankings: **Top Builders** & **Top Collegiate Chapters**.
-- Elo rating algorithm calculation based on hackathon participation, shortlisting, and podium finishes.
-- Podium display for Rank 1 (Global Champion), Rank 2, and Rank 3 with trophies, win counters, and university tags.
+### 3.10. Campus Ambassador (CSAP) & Club Network
+- **CSAP Console (`/admin-csap`):** Ambassador verification, referral link tracking, and leaderboard points management protected by HMAC session cookies.
+- **Campus Club Network (`/clubs`):** Directory of partner student clubs with partnership application flow (`/api/clubs/apply`).
+- **Mentorship Portal (`/mentor`):** Directory of industry mentors and booking workflows (`/api/mentor-application`).
+
+### 3.11. Content & Editorial Engine (`/blogs`)
+- Comprehensive blog platform featuring tech articles, hackathon guides, and winner spotlights.
+- Built-in writer studio (`/blogs/write`) with markdown formatting, cover image uploads, and SEO slug generation.
 
 ---
 
 ## 4. Non-Functional Requirements
 
-### 4.1. Performance & Core Web Vitals
-- **LCP (Largest Contentful Paint):** < 1.8s on 4G connections.
-- **INP (Interaction to Next Paint):** < 150ms for modal opens and filter interactions.
-- **CLS (Cumulative Layout Shift):** < 0.05 via explicit image dimension reservations and skeleton states.
-
-### 4.2. Availability & Resilience (Dual-Tier Fallback)
-- The web frontend implements a hybrid architecture:
-  - Primary: Direct querying to Supabase PostgreSQL database.
-  - Fallback: Transparent degradation to local storage (`localStorage`) and rich mock datasets (`mock-data.ts`) if Supabase connection credentials are temporarily missing or network is disconnected, preventing application crash.
-
-### 4.3. Security & Compliance
-- Supabase Row Level Security (RLS) on all 8 tables (`profiles`, `events`, `registrations`, `teams`, `team_members`, `team_invitations`, `submissions`, `notifications`, `user_notifications`, `news`).
-- Secure cryptographic generation for team invite tokens.
-- Secure environment variable isolation separating `NEXT_PUBLIC_` client tokens from server-only secrets (`SUPABASE_SECRET_KEY`, SMTP credentials).
-
----
-
-## 5. Success Metrics & KPIs
-1. **User Activation:** > 70% of registered accounts complete their developer profile.
-2. **Team Formation Rate:** > 65% of team-event registrants successfully form or join a squad before the deadline.
-3. **Host Completion Rate:** > 80% of organizers who begin Step 1 complete Step 7 and publish their event.
-4. **Platform Notification Engagement:** > 40% open/click-through rate on transactional team invite and deadline reminder notifications.
+| Metric | Target | Verification Method |
+| :--- | :--- | :--- |
+| **First Contentful Paint (FCP)** | `< 1.2s` | Lighthouse & Core Web Vitals |
+| **Time to Interactive (TTI)** | `< 2.0s` | Turbopack / Next.js Bundle Analyzer |
+| **Search Debounce Latency** | `150ms` | Client-side reactive input tests |
+| **Database Query SLA (P95)** | `< 80ms` | Supabase Postgres query insights & B-Tree indexes |
+| **Uptime & Resilience** | `99.9%` | Dual-Tier fallback engine (`lib/storage.ts`) |
+| **Mobile Responsiveness** | Fully responsive from 375px up | Cross-device testing (iOS Safari, Android Chrome) |
+| **Security & Privacy** | Strict RLS on all tables, server-only secret keys | Automated security audits & API auth guards |

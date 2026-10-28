@@ -28,7 +28,7 @@ export async function GET(req: Request, context: RouteContext) {
           subtitle: data.subtitle || '',
           excerpt: data.excerpt || data.subtitle || '',
           category: data.category,
-          image: data.image || '/blogs/agentic-ai.jpg',
+          image: data.image || 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189656/hackers-unity/blogs/agentic-ai.jpg',
           coverGradient: data.cover_gradient || 'from-sky-600/30 via-cyan-600/20 to-blue-950/40',
           publishedAt: data.created_at
             ? new Date(data.created_at).toLocaleDateString('en-US', {

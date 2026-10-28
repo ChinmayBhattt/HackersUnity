@@ -75,7 +75,7 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
-      { url: '/logo.png', type: 'image/png', sizes: '500x500' },
+      { url: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189208/hackers-unity/branding/logo.png', type: 'image/png', sizes: '500x500' },
       { url: '/icon-192.png', type: 'image/png', sizes: '192x192' },
       { url: '/icon-512.png', type: 'image/png', sizes: '512x512' },
     ],
@@ -95,7 +95,7 @@ export const metadata: Metadata = {
       "Hacker’s Unity is India’s Fastest Growing Hackathon Community, founded by Jha Suraj Kumar & co-founded by Chinmay Bhatt. Join us to build, learn & innovate! Top 1 India's fastest growing hackathon community.",
     images: [
       {
-        url: 'https://hackersunity.com/logo.png',
+        url: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189208/hackers-unity/branding/logo.png',
         width: 500,
         height: 500,
         alt: "Hacker's Unity Logo",
@@ -107,7 +107,7 @@ export const metadata: Metadata = {
     title: "Hacker's Unity – India's Fastest Growing Community",
     description:
       "Hacker's Unity is a national-level student-driven tech community founded by Jha Suraj Kumar & co-founded by Chinmay Bhatt. Join us to build, learn & innovate!",
-    images: ['https://hackersunity.com/logo.png'],
+    images: ['https://res.cloudinary.com/p6qljeni/image/upload/v1793189208/hackers-unity/branding/logo.png'],
     creator: '@hackersunity',
   },
   verification: {
@@ -126,7 +126,7 @@ const jsonLd = {
   '@type': 'Organization',
   name: "Hacker's Unity",
   url: 'https://hackersunity.com',
-  logo: 'https://hackersunity.com/logo.png',
+  logo: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189208/hackers-unity/branding/logo.png',
   description:
     "India's Fastest Growing Hackathon Community, uniting developers, innovators, founded by Jha Suraj Kumar and Chinmay Bhatt.",
   founders: [
@@ -169,7 +169,7 @@ export default function RootLayout({
     >
       <head>
         <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-        <link rel="icon" type="image/png" sizes="500x500" href="/logo.png" />
+        <link rel="icon" type="image/png" sizes="500x500" href="https://res.cloudinary.com/p6qljeni/image/upload/v1793189208/hackers-unity/branding/logo.png" />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

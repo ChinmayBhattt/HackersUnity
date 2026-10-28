@@ -43,7 +43,7 @@ export const VERIFIED_MENTORS: Record<string, VerifiedMentor> = {
     verificationId: 'HU-MTR-TAPENDRA-883',
     verificationYear: '2025 - Present',
     badgeLabel: "Hacker's Unity Verified Mentor",
-    avatarUrl: '/mentors/tapendra.png',
+    avatarUrl: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793190014/hackers-unity/mentors/tapendra.png',
     quote:
       'Building technology is important. Building solutions that create measurable impact is the goal.',
     experienceYears: '12+',

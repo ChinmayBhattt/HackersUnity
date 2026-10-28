@@ -145,7 +145,7 @@ export function JoinTeamSection() {
               {/* Framed Image */}
               <div className="relative overflow-hidden rounded-xl aspect-[4/3] sm:aspect-[16/11] bg-slate-900">
                 <Image
-                  src="/HuTeam-optimized.jpg"
+                  src="https://res.cloudinary.com/p6qljeni/image/upload/v1793189663/hackers-unity/team/HuTeam-optimized.jpg"
                   alt="Hacker's Unity Core Team and Community Builders"
                   fill
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 40vw"

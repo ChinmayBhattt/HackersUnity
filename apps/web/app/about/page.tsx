@@ -34,7 +34,7 @@ export default function AboutPage() {
       role: 'Founder',
       roleBadge: 'Founder',
       badgeColor: 'bg-orange-50 text-[#ea580c] border-orange-200/80',
-      image: '/team/jhasurajkumar.jpeg',
+      image: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189662/hackers-unity/team/jhasurajkumar.jpg',
       bio: "Visionary founder who established Hacker's Unity in 2022. Driven by a mission to unite student innovators, scale nationwide hackathons, and bridge the gap between young builders and real-world tech impact.",
       socials: [
         {
@@ -62,7 +62,7 @@ export default function AboutPage() {
       role: 'Co-Founder',
       roleBadge: 'Co-Founder',
       badgeColor: 'bg-sky-50 text-[#0099e6] border-sky-200/80',
-      image: '/team/chinmay.jpg',
+      image: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189661/hackers-unity/team/chinmay.jpg',
       bio: "Co-founder spearheading technical architecture, product design, and platform engineering. Passionate about empowering high-impact squads to turn bold ideas into production-ready software.",
       // handle: '@chinmaybhattt',
       socials: [
@@ -91,7 +91,7 @@ export default function AboutPage() {
       role: 'Chief Operating Officer',
       roleBadge: 'Chief Operating Officer',
       badgeColor: 'bg-emerald-50 text-emerald-600 border-emerald-200/80',
-      image: '/team/AmitKumar.png',
+      image: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189645/hackers-unity/team/AmitKumar.jpg',
       bio: "Chief Operating Officer overseeing platform operations, nationwide hackathon execution, community initiatives, and strategic partnerships across colleges and tech hubs.",
       socials: [
         {
@@ -119,7 +119,7 @@ export default function AboutPage() {
       role: 'Chief Marketing Officer',
       roleBadge: 'Chief Marketing Officer',
       badgeColor: 'bg-purple-50 text-purple-600 border-purple-200/80',
-      image: '/team/Pranjal.jpeg',
+      image: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189664/hackers-unity/team/Pranjal.jpg',
       bio: "Chief Marketing Officer leading strategic brand partnerships, campus ambassador networks, and community operations to make Hacker's Unity India's fastest-growing developer collective.",
       // handle: 'pranjal454',
       socials: [

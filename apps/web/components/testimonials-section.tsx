@@ -21,7 +21,7 @@ const TESTIMONIALS: TestimonialItem[] = [
     name: 'Krishna Kishor Tirupati',
     designation: 'Senior Software Engineer at Microsoft',
     company: 'Microsoft',
-    avatar: '/testimonials/krishna-tirupati.jpeg',
+    avatar: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189920/hackers-unity/testimonials/krishna-tirupati.jpg',
     quote:
       "Mentoring student developers on Hacker's Unity has been an incredible experience. The enthusiasm, technical depth, and velocity with which teams turn ideas into working prototypes reflect the caliber of modern builders.",
     companyLogo: 'microsoft',
@@ -31,7 +31,7 @@ const TESTIMONIALS: TestimonialItem[] = [
     name: 'MihiR Shelar',
     designation: 'Technical Program Manager III at Amazon',
     company: 'Amazon',
-    avatar: '/testimonials/mihir-shelar.jpeg',
+    avatar: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189922/hackers-unity/testimonials/mihir-shelar.jpg',
     quote:
       "Hacker's Unity provides an outstanding bridge between classroom concepts and hyperscale production engineering. The focus on real-world execution prepares students for top-tier industry roles.",
     companyLogo: 'amazon',
@@ -41,7 +41,7 @@ const TESTIMONIALS: TestimonialItem[] = [
     name: 'Dhanunjay Mamidi',
     designation: 'Co-Founder & CDO @Covlant AI Inc',
     company: 'Covlant AI Inc',
-    avatar: '/testimonials/dhanunjay-mamidi.jpeg',
+    avatar: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189918/hackers-unity/testimonials/dhanunjay-mamidi.jpg',
     quote:
       "The talent and rapid iteration pace we witnessed during Hacker's Unity challenges are remarkable. It is an exceptional proving ground for the next wave of AI and deep-tech founders.",
     companyLogo: 'covlant',
@@ -51,7 +51,7 @@ const TESTIMONIALS: TestimonialItem[] = [
     name: 'Naga D Pothuraju',
     designation: 'Senior Engineering Manager at TikTok',
     company: 'TikTok',
-    avatar: '/testimonials/naga-pothuraju.png',
+    avatar: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793190026/hackers-unity/testimonials/naga-pothuraju.png',
     quote:
       'Seeing participants tackle distributed systems and high-throughput challenges with such dedication was truly inspiring. Hacker’s Unity creates high-stakes, collaborative arenas that nurture top talent.',
     companyLogo: 'tiktok',
@@ -61,7 +61,7 @@ const TESTIMONIALS: TestimonialItem[] = [
     name: 'Abhijit Roy',
     designation: 'Solution Architect at Tata Consultancy Services',
     company: 'Tata Consultancy Services',
-    avatar: '/testimonials/abhijit-roy.jpeg',
+    avatar: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189808/hackers-unity/testimonials/Abhijit_Roy.jpg',
     quote:
       'Guiding teams through solution architecture and enterprise scalability on Hacker’s Unity has been immensely rewarding. The platform cultivates structured problem solving and technical excellence.',
     companyLogo: 'tcs',
@@ -96,7 +96,7 @@ function CompanyLogo({ type }: { type: TestimonialItem['companyLogo'] }) {
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-md overflow-hidden relative border border-slate-200 dark:border-white/[0.1] shrink-0">
             <Image
-              src="/testimonials/covlant-logo.jpeg"
+              src="https://res.cloudinary.com/p6qljeni/image/upload/v1793189913/hackers-unity/testimonials/covlant-logo.jpg"
               alt="Covlant AI"
               fill
               className="object-cover"

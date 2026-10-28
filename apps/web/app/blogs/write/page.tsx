@@ -138,47 +138,47 @@ const DOMAINS = [
 const PRESET_BANNERS = [
   {
     label: 'Agentic AI',
-    url: '/blogs/agentic-ai.jpg',
+    url: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189656/hackers-unity/blogs/agentic-ai.jpg',
     category: 'Agentic AI',
   },
   {
     label: 'SpaceTech Cosmos',
-    url: '/blogs/space-domain.jpg',
+    url: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189625/hackers-unity/blogs/space-domain.jpg',
     category: 'Space Domain',
   },
   {
     label: 'Web3 & ZK Rollups',
-    url: '/blogs/web3.jpg',
+    url: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189624/hackers-unity/blogs/web3.jpg',
     category: 'Web3',
   },
   {
     label: 'Edge IoT Nodes',
-    url: '/blogs/iot.jpg',
+    url: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189628/hackers-unity/blogs/iot.jpg',
     category: 'IoT',
   },
   {
     label: 'Zero-Trust Defense',
-    url: '/blogs/cybersecurity.jpg',
+    url: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189613/hackers-unity/blogs/cybersecurity.jpg',
     category: 'Cybersecurity',
   },
   {
     label: 'Cloud Resilience',
-    url: '/blogs/cloud.jpg',
+    url: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189611/hackers-unity/blogs/cloud.jpg',
     category: 'Cloud',
   },
   {
     label: 'Robotics & Embodied AI',
-    url: '/blogs/iot.jpg',
+    url: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189628/hackers-unity/blogs/iot.jpg',
     category: 'Robotics',
   },
   {
     label: 'Open Source Community',
-    url: '/blogs/cloud.jpg',
+    url: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189611/hackers-unity/blogs/cloud.jpg',
     category: 'Open Source',
   },
   {
     label: 'Spatial & WebXR',
-    url: '/blogs/web3.jpg',
+    url: 'https://res.cloudinary.com/p6qljeni/image/upload/v1793189624/hackers-unity/blogs/web3.jpg',
     category: 'AR / VR & Spatial',
   },
 ];
