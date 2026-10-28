@@ -1,7 +1,7 @@
 # Hacker's Unity — Security Architecture & Access Control
 
 > **Document Type:** Platform Security Specifications & Access Control Model  
-> **Applies to:** Monorepo (`apps/web`, `apps/api`, Supabase Database)  
+> **Applies to:** Full-Stack Web Application (`apps/web`, Supabase Cloud Database)  
 > **Version:** 2.6.0  
 > **Last Updated:** October 2026  
 

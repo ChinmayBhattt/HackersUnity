@@ -27,9 +27,6 @@ Thumbs.db
 # Turbo
 .turbo/
 
-# Prisma
-apps/api/prisma/migrations/
-
 # Debug
 npm-debug.log*
 pnpm-debug.log*

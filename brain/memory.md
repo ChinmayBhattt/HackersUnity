@@ -13,11 +13,10 @@
 
 ### Workspace Mapping
 - **Monorepo Root:** `/Users/chinmaybhatt/HackersUnityPlatform`
-- **Frontend Web Application (`@hackers-unity/web`):** `apps/web` (Next.js 16.3.1, React 19.2.8, TailwindCSS v4 with `@tailwindcss/postcss`)
-- **Backend API Service (`api`):** `apps/api` (NestJS 11.0.1, Express, Jest)
+- **Frontend & Full-Stack Web App (`@hackers-unity/web`):** `apps/web` (Next.js 16.3.1, React 19.2.8, TailwindCSS v4 with `@tailwindcss/postcss`, Next.js API Routes)
 - **Shared Contracts & DTOs (`@hackers-unity/shared-types`):** `packages/shared-types`
 - **Database Engine:** PostgreSQL 16 on Supabase (`apps/web/supabase/`) with 25+ production migrations
-- **Local Container Infrastructure:** `docker-compose.yml` (Postgres 16, Redis 7, Meilisearch 1.12)
+- **Asset CDN:** Cloudinary Global CDN (`res.cloudinary.com`) for all platform media & moments gallery
 
 ---
 

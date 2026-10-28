@@ -6,9 +6,6 @@
     "build": "turbo build && (mkdir -p dist && cp -r apps/web/.next/* dist/ 2>/dev/null || true)",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
-    "db:migrate": "pnpm --filter @hackers-unity/api prisma:migrate",
-    "db:generate": "pnpm --filter @hackers-unity/api prisma:generate",
-    "db:studio": "pnpm --filter @hackers-unity/api prisma:studio",
     "clean": "turbo clean"
   },
   "devDependencies": {
@@ -18,8 +15,5 @@
   "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": "^20.0.0 || ^22.0.0"
-  },
-  "dependencies": {
-    "@supabase/server": "^1.4.1"
   }
 }

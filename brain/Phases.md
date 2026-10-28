@@ -13,7 +13,7 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                       HACKER'S UNITY ROADMAP                                │
 ├───────────────────────────────┬─────────────────────────────────────────────┤
-│ Phase 1: Foundation           │ ✅ Monorepo, Next.js 16, NestJS, Types      │
+│ Phase 1: Foundation           │ ✅ Monorepo, Next.js 16, Shared Types       │
 │ Phase 2: Core UI & Discovery  │ ✅ Landing, Hero Search, Cards, Brand       │
 │ Phase 3: Supabase PostgreSQL  │ ✅ Schema v1-v3, Realtime, RLS, Buckets     │
 │ Phase 4: Hosting & Squads     │ ✅ 7-Step Host, Squad Invites, Submissions  │
@@ -32,7 +32,7 @@
 - [x] Initialized **Turborepo** monorepo with `pnpm@9.15.0` workspaces.
 - [x] Bootstrapped `apps/web` on **Next.js 16.3.1** (App Router) and **React 19.2.8**.
 - [x] Configured **TailwindCSS v4** with `@tailwindcss/postcss` and custom brand variables.
-- [x] Bootstrapped `apps/api` with **NestJS 11.0.1** and Express platform.
+- [x] Streamlined full-stack architecture with Next.js 16 App Router API route handlers.
 - [x] Built `packages/shared-types` containing shared DTOs, enums, and API interfaces.
 - [x] Configured `docker-compose.yml` for local PostgreSQL 16, Redis 7, and Meilisearch 1.12.
 

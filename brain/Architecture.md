@@ -32,10 +32,6 @@ hackers-unity/
 │   │   ├── lib/                 # Core services, auth context, storage engine, hooks
 │   │   ├── supabase/            # PostgreSQL database schemas & incremental migrations (v1 - v3)
 │   │   └── utils/               # Supabase SSR client, server, and middleware utilities
-│   │
-│   └── api/                     # NestJS 11.0.1 Backend Microservice (TypeScript, Express)
-│       ├── src/                 # Controllers, Modules, Services, and Guards
-│       └── test/                # Unit & E2E Jest test suites
 │
 ├── packages/
 │   └── shared-types/            # Canonical TypeScript interfaces, enums, and DTOs
@@ -72,12 +68,6 @@ flowchart TB
         StorageEngine["Dual-Tier Storage (Supabase + LocalStorage Fallback)"]
     end
 
-    subgraph AppApi["apps/api (NestJS 11 Microservice)"]
-        NestControllers["REST Controllers"]
-        NestServices["Domain Business Logic"]
-        NestGuards["Auth & Role Guards"]
-    end
-
     subgraph SupabaseServices["Supabase Cloud / PostgreSQL 16 Infrastructure"]
         SupaAuth["Supabase GoTrue Auth (OAuth, Email, Phone OTP)"]
         SupaDB["PostgreSQL Database (RLS, Triggers, Functions)"]
@@ -98,12 +88,9 @@ flowchart TB
     ClientComp <-->|Auth Sessions & Cookies| SupaAuth
     ClientComp <-->|Binary Image Uploads| SupaStorage
     ClientComp <-->|API Calls| RouteHandlers
-    ClientComp <-->|Optional Extended API| NestControllers
-
     RouteHandlers <-->|Service Role Client| SupaDB
     RouteHandlers <-->|Dispatch Invites| SMTP
     SupaAuth <-->|Federated Login| OAuthProviders
-    NestServices <-->|Database Queries| SupaDB
 ```
 
 ---

@@ -1,7 +1,7 @@
 # Hacker's Unity — Engineering Rules & Code Standards
 
 > **Document Version:** 2.6.0  
-> **Applies to:** Entire Monorepo (`apps/web`, `apps/api`, `packages/shared-types`)  
+> **Applies to:** Monorepo (`apps/web`, `packages/shared-types`)  
 > **Enforcement:** Mandatory for all AI agents, contributors, and core developers  
 > **Last Updated:** October 2026  
 
