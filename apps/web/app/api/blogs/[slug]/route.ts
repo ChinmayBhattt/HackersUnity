@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/api-auth';
 import { BLOG_POSTS, BlogPost } from '@/lib/blogs-data';
 
 interface RouteContext {
-  params: Promise<{ slug: string }> | { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 export async function GET(req: Request, context: RouteContext) {

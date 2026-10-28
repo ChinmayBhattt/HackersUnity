@@ -87,7 +87,7 @@ interface RegisterPageProps {
 
 type RegistrationMode = 'CREATE_TEAM' | 'JOIN_TEAM' | 'SOLO';
 
-export function getSquadMemberCount(squad: any, maxCap: number = 4): number {
+function getSquadMemberCount(squad: any, maxCap: number = 4): number {
   if (!squad) return 0;
   const uniqueMemberIds = new Set<string>();
   if (squad.leader_id) {

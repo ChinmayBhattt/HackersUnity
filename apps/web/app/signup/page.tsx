@@ -504,7 +504,7 @@ function SignupForm({ initialMode }: { initialMode?: 'login' | 'register' }) {
   );
 }
 
-export default function SignupPage({ initialMode }: { initialMode?: 'login' | 'register' }) {
+export default function SignupPage() {
   return (
     <Suspense
       fallback={
@@ -513,7 +513,7 @@ export default function SignupPage({ initialMode }: { initialMode?: 'login' | 'r
         </div>
       }
     >
-      <SignupForm initialMode={initialMode} />
+      <SignupForm />
     </Suspense>
   );
 }

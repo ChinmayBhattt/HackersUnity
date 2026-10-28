@@ -14,7 +14,7 @@ import { createAdminClient } from '@/lib/api-auth';
 import { User } from 'lucide-react';
 
 interface BlogSlugPageProps {
-  params: Promise<{ slug: string }> | { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 export default async function BlogSlugPage({ params }: BlogSlugPageProps) {

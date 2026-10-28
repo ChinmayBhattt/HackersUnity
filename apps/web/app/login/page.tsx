@@ -1,7 +1,5 @@
-'use client';
-
-import SignupPage from '../signup/page';
+import { redirect } from 'next/navigation';
 
 export default function LoginPage() {
-  return <SignupPage initialMode="login" />;
+  redirect('/signup?mode=login');
 }

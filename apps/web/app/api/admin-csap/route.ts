@@ -14,7 +14,7 @@ export interface CsapAuthResult {
   error?: string;
 }
 
-export const ROOT_OWNER_EMAIL = (
+const ROOT_OWNER_EMAIL = (
   process.env.ADMIN_EMAIL ||
   process.env.NEXT_PUBLIC_ADMIN_EMAIL ||
   process.env.CSAP_ROOT_ADMIN_EMAIL ||
