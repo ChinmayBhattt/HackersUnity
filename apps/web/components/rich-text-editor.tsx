@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import type QuillType from 'quill';
+import { renderDescriptionToHtml } from '@/lib/format-description';
 
 export interface RichTextEditorProps {
   value: string;
@@ -11,6 +12,15 @@ export interface RichTextEditorProps {
   label?: string;
   className?: string;
   helperText?: string;
+}
+
+/**
+ * Normalizes input text (Markdown, plain text with bullets, or HTML)
+ * into semantic HTML that Quill can cleanly parse into Delta blocks.
+ */
+function normalizeToHtml(raw: string): string {
+  if (!raw || !raw.trim()) return '';
+  return renderDescriptionToHtml(raw);
 }
 
 export function RichTextEditor({
@@ -25,9 +35,15 @@ export function RichTextEditor({
   const containerRef = useRef<HTMLDivElement>(null);
   const quillRef = useRef<QuillType | null>(null);
   const lastEmittedValue = useRef<string | null>(null);
+  const latestValueRef = useRef<string>(value || '');
+  const isTypingRef = useRef<boolean>(false);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Approximate editor height based on rows prop
+  // Keep latestValueRef synced on every render to solve async race conditions
+  latestValueRef.current = value || '';
+
+  // Calculate approximate editor minimum height based on rows
   const minHeightPx = Math.max(120, (rows || 5) * 28 + 30);
 
   useEffect(() => {
@@ -40,7 +56,7 @@ export function RichTextEditor({
       // Clean container on init to prevent duplicate toolbars in React 18/19 StrictMode
       containerRef.current.innerHTML = '';
 
-      // Create editor wrapper div
+      // Create editor element
       const editorElement = document.createElement('div');
       containerRef.current.appendChild(editorElement);
 
@@ -50,7 +66,7 @@ export function RichTextEditor({
 
         if (!isMounted) return;
 
-        // Custom toolbar options matching the platform's rich editing needs
+        // Standard toolbar options
         const toolbarOptions = [
           ['bold', 'italic', 'underline', 'strike'],
           [{ header: 1 }, { header: 2 }],
@@ -68,9 +84,12 @@ export function RichTextEditor({
           },
         });
 
-        // Set initial content
-        if (value) {
-          quillInstance.root.innerHTML = value;
+        // Set initial content from latestValueRef to prevent async mount race conditions
+        const initialVal = latestValueRef.current;
+        if (initialVal && initialVal.trim() !== '') {
+          const html = normalizeToHtml(initialVal);
+          quillInstance.clipboard.dangerouslyPasteHTML(html);
+          lastEmittedValue.current = quillInstance.root.innerHTML;
         }
 
         // Listen for user edits
@@ -78,13 +97,33 @@ export function RichTextEditor({
           if (!quillInstance) return;
 
           if (source === 'user') {
-            const html = quillInstance.root.innerHTML;
+            isTypingRef.current = true;
+            if (typingTimeoutRef.current) {
+              clearTimeout(typingTimeoutRef.current);
+            }
+            typingTimeoutRef.current = setTimeout(() => {
+              isTypingRef.current = false;
+            }, 500);
+
             const text = quillInstance.getText().trim();
-            // If empty text, send empty string instead of <p><br></p>
-            const normalized = text.length === 0 ? '' : html;
-            lastEmittedValue.current = normalized;
-            onChange(normalized);
+            const html = quillInstance.root.innerHTML;
+            // If empty text or only <p><br></p>, send empty string so required checks pass/fail properly
+            const emitted = text.length === 0 ? '' : html;
+            lastEmittedValue.current = emitted;
+            onChange(emitted);
           }
+        });
+
+        // Track focus/blur to ensure we never overwrite during typing
+        quillInstance.root.addEventListener('focus', () => {
+          isTypingRef.current = true;
+        });
+
+        quillInstance.root.addEventListener('blur', () => {
+          if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+          }
+          isTypingRef.current = false;
         });
 
         quillRef.current = quillInstance;
@@ -98,6 +137,9 @@ export function RichTextEditor({
 
     return () => {
       isMounted = false;
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
       quillRef.current = null;
       if (containerRef.current) {
         containerRef.current.innerHTML = '';
@@ -105,22 +147,38 @@ export function RichTextEditor({
     };
   }, []); // Run once on mount
 
-  // Sync external value updates when parent changes value (e.g. form reset, async load)
+  // Sync external value updates (e.g. Supabase async profile fetch, form resets)
   useEffect(() => {
     const quill = quillRef.current;
     if (!quill) return;
 
-    const currentHtml = quill.root.innerHTML;
-    const isDifferent = value !== currentHtml && value !== lastEmittedValue.current;
+    // Never overwrite while the user is actively typing or editor is focused
+    if (isTypingRef.current || quill.hasFocus()) {
+      return;
+    }
 
-    if (isDifferent) {
-      // If cleared externally to empty string
-      if (!value || value.trim() === '') {
+    // If incoming value is identical to what was already emitted, ignore
+    if (value === lastEmittedValue.current) {
+      return;
+    }
+
+    const currentText = quill.getText().trim();
+    const currentHtml = quill.root.innerHTML;
+
+    // If value is empty / cleared externally
+    if (!value || value.trim() === '') {
+      if (currentText.length > 0) {
         quill.setText('');
-      } else {
-        quill.root.innerHTML = value;
+        lastEmittedValue.current = '';
       }
-      lastEmittedValue.current = value;
+      return;
+    }
+
+    // External change has arrived (e.g. async Supabase data load)
+    if (value !== currentHtml) {
+      const html = normalizeToHtml(value);
+      quill.clipboard.dangerouslyPasteHTML(html);
+      lastEmittedValue.current = quill.root.innerHTML;
     }
   }, [value]);
 
@@ -138,29 +196,19 @@ export function RichTextEditor({
           ['--quill-min-height' as any]: `${minHeightPx}px`,
         }}
       >
-        {/* Skeleton while Quill JS bundle loads */}
+        <div ref={containerRef} className="quill-host min-h-[140px]" />
+
         {!isLoaded && (
-          <div
-            className="flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-[#080c14] text-slate-400 dark:text-slate-500 animate-pulse"
-            style={{ minHeight: `${minHeightPx + 44}px` }}
-          >
-            <div className="w-8 h-8 rounded-full border-2 border-slate-300 dark:border-white/10 border-t-[#0099e6] animate-spin mb-2" />
-            <span className="text-xs font-medium">Loading Quill Editor...</span>
+          <div className="absolute inset-0 bg-slate-50/60 dark:bg-[#0c1017]/60 backdrop-blur-xs flex items-center justify-center pointer-events-none">
+            <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 animate-pulse">
+              Loading editor...
+            </span>
           </div>
         )}
-
-        {/* Quill Editor Mount Target */}
-        <div
-          ref={containerRef}
-          className={`quill-editor-wrapper ${!isLoaded ? 'hidden' : ''}`}
-          style={{
-            minHeight: `${minHeightPx}px`,
-          }}
-        />
       </div>
 
       {helperText && (
-        <p className="text-[11px] text-slate-500 dark:text-slate-400 pl-0.5">
+        <p className="text-[10px] text-slate-400 dark:text-slate-500">
           {helperText}
         </p>
       )}
