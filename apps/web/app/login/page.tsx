@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import { AuthView } from '@/components/auth-view';
 
 export default function LoginPage() {
-  redirect('/signup?mode=login');
+  return <AuthView initialMode="login" />;
 }
