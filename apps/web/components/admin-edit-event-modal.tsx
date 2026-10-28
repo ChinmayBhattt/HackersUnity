@@ -28,6 +28,7 @@ import {
   Globe,
   Lock,
 } from 'lucide-react';
+import { RichTextEditor } from '@/components/rich-text-editor';
 import { filterDisplayTags } from '@/lib/utils';
 
 export interface AdminEvent {
@@ -764,29 +765,23 @@ export function AdminEditEventModal({
             </h4>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Full Description / Overview *
-              </label>
-              <textarea
+              <RichTextEditor
+                label="Full Description / Overview *"
                 rows={6}
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={setDescription}
                 placeholder="Comprehensive details about the hackathon tracks, schedule, rules, and offerings..."
-                className="w-full p-3.5 rounded-xl bg-white dark:bg-[#080c14] border border-slate-200 dark:border-white/[0.1] text-slate-900 dark:text-white text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Rules &amp; Code of Conduct
-                </label>
-                <textarea
-                  rows={3}
+                <RichTextEditor
+                  label="Rules & Code of Conduct"
+                  rows={4}
                   value={rulesText}
-                  onChange={(e) => setRulesText(e.target.value)}
+                  onChange={setRulesText}
                   placeholder="Official participation rules, submission criteria..."
-                  className="w-full p-3 rounded-xl bg-white dark:bg-[#080c14] border border-slate-200 dark:border-white/[0.1] text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-[#0099e6]"
                 />
               </div>
 
