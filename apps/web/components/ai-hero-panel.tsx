@@ -568,7 +568,7 @@ export function AiHeroPanel() {
       </div>
 
       {/* ─── COMPACT SUB-ROW: SUGGESTIONS / PRESETS ─── */}
-      <div className="flex items-center justify-center gap-1.5 flex-wrap mt-2 px-2 text-center">
+      <div className="flex items-center justify-center gap-1.5 flex-wrap mt-2.5 px-2 text-center">
         {activeTab === 'find' ? (
           <>
             <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">

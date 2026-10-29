@@ -25,6 +25,7 @@ import { usePublishedEvents } from '@/lib/hooks/use-events';
 
 import { AuthModal } from '@/components/auth-modal';
 import { AiHeroPanel } from '@/components/ai-hero-panel';
+import { HeroPhotoSlider } from '@/components/hero-photo-slider';
 import { PodcastSection } from '@/components/podcast-section';
 import { TestimonialsSection } from '@/components/testimonials-section';
 import { JoinTeamSection } from '@/components/join-team-section';
@@ -114,43 +115,83 @@ export default function HomePage() {
   return (
     <div className="flex flex-col flex-1">
       {/* ─── Hero Section ────────────────────────────────────────── */}
-      <section id="hero" className="relative overflow-hidden pt-12 pb-20 md:pt-20 md:pb-28 border-b border-slate-200/80 dark:border-white/[0.08] bg-grid-pattern">
+      <section id="hero" className="relative overflow-hidden pt-10 pb-16 md:pt-16 md:pb-24 border-b border-slate-200/80 dark:border-white/[0.08] bg-grid-pattern">
         {/* Soft Ambient Brand Mesh */}
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#0099e6]/10 dark:bg-[#0099e6]/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute top-1/3 left-1/3 w-80 h-80 bg-[#f97316]/10 dark:bg-[#f97316]/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#0099e6]/10 dark:bg-[#0099e6]/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-1/3 right-1/4 w-80 h-80 bg-[#f97316]/10 dark:bg-[#f97316]/15 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center flex flex-col items-center">
-          {/* Top Pill */}
-          <div id="hero-pill" className="inline-flex items-center gap-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] text-slate-800 dark:text-slate-200 text-[11px] sm:text-xs font-bold mb-6 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500 max-w-full justify-center">
-            <span className="flex h-2 w-2 relative shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0099e6] opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#0099e6]" />
-            </span>
-            <span className="font-mono uppercase tracking-wider text-[10px] sm:text-xs text-center">
-              <strong className="text-[#0099e6]">15+ LIVE HACKATHONS</strong> • <strong className="text-[#ea580c]">$350K PRIZE POOLS</strong>
-            </span>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Main 2-Column Grid: Left = Hero Pitch, Right = Sliding Moments Card */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 xl:gap-14 items-center">
+            {/* Left Column: Hero Pitch */}
+            <div className="lg:col-span-7 flex flex-col items-start text-left pr-0 lg:pr-2">
+              {/* Top Pill */}
+              <div id="hero-pill" className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-1.5 rounded-full bg-white dark:bg-[#0c1017] border border-slate-200 dark:border-white/[0.08] text-slate-800 dark:text-slate-200 text-[11px] sm:text-xs font-bold mb-6 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
+                <span className="flex h-2 w-2 relative shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#0099e6] opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#0099e6]" />
+                </span>
+                <span className="font-mono uppercase tracking-wider text-[10px] sm:text-xs">
+                  <strong className="text-[#0099e6]">India's Fastest Growing</strong> <strong className="text-[#ea580c]">Hackathon Community</strong>
+                </span>
+              </div>
+
+              {/* Main Title - Balanced typography with Brand Blue Platform & Brand Orange Ideas */}
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-[44px] xl:text-[50px] font-black text-slate-900 dark:text-white tracking-tight leading-[1.15] sm:leading-[1.12] mb-5">
+                Where Student Talent Finds a{' '}
+                <span className="text-[#0099e6]">Platform</span> &amp;{' '}
+                <span className="text-[#ea580c] dark:text-[#f97316]">Ideas</span> Become Impact.
+              </h1>
+
+              {/* Subtitle - Relaxed reading width and comfortable line-height */}
+              <p className="text-base sm:text-lg lg:text-[17px] text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed font-medium mb-6">
+                Discover premier hackathons across AI Agents, Web3, and DeepTech. Match with world-class teammates, build high-impact prototypes, and win verified payouts on Hacker&apos;s Unity.
+              </p>
+
+              {/* Action CTAs to fill vertical space harmoniously with the photo card */}
+              <div className="flex items-center gap-3 pt-1 flex-wrap">
+                <Link
+                  href="/hackathons"
+                  className="px-6 py-2.5 rounded-full bg-slate-900 hover:bg-slate-800 dark:bg-[#0099e6] dark:hover:bg-[#0088cc] text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center gap-2 cursor-pointer group hover:scale-[1.02]"
+                >
+                  <span>Explore Hackathons</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                </Link>
+                <Link
+                  href="/host"
+                  className="px-6 py-2.5 rounded-full bg-slate-100/90 hover:bg-slate-200/90 dark:bg-white/[0.08] dark:hover:bg-white/[0.14] text-slate-800 dark:text-white font-bold text-xs sm:text-sm border border-slate-200/90 dark:border-white/[0.12] transition-all cursor-pointer hover:scale-[1.02]"
+                >
+                  Host a Hackathon
+                </Link>
+              </div>
+
+              {/* Trust highlights */}
+              <div className="flex items-center gap-2 pt-4 text-[11px] font-bold text-slate-500 dark:text-slate-400 flex-wrap">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100/80 dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06]">
+                  <Zap className="w-3.5 h-3.5 text-[#0099e6]" /> Verified Payouts
+                </span>
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100/80 dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06]">
+                  <Users className="w-3.5 h-3.5 text-emerald-500" /> Teammate Matching
+                </span>
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100/80 dark:bg-white/[0.04] border border-slate-200/60 dark:border-white/[0.06]">
+                  <Trophy className="w-3.5 h-3.5 text-[#ea580c]" /> Top Global Arenas
+                </span>
+              </div>
+            </div>
+
+            {/* Right Column: Sliding Photos Card (Devfolio-inspired with Cloudinary Photos) */}
+            <div className="lg:col-span-5 flex justify-center lg:justify-end w-full">
+              <HeroPhotoSlider />
+            </div>
           </div>
 
-          {/* Main Title */}
-          <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black text-slate-900 dark:text-white tracking-tight max-w-5xl leading-[1.15] sm:leading-[1.1] mb-6">
-            Where Student Talent Finds a {' '}
-            <span className="text-gradient-brand">Platform & Ideas</span> Become Impact.
-          </h1>
-
-          {/* Subtitle */}
-          <p className="text-base sm:text-lg text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed mb-8 font-medium">
-            Discover premier hackathons across AI Agents, Web3, and DeepTech. Match with world-class teammates, build high-impact prototypes, and win verified payouts on Hacker&apos;s Unity.
-          </p>
-
-          {/* AI Command Center: Find & Build with Groq */}
-          <div id="ai-command" className="w-full flex justify-center">
+          {/* AI Command Center: Find & Build with Groq - Shifted slightly up with compact spacing */}
+          <div id="ai-command" className="w-full flex justify-center mt-8 sm:mt-10 lg:mt-12 mb-2">
             <AiHeroPanel />
           </div>
 
-
-
-          {/* Metrics Ticker */}
-          <div id="metrics-ticker" className="w-full max-w-5xl grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-5 pt-8 border-t border-slate-200/80 dark:border-white/[0.08]">
+          {/* Metrics Ticker - Reduced gap with Find/Build panel above */}
+          <div id="metrics-ticker" className="w-full grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-5 mt-4 sm:mt-6 pt-5 sm:pt-6 border-t border-slate-200/80 dark:border-white/[0.08]">
             {/* Stat 1: Hackathons */}
             <div className="group relative p-3 sm:p-5 rounded-2xl bg-white/90 dark:bg-[#0c1017]/90 backdrop-blur-sm border border-slate-200/90 dark:border-white/[0.08] shadow-xs hover:shadow-lg dark:hover:shadow-black/70 hover:border-slate-300 dark:hover:border-white/[0.18] hover:-translate-y-0.5 transition-all duration-300 flex flex-col items-center justify-center text-center">
               <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-white/[0.06] border border-slate-200 dark:border-white/[0.08] flex items-center justify-center text-slate-800 dark:text-slate-200 mb-2 group-hover:scale-110 transition-transform">
