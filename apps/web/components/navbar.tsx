@@ -23,7 +23,6 @@ import {
   Moon,
   Headphones,
   BookOpen,
-  Building2,
 } from 'lucide-react';
 import { Logo } from './logo';
 import { AuthModal } from './auth-modal';
@@ -220,29 +219,6 @@ export function Navbar() {
                           </div>
                           <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
                             Beyond The Mic tech series
-                          </span>
-                        </div>
-                      </Link>
-
-                      <Link
-                        href="/clubs"
-                        onClick={() => setOpportunitiesOpen(false)}
-                        className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-white/[0.04] transition-colors group cursor-pointer"
-                      >
-                        <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-500/10 border border-purple-100 dark:border-purple-500/20 flex items-center justify-center text-purple-600 dark:text-purple-400 group-hover:scale-105 transition-transform shrink-0">
-                          <Building2 className="w-4 h-4" />
-                        </div>
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
-                              Campus Clubs
-                            </span>
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30">
-                              CLUB
-                            </span>
-                          </div>
-                          <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
-                            Student chapters &amp; communities
                           </span>
                         </div>
                       </Link>
@@ -578,17 +554,6 @@ export function Navbar() {
                     <span>Podcasts</span>
                     <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-[#1ed760]/20 text-[#1ed760] border border-[#1ed760]/30 leading-none">
                       NEW
-                    </span>
-                  </Link>
-                  <Link
-                    href="/clubs"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/[0.04] transition-colors"
-                  >
-                    <Building2 className="w-3.5 h-3.5 text-purple-500" />
-                    <span>Campus Clubs</span>
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-purple-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/30 leading-none">
-                      PCU
                     </span>
                   </Link>
                 </div>
