@@ -115,19 +115,19 @@ export function Navbar() {
       <header className="sticky top-0 z-40 w-full bg-white/95 dark:bg-[#05070c]/85 border-b border-slate-200/80 dark:border-white/[0.08] backdrop-blur-xl shadow-xs dark:shadow-black/60 transition-colors duration-200">
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 lg:h-22 flex items-center justify-between gap-2 sm:gap-4 relative">
           {/* Left: Brand Logo */}
-          <div className="flex items-center shrink-0 pl-0 sm:pl-4 lg:pl-12 xl:pl-16">
+          <div className="flex items-center shrink-0 pl-0 sm:pl-2 lg:pl-3 xl:pl-4">
             <Link href="/" className="flex items-center group py-1">
               <Logo size={68} showText={false} />
             </Link>
           </div>
 
-          {/* Center: Floating Glass Panel Navigation (Centered) */}
-          <nav className="hidden lg:flex items-center justify-center absolute left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
-            <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2 px-3 sm:px-4 py-1.5 rounded-full bg-slate-100/80 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/[0.08] backdrop-blur-xl shadow-xs">
+          {/* Center: Floating Glass Panel Navigation (Centered) - Shown on desktop (xl+), folds into hamburger when screen is tight */}
+          <nav className="hidden xl:flex items-center justify-center absolute left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
+            <div className="flex items-center gap-1 xl:gap-1.5 px-2.5 xl:px-3.5 py-1.5 rounded-full bg-slate-100/80 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/[0.08] backdrop-blur-xl shadow-xs">
               {/* About Us */}
               <Link
                 href="/about"
-                className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 ${isAboutActive
+                className={`px-2.5 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-semibold transition-all duration-200 ${isAboutActive
                     ? 'bg-white dark:bg-white/[0.08] text-[#0099e6] shadow-xs font-bold dark:border dark:border-white/[0.08]'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/[0.04]'
                   }`}
@@ -144,7 +144,7 @@ export function Navbar() {
                 <button
                   type="button"
                   onClick={() => setOpportunitiesOpen((prev) => !prev)}
-                  className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${isOppsActive
+                  className={`px-2.5 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-semibold transition-all duration-200 flex items-center gap-1.5 cursor-pointer ${isOppsActive
                       ? 'bg-white dark:bg-white/[0.08] text-[#0099e6] shadow-xs font-bold dark:border dark:border-white/[0.08]'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/[0.04]'
                     }`}
@@ -230,7 +230,7 @@ export function Navbar() {
               {/* Contact Us */}
               <Link
                 href="/contact"
-                className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 ${isContactActive
+                className={`px-2.5 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-semibold transition-all duration-200 ${isContactActive
                     ? 'bg-white dark:bg-white/[0.08] text-[#0099e6] shadow-xs font-bold dark:border dark:border-white/[0.08]'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/[0.04]'
                   }`}
@@ -241,7 +241,7 @@ export function Navbar() {
               {/* Blogs */}
               <Link
                 href="/blogs"
-                className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 ${isBlogsActive
+                className={`px-2.5 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-semibold transition-all duration-200 ${isBlogsActive
                     ? 'bg-white dark:bg-white/[0.08] text-[#0099e6] shadow-xs font-bold dark:border dark:border-white/[0.08]'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/[0.04]'
                   }`}
@@ -252,7 +252,7 @@ export function Navbar() {
               {/* My Dashboard */}
               <Link
                 href="/dashboard"
-                className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition-all duration-200 ${isDashboardActive
+                className={`px-2.5 xl:px-3.5 py-1.5 rounded-full text-xs xl:text-sm font-semibold transition-all duration-200 ${isDashboardActive
                     ? 'bg-white dark:bg-white/[0.08] text-[#0099e6] shadow-xs font-bold dark:border dark:border-white/[0.08]'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-white/[0.04]'
                   }`}
@@ -263,18 +263,18 @@ export function Navbar() {
           </nav>
 
           {/* Right: Action Bar */}
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 z-20">
-            {/* Quick Search Button (⌘K) - Compact circular button on mobile, full pill on sm+ */}
+          <div className="flex items-center gap-1.5 sm:gap-2 xl:gap-2.5 shrink-0 z-20">
+            {/* Quick Search Button (⌘K) - Full pill on desktop (xl+), single icon when center nav collapses or space is compact */}
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
-              className="flex items-center justify-center w-9 h-9 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-full sm:rounded-xl bg-slate-100/90 hover:bg-slate-200/80 dark:bg-[#0c1017]/90 dark:hover:bg-white/[0.06] border border-slate-200/90 dark:border-white/[0.12] transition-all cursor-pointer shadow-2xs group shrink-0"
+              className="flex items-center justify-center w-9 h-9 xl:w-auto xl:h-auto xl:px-3 xl:py-1.5 rounded-full xl:rounded-xl bg-slate-100/90 hover:bg-slate-200/80 dark:bg-[#0c1017]/90 dark:hover:bg-white/[0.06] border border-slate-200/90 dark:border-white/[0.12] transition-all cursor-pointer shadow-2xs group shrink-0"
               aria-label="Open search"
               title="Search hackathons & builders (⌘K)"
             >
-              <Search className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[#0099e6] group-hover:scale-110 transition-transform shrink-0" />
-              <span className="hidden sm:inline text-slate-400 text-xs font-normal ml-1.5">Search...</span>
-              <kbd className="hidden sm:inline-block ml-1.5 px-1.5 py-0.5 rounded-md bg-white/60 dark:bg-white/[0.08] border border-slate-200/80 dark:border-white/[0.12] text-[10px] font-mono font-bold text-slate-400 dark:text-slate-400 shadow-2xs">
+              <Search className="w-4 h-4 xl:w-3.5 xl:h-3.5 text-[#0099e6] group-hover:scale-110 transition-transform shrink-0" />
+              <span className="hidden xl:inline text-slate-400 text-xs font-normal ml-1.5">Search...</span>
+              <kbd className="hidden xl:inline-block ml-1.5 px-1.5 py-0.5 rounded-md bg-white/60 dark:bg-white/[0.08] border border-slate-200/80 dark:border-white/[0.12] text-[10px] font-mono font-bold text-slate-400 dark:text-slate-400 shadow-2xs">
                 ⌘K
               </kbd>
             </button>
@@ -335,7 +335,7 @@ export function Navbar() {
                     onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                     aria-expanded={userDropdownOpen}
                     aria-haspopup="true"
-                    className="flex items-center gap-2 p-1.5 pl-1.5 sm:pl-2 pr-3 rounded-xl bg-sky-50 dark:bg-[#0099e6]/10 border border-[#0099e6]/30 hover:border-[#0099e6] transition-colors cursor-pointer group"
+                    className="flex items-center gap-1.5 xl:gap-2 p-1.5 rounded-xl xl:pr-3 bg-sky-50 dark:bg-[#0099e6]/10 border border-[#0099e6]/30 hover:border-[#0099e6] transition-colors cursor-pointer group shrink-0"
                   >
                     {isImage ? (
                       <img
@@ -353,7 +353,7 @@ export function Navbar() {
                         {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
                       </div>
                     )}
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[90px] truncate hidden sm:inline">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[90px] truncate hidden xl:inline">
                       {currentUser.name ? currentUser.name.split(' ')[0] : 'User'}
                     </span>
                   </button>
@@ -477,20 +477,20 @@ export function Navbar() {
               </Link>
             )}
 
-            {/* Mobile Menu Button */}
+            {/* Mobile / Compact Menu Button - Shown whenever center bar collapses */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-lg cursor-pointer"
-              aria-label="Toggle mobile menu"
+              className="xl:hidden p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white rounded-lg cursor-pointer shrink-0"
+              aria-label="Toggle navigation menu"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
 
-        {/* Mobile Navigation Drawer */}
+        {/* Mobile / Tablet Navigation Drawer */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#05070c] px-4 py-4 space-y-2 animate-in fade-in slide-in-from-top-2">
+          <div className="xl:hidden border-t border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#05070c] px-4 py-4 space-y-2 animate-in fade-in slide-in-from-top-2">
             <Link
               href="/about"
               onClick={() => setMobileMenuOpen(false)}
