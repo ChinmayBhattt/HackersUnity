@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { BLOG_POSTS, BlogPost } from '@/lib/blogs-data';
 import { createAdminClient } from '@/lib/api-auth';
+import { renderDescriptionToHtml } from '@/lib/format-description';
 import { User } from 'lucide-react';
 
 interface BlogSlugPageProps {
@@ -150,30 +151,49 @@ export default async function BlogSlugPage({ params }: BlogSlugPageProps) {
 
           {/* Content Body */}
           <div className="p-6 sm:p-12 space-y-6 text-sm sm:text-base leading-relaxed text-slate-700 dark:text-slate-300">
-            {post.content.map((paragraph, index) => {
-              if (paragraph.startsWith('### ')) {
+            {post.raw_markdown && /<\/?(?:p|div|h[1-6]|ul|ol|li|b|strong|i|em|pre|code|blockquote)\b/i.test(post.raw_markdown) ? (
+              <div
+                className="rich-description-content space-y-4"
+                dangerouslySetInnerHTML={{ __html: renderDescriptionToHtml(post.raw_markdown) }}
+              />
+            ) : (
+              post.content.map((paragraph, index) => {
+                const hasHtml = /<\/?(?:p|div|h[1-6]|ul|ol|li|b|strong|i|em|pre|code|blockquote)\b/i.test(paragraph);
+                if (hasHtml) {
+                  return (
+                    <div
+                      key={index}
+                      className="rich-description-content"
+                      dangerouslySetInnerHTML={{ __html: renderDescriptionToHtml(paragraph) }}
+                    />
+                  );
+                }
+                if (paragraph.startsWith('### ')) {
+                  return (
+                    <h3
+                      key={index}
+                      className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white pt-4 pb-1 tracking-tight"
+                    >
+                      {paragraph.replace('### ', '')}
+                    </h3>
+                  );
+                }
+                if (paragraph.startsWith('- ')) {
+                  return (
+                    <li key={index} className="ml-4 list-disc text-slate-600 dark:text-slate-300">
+                      {paragraph.replace('- ', '')}
+                    </li>
+                  );
+                }
                 return (
-                  <h3
+                  <div
                     key={index}
-                    className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white pt-4 pb-1 tracking-tight"
-                  >
-                    {paragraph.replace('### ', '')}
-                  </h3>
+                    className="leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: renderDescriptionToHtml(paragraph) }}
+                  />
                 );
-              }
-              if (paragraph.startsWith('- ')) {
-                return (
-                  <li key={index} className="ml-4 list-disc text-slate-600 dark:text-slate-300">
-                    {paragraph.replace('- ', '')}
-                  </li>
-                );
-              }
-              return (
-                <p key={index} className="leading-relaxed">
-                  {paragraph}
-                </p>
-              );
-            })}
+              })
+            )}
 
             {/* Tags */}
             <div className="pt-6 border-t border-slate-200 dark:border-white/10 flex items-center gap-2 flex-wrap">

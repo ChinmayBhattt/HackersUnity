@@ -26,6 +26,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { renderDescriptionToHtml } from '@/lib/format-description';
 
 export interface AdminBlog {
   id: string;
@@ -820,9 +821,24 @@ export function AdminBlogsModeration({ onNotification, currentUserRole }: AdminB
 
               {/* Full Content Body */}
               <div className="space-y-4 text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-sans py-2">
-                {Array.isArray(selectedBlog.content) ? (
+                {selectedBlog.raw_markdown && /<\/?(?:p|div|h[1-6]|ul|ol|li|b|strong|i|em|pre|code|blockquote)\b/i.test(selectedBlog.raw_markdown) ? (
+                  <div
+                    className="rich-description-content space-y-3"
+                    dangerouslySetInnerHTML={{ __html: renderDescriptionToHtml(selectedBlog.raw_markdown) }}
+                  />
+                ) : Array.isArray(selectedBlog.content) ? (
                   selectedBlog.content.map((p, i) => {
                     const str = typeof p === 'string' ? p : JSON.stringify(p);
+                    const hasHtml = /<\/?(?:p|div|h[1-6]|ul|ol|li|b|strong|i|em|pre|code|blockquote)\b/i.test(str);
+                    if (hasHtml) {
+                      return (
+                        <div
+                          key={i}
+                          className="rich-description-content"
+                          dangerouslySetInnerHTML={{ __html: renderDescriptionToHtml(str) }}
+                        />
+                      );
+                    }
                     if (str.startsWith('### ')) {
                       return (
                         <h4 key={i} className="text-base sm:text-lg font-bold text-slate-900 dark:text-white pt-2">
@@ -844,10 +860,17 @@ export function AdminBlogsModeration({ onNotification, currentUserRole }: AdminB
                         </pre>
                       );
                     }
-                    return <p key={i}>{str}</p>;
+                    return (
+                      <div
+                        key={i}
+                        dangerouslySetInnerHTML={{ __html: renderDescriptionToHtml(str) }}
+                      />
+                    );
                   })
                 ) : (
-                  <p>{selectedBlog.content}</p>
+                  <div
+                    dangerouslySetInnerHTML={{ __html: renderDescriptionToHtml(typeof selectedBlog.content === 'string' ? selectedBlog.content : '') }}
+                  />
                 )}
               </div>
 
