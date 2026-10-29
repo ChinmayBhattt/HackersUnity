@@ -538,17 +538,6 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    let diskOrder: string[] = [];
-    try {
-      const fs = await import('fs');
-      const path = await import('path');
-      const orderFile = path.join(process.cwd(), 'data', 'showcase-order.json');
-      if (fs.existsSync(orderFile)) {
-        const raw = fs.readFileSync(orderFile, 'utf8');
-        diskOrder = JSON.parse(raw).orderedEventIds || [];
-      }
-    } catch {}
-
     const eventsWithCounts = allEvents.map((evt: any) => {
       const regCount = (regCounts[evt.id] || 0) + (evt.slug ? (regCounts[evt.slug] || 0) : 0);
       const subCount = (subCounts[evt.id] || 0) + (evt.slug ? (subCounts[evt.slug] || 0) : 0);
@@ -561,13 +550,6 @@ export async function GET(req: NextRequest) {
         if (orderTag) {
           const parsed = parseInt(orderTag.replace('hu_order:', ''), 10);
           if (!isNaN(parsed)) displayOrder = parsed;
-        }
-      }
-
-      if (diskOrder.length > 0) {
-        const diskIdx = diskOrder.findIndex((id) => id === evt.id || id === evt.slug);
-        if (diskIdx !== -1) {
-          displayOrder = diskIdx;
         }
       }
 
@@ -1145,23 +1127,7 @@ export async function PATCH(req: NextRequest) {
         return NextResponse.json({ error: 'Missing or empty orderedEventIds array' }, { status: 400 });
       }
 
-      // 1. Save ordered list to local data file data/showcase-order.json as reliable backup/cache
-      try {
-        const fs = await import('fs');
-        const path = await import('path');
-        const dataDir = path.join(process.cwd(), 'data');
-        if (!fs.existsSync(dataDir)) {
-          fs.mkdirSync(dataDir, { recursive: true });
-        }
-        fs.writeFileSync(
-          path.join(dataDir, 'showcase-order.json'),
-          JSON.stringify({ orderedEventIds, updatedAt: new Date().toISOString() }, null, 2)
-        );
-      } catch (fsErr) {
-        console.warn('Could not write data/showcase-order.json:', fsErr);
-      }
-
-      // 2. Fetch existing events from Supabase to preserve other tags
+      // 1. Fetch existing events from Supabase to preserve other tags
       const { data: existingEvents } = await supabase
         .from('events')
         .select('id, slug, tags');
